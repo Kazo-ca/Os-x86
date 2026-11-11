@@ -294,6 +294,27 @@ Texte complet envoyé : [serie-6-envoyee.md](serie-6-envoyee.md). **62, 63 et 64
 75. Son (C38)
 76. Souris et clavier (C39)
 
+## Consignes du 2026-11-10 (réponses données avec ChatGPT)
+
+Tu as continué le débat avec ChatGPT et m'as remis un document de consignes : [consignes-2026-11-10.md](consignes-2026-11-10.md). Il complète et corrige le journal ; ses réponses récentes priment sur les formulations qu'elles remplacent. Il n'est pas encore fondu dans les tableaux ci-dessus : la vérification du 2026-11-10 ([verification-consignes-2026-11-10.md](verification-consignes-2026-11-10.md)) liste ce qu'il change, ce qu'il contredit et ce qu'il laisse ouvert. Le registre réconcilié viendra avec le plan, après les séries 7 et 8.
+
+- **Nouvelles réponses à enregistrer** (source : consignes) : 72.2 (détection centralisée du type par Os-x86), 72.6 remplacé (arrêt immédiat des VM d'applications ; VM manuelle gardée), 72.9 (accord admin machine, sous condition), 72.10 (BoxedWine propose d'installer Os-x86), 72.11 remplacé (demander avant le premier téléchargement), 72.15 (fermer la fenêtre arrête le programme), 74 (texte seul), 76 (capture permise), 70 A refusée (marque par BoxedWine, 57 tient), 71 (ajout manuel, tutoriel obligatoire), C22 (VM dans la sauvegarde), C31 (réseau simulé : chaque VM un hôte), C40-C41 (8 Go, < 10 s / < 30 s), C43 (conventions, jeux non exclus), C18 (vrai Windows en V1 si peu de changements).
+- **Décisions changées par les consignes** : 63 A (BoxedWine gère aussi Linux), D25 (le repli VM/DOS ne clôt plus V1), D27 (mode brut en V2), D28 (DOS au terminal « si raisonnable »), D50 (même bouteille quelle que soit l'app), D58 A puce 3 (console dans une bouteille acceptée), D43 (accord admin, voir 123), 64 (BoxedWine affiche aussi les programmes Linux).
+- **Contradictions à trancher** : séries [7](serie-7-envoyee.md) (101 à 119) et [8](serie-8-envoyee.md) (120 à 139). Les numéros 77 à 100 restent réservés à ChatGPT. Essais prévus : [etudes-prevues.md](etudes-prevues.md).
+
+## Réponses du 2026-11-10 aux séries 7 et 8 (premier lot : 101, 105, 134)
+
+Tes consignes du soir (document « Consignes pour commencer ») répondent à trois questions et **changent la règle de lecture pour ce lot : les autres questions des séries 7 et 8 ne sont pas acceptées par défaut, elles restent à examiner.** Une recommandation n'est retenue qu'après ta validation explicite. Si une décision ouverte bloque une partie du travail, je te demande de trancher avant d'implémenter ; les essais et les tâches indépendantes continuent.
+
+| # | Sujet | Décision | Carte |
+|---|---|---|---|
+| 101 | Code jetable de mesure | **A, acceptée** : les prototypes jetables commencent tout de suite, avant le plan, « notamment démarrage, stockage, affichage et son » (E1, E2, E4, E5 de [etudes-prevues.md](etudes-prevues.md) ; E3 et E6 à E9 suivent). Pas du code de production, aucune PR. Je présente les résultats, les limites et mes recommandations. | — |
+| 105 | Gestion des VM par BoxedWine | **C, tes mots** : « un utilisateur standard peut gérer seulement ses propres VM. Un administrateur dispose d'un contrôle total sur les VM. » À vérifier dans Kazo : comment les permissions existantes appliquent cette distinction, et la portée de « gérer les sous-systèmes » face à D32 (« une app ne contrôle que les sous-systèmes de l'usager en session »). Résultat de la vérification : [verification-105-134.md](verification-105-134.md). | D32, D42 |
+| 134 | Console avancée | **B, précisée par tes mots** : console avancée en V1. « Si l'héritage fin des permissions est trop complexe, les commandes lancées dans la console utilisent les droits déjà accordés à la bouteille. » À vérifier : les garanties, et la distinction entre cette console et les commandes internes dont BoxedWine a besoin pour lancer les programmes. Résultat : [verification-105-134.md](verification-105-134.md). Ça change D58 A puce 3 (confirmé) ; la recommandation 134 A tombe. | D20, D50, D58 |
+| 140-149 | Questions issues de ces réponses | Posées dans [serie-9-pour-chatgpt.md](serie-9-pour-chatgpt.md) (document autonome, à transmettre à ChatGPT) : 140 contrôle total de l'admin, 141 permission « gérer ses environnements », 142 mode invité, 143 permissions dangereuses déclarées par une Feature, 144 à 148 console avancée, 149 stockage des disques (essai E2). | — |
+| 150 | Fenêtres Wine à 1x1 pixel, périmètre du jalon 0 | **B, tranchée le 2026-11-10** : le jalon 0 est redéfini sur les programmes console (Wine `cmd`, programmes DOS, Linux) ; Wine graphique est repoussé à un jalon ultérieur sans date. Le bogue reste à comprendre à part (pistes dans [../essais/e1-wine-v86.md](../essais/e1-wine-v86.md), [../essais/e4-fenetres.md](../essais/e4-fenetres.md) et E13 : paquets i386 de WineHQ pour tester un autre Wine). Question posée dans [point-etape-2026-11-10.md](point-etape-2026-11-10.md). | D25, D26 |
+| 151 | Bouteille gabarit | **A, tranchée le 2026-11-10** : la première bouteille est fabriquée hors ligne dans l'état gabarit ; chaque nouvelle bouteille est une copie de cette bouteille gabarit (copie-sur-écriture à chiffrer), jamais un `wineboot` chez l'usager ; une mise à jour de Wine remplace l'état gabarit et la bouteille gabarit ensemble (C13-C14, 126). | D41 |
+
 ## Reste à débattre après la série 6 (réponses 62, 63 et 64)
 
 Détail des recherches vérifiées du 2026-11-09 : [../recherche-2026-11-09/](../recherche-2026-11-09/) (en anglais ; `critique.md` liste les ambiguïtés qui ont servi à la série 3, `reponse-40/` celles de la série 5).

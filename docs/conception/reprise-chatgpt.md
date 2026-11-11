@@ -2,6 +2,8 @@
 
 Ce document sert à poursuivre le débat avec ChatGPT. Il dit où en est le débat, ce qui reste à trancher, les règles du débat, et donne le texte à coller dans ChatGPT.
 
+> **Mise à jour du 2026-11-10.** Le débat avec ChatGPT a eu lieu ; son résultat est le document [consignes-2026-11-10.md](consignes-2026-11-10.md), vérifié dans [verification-consignes-2026-11-10.md](verification-consignes-2026-11-10.md). Les questions qui restent sont posées par Claude dans les séries [7](serie-7-envoyee.md) (101 à 119) et [8](serie-8-envoyee.md) (120 à 139). Les numéros 77 à 100 restent réservés à ChatGPT, au cas où il en aurait utilisé. Le reste de ce document décrit l'état d'avant ces consignes.
+
 Branche : [`conception-os-x86`](https://github.com/Kazo-ca/Os-x86/tree/conception-os-x86/docs) du dépôt public [Kazo-ca/Os-x86](https://github.com/Kazo-ca/Os-x86).
 
 ## Les fichiers
@@ -97,6 +99,6 @@ Pour commencer :
 
 Après chaque série :
 
-1. Copie le texte complet de la série de ChatGPT dans un nouveau fichier `docs/conception/serie-7-envoyee.md` (puis 8, 9…), et tes réponses mot pour mot dans `serie-7-reponses.md`.
+1. Copie le texte complet de la série de ChatGPT dans un nouveau fichier `docs/conception/serie-chatgpt-1-envoyee.md` (puis 2, 3…), et tes réponses mot pour mot dans `serie-chatgpt-1-reponses.md`. (Les noms `serie-7` et `serie-8` sont pris par les séries de Claude du 2026-11-10.)
 2. Colle le tableau de ChatGPT dans [journal-decisions.md](journal-decisions.md), sous une nouvelle section « Série 7 — avec ChatGPT », avant « Reste à débattre », suivi de la liste des décisions changées.
 3. Ou, plus simple depuis ton téléphone : donne à Claude, dans une prochaine session, le lien de partage de la conversation ChatGPT. Il consignera tout et vérifiera dans le code de Kazo les faits marqués « à vérifier ».

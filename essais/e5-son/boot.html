@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E5 — son dans v86</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #1b1b1b; color: #ddd; }
+  #screen_container { display: inline-block; border: 1px solid #555; background: #000; vertical-align: top; }
+  #screen_container > div { white-space: pre; font: 14px monospace; line-height: 14px; color: #ccc; }
+  #serial { height: 260px; overflow: auto; background: #000; color: #8f8; padding: 6px; font: 12px monospace; white-space: pre-wrap; border: 1px solid #555; }
+  #marks, #audio { font: 12px monospace; white-space: pre; }
+  button, input { margin: 2px; }
+  .row { margin: 6px 0; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E5 — son (SB16) dans v86 <small id="status">(chargement…)</small></h3>
+<div class="row">
+  <button id="btn_audio">Démarrer l'audio (geste)</button>
+  <button id="btn_aplay">aplay tone.wav</button>
+  <button id="btn_pw">PipeWire : 2 flux + muet</button>
+  <button id="btn_load">Charger le fil principal 10 s</button>
+  <button id="btn_save">Save state</button>
+  <button id="btn_report">Rapport audio</button>
+  <span id="mode"></span>
+</div>
+<div class="row">
+  <input id="serial_in" size="60" placeholder="commande pour la console série (Entrée pour envoyer)">
+</div>
+<div id="screen_container"><div></div><canvas style="display: none"></canvas></div>
+<pre id="serial"></pre>
+<div id="marks"></div>
+<div id="audio"></div>
+<script>
+"use strict";
+// Essai E5 — page de mesure. ?mode=main (v86 + haut-parleur natif dans le fil principal) ou
+// ?mode=worker (v86 dans vm-worker.js, pont direct worker -> AudioWorklet). ?guard=1 active la
+// garde anti-requêtes périmées côté worker. ?state=<fichier> restaure un état depuis images/.
+// Tout est exposé dans window.E5 pour run.mjs. Temps : performance.now() de la page, et "epoch" = ms absolus.
+const params = Object.fromEntries(new URLSearchParams(location.search));
+const MODE = params.mode || "main";
+const E5 = window.E5 = {
+  mode: MODE, params, t0: performance.now(), timeOrigin: performance.timeOrigin,
+  marks: [], info: [], events: [], serial: "", emu: null, worker: null, ctx: null, meter: null,
+  source: { queued: 0, queuedFrames: 0, pumps: 0, firstQueueEpoch: null, enableEpochs: [] }, // mode main : enveloppe du DAC natif
+  gesture: null, // {before, after, t}
+};
+const memMiB = Number(params.mem || 256);
+const epoch = () => performance.timeOrigin + performance.now();
+const setStatus = (s) => { document.getElementById("status").textContent = "(" + s + ")"; };
+document.getElementById("mode").textContent = `mode=${MODE} guard=${params.guard || 0} lead=${params.lead || 0}ms`;
+
+const config = {
+  wasm_path: "lib/v86.wasm",
+  memory_size: memMiB * 1024 * 1024,
+  vga_memory_size: 8 * 1024 * 1024,
+  bios: { url: "lib/seabios.bin" },
+  vga_bios: { url: "lib/vgabios.bin" },
+  filesystem: { baseurl: "images/alpine-rootfs-flat/", basefs: "images/alpine-fs.json" },
+  autostart: true,
+  bzimage_initrd_from_filesystem: true,
+  cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci console=ttyS0 tsc=reliable mitigations=off",
+};
+if (params.state) config.initial_state = { url: "images/" + params.state };
+
+// ---- console série : marques ----
+const serialEl = document.getElementById("serial");
+const marksEl = document.getElementById("marks");
+let line = "";
+let promptSeen = false;
+function addMark(name, uptime, tEpoch) {
+  const m = { name, uptime: Number(uptime), t: tEpoch - performance.timeOrigin, epoch: tEpoch };
+  E5.marks.push(m);
+  marksEl.textContent += `${name.padEnd(18)} t=${(m.t / 1000).toFixed(2)}s uptime=${uptime}\n`;
+}
+function onSerialText(text, tEpoch) {
+  E5.serial += text;
+  serialEl.textContent += text;
+  if (serialEl.textContent.length > 200000) serialEl.textContent = serialEl.textContent.slice(-100000);
+  serialEl.scrollTop = serialEl.scrollHeight;
+  for (const c of text) {
+    if (c === "\n") {
+      const l = line.trim(); line = "";
+      const mm = /^MARK (\S+)(?: (\S+))?$/.exec(l);
+      if (mm) addMark(mm[1], mm[2] || "0", tEpoch);
+      else if (/^(SND|APLAY|PW|MEM) /.test(l)) E5.info.push({ line: l, t: tEpoch - performance.timeOrigin });
+    } else if (c !== "\r") line += c;
+  }
+  if (!promptSeen && /[\n\r][\w().-]*:~# $/.test(E5.serial.slice(-40))) { promptSeen = true; addMark("shell-prompt", "0", tEpoch); }
+}
+
+// ---- audio : contexte, worklet, rapport ----
+let reportId = 0;
+const pending = new Map();
+function onWorkletMessage(e) {
+  const m = e.data;
+  if (m.type === "report" && pending.has(m.id)) { pending.get(m.id)(m.report); pending.delete(m.id); }
+}
+E5.audioReport = () => new Promise((resolve) => {
+  if (!E5.meter) return resolve(null);
+  const id = ++reportId; pending.set(id, resolve);
+  E5.meter.port.postMessage({ type: "report", id });
+});
+E5.resetMeter = () => { E5.meter && E5.meter.port.postMessage({ type: "reset" }); E5.source = { queued: 0, queuedFrames: 0, pumps: 0, firstQueueEpoch: null, enableEpochs: [] }; if (E5.worker) E5.worker.postMessage({ type: "reset" }); };
+E5.audioState = () => E5.ctx ? { state: E5.ctx.state, currentTime: E5.ctx.currentTime, sampleRate: E5.ctx.sampleRate, baseLatency: E5.ctx.baseLatency, outputLatency: E5.ctx.outputLatency } : null;
+// Correspondance horloge audio -> epoch ms (pour la latence marque série -> premier son).
+E5.clockMap = () => { const ts = E5.ctx.getOutputTimestamp(); return { contextTime: ts.contextTime, epoch: performance.timeOrigin + ts.performanceTime, now: E5.ctx.currentTime, nowEpoch: epoch() }; };
+
+async function setupMain() {
+  config.screen_container = document.getElementById("screen_container");
+  const emu = E5.emu = new V86(config);
+  for (const ev of ["emulator-ready", "emulator-started", "emulator-stopped", "download-error"]) {
+    emu.add_listener(ev, () => { E5.events.push({ name: ev, t: performance.now(), epoch: epoch() }); setStatus(ev); });
+  }
+  emu.add_listener("serial0-output-byte", (b) => onSerialText(String.fromCharCode(b), epoch()));
+  E5.send = (text) => emu.serial0_send(text);
+  E5.saveState = async () => { const t = performance.now(); const s = await emu.save_state(); return { ms: performance.now() - t, state: s }; };
+  E5.sourceStats = async () => ({ ...E5.source, sentFrames: E5.source.queuedFrames, sent: E5.source.queued, rate: emu.v86 && emu.v86.cpu.devices.sb16 ? emu.v86.cpu.devices.sb16.sampling_rate : null, sb16: !!(emu.v86 && emu.v86.cpu.devices.sb16) });
+  // Les adaptateurs (dont speaker_adapter) sont créés par v86 après le chargement du wasm : attendre emulator-ready.
+  await new Promise((resolve) => { if (emu.speaker_adapter) resolve(); else emu.add_listener("emulator-ready", resolve); });
+  const sa = emu.speaker_adapter;
+  if (!sa || !sa.audio_context) { setStatus("pas de haut-parleur v86"); return; }
+  E5.ctx = sa.audio_context;
+  // Enveloppe du DAC natif : compte ce que SB16 envoie au worklet de v86, et ses "pump".
+  const dac = sa.dac;
+  const origQueue = dac.queue.bind(dac), origPump = dac.pump.bind(dac);
+  dac.queue = (data) => { E5.source.queued++; E5.source.queuedFrames += data[0].length; if (E5.source.firstQueueEpoch === null) E5.source.firstQueueEpoch = epoch(); return origQueue(data); };
+  dac.pump = () => { E5.source.pumps++; return origPump(); };
+  emu.bus.register("dac-enable", () => { E5.source.enableEpochs.push(epoch()); });
+  await E5.ctx.audioWorklet.addModule("audio-worklet.js");
+  E5.meter = new AudioWorkletNode(E5.ctx, "e5-processor", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { mode: "meter" } });
+  E5.meter.port.onmessage = onWorkletMessage;
+  dac.node_output.connect(E5.meter);   // prise sur la sortie du DAC, avant le mélangeur v86
+  E5.meter.connect(E5.ctx.destination);
+}
+
+const workerPending = new Map();
+let workerMsgId = 0;
+function workerCall(type, extra = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++workerMsgId;
+    workerPending.set(id, { resolve, reject });
+    E5.worker.postMessage({ type, id, ...extra });
+  });
+}
+async function setupWorker() {
+  E5.ctx = new AudioContext();
+  await E5.ctx.audioWorklet.addModule("audio-worklet.js");
+  E5.meter = new AudioWorkletNode(E5.ctx, "e5-processor", { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { mode: "dac", leadMs: Number(params.lead || 0) } });
+  E5.meter.port.onmessage = onWorkletMessage;
+  E5.meter.connect(E5.ctx.destination);
+  const ch = new MessageChannel();
+  E5.meter.port.postMessage({ type: "port", port: ch.port1 }, [ch.port1]);
+  const w = E5.worker = new Worker("vm-worker.js");
+  w.onmessage = (e) => {
+    const m = e.data;
+    switch (m.type) {
+      case "serial": onSerialText(m.text, m.t); break;
+      case "event": E5.events.push({ name: m.name, t: m.t - performance.timeOrigin, epoch: m.t }); setStatus(m.name); break;
+      case "started": E5.events.push({ name: "worker-started", t: m.t - performance.timeOrigin, epoch: m.t }); break;
+      case "stall-done": E5.events.push({ name: "stall-done", t: m.t - performance.timeOrigin, epoch: m.t }); break;
+      case "error": { const p = workerPending.get(m.id); if (p) { p.reject(new Error(m.error)); workerPending.delete(m.id); } else setStatus("erreur worker : " + m.error); break; }
+      default: { const p = workerPending.get(m.id); if (p) { p.resolve(m); workerPending.delete(m.id); } }
+    }
+  };
+  w.onerror = (e) => { setStatus("worker error: " + e.message); E5.events.push({ name: "worker-error", msg: e.message, t: performance.now() }); };
+  w.postMessage({ type: "start", config, port: ch.port2, guard: params.guard === "1" }, [ch.port2]);
+  E5.send = (text) => w.postMessage({ type: "serial", text });
+  E5.saveState = async () => { const r = await workerCall("save"); return { ms: r.ms, state: r.state }; };
+  E5.sourceStats = async () => (await workerCall("stats")).stats;
+  E5.workerStall = (o) => w.postMessage({ type: "stall", ...o });
+}
+
+// Geste : démarre (reprend) le contexte audio. Appelé par le bouton (clic Playwright = geste utilisateur).
+E5.startAudio = async () => {
+  const before = E5.ctx && E5.ctx.state;
+  if (E5.ctx) await E5.ctx.resume();
+  E5.gesture = { before, after: E5.ctx && E5.ctx.state, t: performance.now(), epoch: epoch() };
+  setStatus("audio " + E5.gesture.after);
+  return E5.gesture;
+};
+// Charge du fil principal : bloque `block` ms toutes les `period` ms pendant `seconds` s ("Kazo sous charge").
+E5.mainLoad = ({ block = 300, period = 500, seconds = 12 } = {}) => {
+  const end = performance.now() + seconds * 1000;
+  E5.loadDone = false;
+  const tick = () => {
+    if (performance.now() >= end) { E5.loadDone = true; E5.events.push({ name: "load-done", t: performance.now() }); return; }
+    const t = performance.now() + block;
+    while (performance.now() < t) { /* busy */ }
+    setTimeout(tick, Math.max(0, period - block));
+  };
+  setTimeout(tick, 0);
+};
+E5.uploadState = async (name, buf) => {
+  const CHUNK = 32 * 1048576;
+  let r;
+  for (let off = 0; off < buf.byteLength; off += CHUNK) {
+    r = await fetch(`/__state/${name}?offset=${off}`, { method: "PUT", body: buf.slice(off, Math.min(off + CHUNK, buf.byteLength)) });
+    if (!r.ok) throw new Error("upload: " + r.status);
+  }
+  return Number(await r.text());
+};
+
+document.getElementById("btn_audio").onclick = () => E5.startAudio();
+document.getElementById("btn_aplay").onclick = () => E5.send("sh /root/sound.sh aplay\n");
+document.getElementById("btn_pw").onclick = () => E5.send("sh /root/sound.sh pipewire\n");
+document.getElementById("btn_load").onclick = () => E5.mainLoad({ seconds: 10 });
+document.getElementById("btn_save").onclick = async () => { const r = await E5.saveState(); setStatus(`état : ${(r.state.byteLength / 1048576).toFixed(1)} MiB en ${r.ms.toFixed(0)} ms ; envoi…`); setStatus("envoyé " + await E5.uploadState("state-snd.bin", r.state)); };
+document.getElementById("btn_report").onclick = async () => {
+  const r = await E5.audioReport();
+  document.getElementById("audio").textContent = r ? `blocs=${r.nBlocks} reçus=${r.receivedCount} (${r.receivedFrames} trames @${r.srcRate}) sous-alim=${r.underrunFrames} trames/${r.underrunEventCount} évts pumps=${r.pumpCount} premierSon=${r.firstSoundTime}` : "pas de mesure";
+};
+document.getElementById("serial_in").onkeydown = function (e) { if (e.key === "Enter") { E5.send(this.value + "\n"); this.value = ""; } e.stopPropagation(); };
+
+(MODE === "worker" ? setupWorker() : setupMain()).then(() => { E5.ready = true; E5.events.push({ name: "page-setup-done", t: performance.now() }); }).catch((e) => { setStatus("setup: " + e.message); E5.setupError = String(e.stack || e); });
+</script>
+</body>
+</html>

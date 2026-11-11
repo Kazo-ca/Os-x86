@@ -1,0 +1,764 @@
+{
+  "chrome": {
+    "runsUsed": 3,
+    "browser": "chrome",
+    "run": 2,
+    "available": true,
+    "version": "156.0.8078.80",
+    "headless": true,
+    "freshProfile": true,
+    "profileSizeAfter_MiB": 9.77149772644043,
+    "profileDeleted": true,
+    "os": "Windows_NT 10.0.26200 (x64)",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+    "ramGiB": 64,
+    "wallClock_s": 39.594,
+    "consoleErrors": [],
+    "date": "2026-11-10T16:49:50.084Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 16,
+    "crossOriginIsolated": true,
+    "sizeMiB": 1024,
+    "ops": 2000,
+    "page": {
+      "opfsGetDirectory": true,
+      "syncAccessHandleOnWindow": false,
+      "persistApi": true
+    },
+    "estimateBefore": {
+      "quota": 10737418240,
+      "usage": 0,
+      "usageDetails": {}
+    },
+    "persisted_before": false,
+    "persist": false,
+    "persisted_after": false,
+    "worker": {
+      "worker": {
+        "crossOriginIsolated": true,
+        "clockResolution_us": 4.999876022338867,
+        "syncAccessHandle": true,
+        "estimateStart": {
+          "quota": 10737418240,
+          "usage": 0,
+          "usageDetails": {}
+        },
+        "estimateEnd": {
+          "quota": 10737626975,
+          "usage": 208735,
+          "usageDetails": {
+            "indexedDB": 208735
+          }
+        }
+      },
+      "opfs": {
+        "available": true,
+        "seqWrite_1MiB": {
+          "bytes": 1073741824,
+          "total_ms": 594.2400000095367,
+          "MiB_per_s": 1723.2094776244721
+        },
+        "flushAfterSeqWrite_ms": 412.79499983787537,
+        "sizeAfterWrite": 1073741824,
+        "estimateAfterWrite": {
+          "quota": 11811160234,
+          "usage": 1073741994,
+          "usageDetails": {
+            "fileSystem": 1073741994
+          }
+        },
+        "randRead_4K": {
+          "n": 2000,
+          "median_us": 9.999990463256836,
+          "p99_us": 29.999971389770508,
+          "mean_us": 10.139999985694885,
+          "min_us": 0,
+          "max_us": 140.0001049041748,
+          "ops_per_s": 98619.32952768845,
+          "total_ms": 20.27999997138977
+        },
+        "randWrite_4K": {
+          "n": 2000,
+          "median_us": 19.999980926513672,
+          "p99_us": 130.00011444091797,
+          "mean_us": 29.5900000333786,
+          "min_us": 4.999876022338867,
+          "max_us": 569.9999332427979,
+          "ops_per_s": 33795.20104332422,
+          "total_ms": 59.1800000667572
+        },
+        "flushAfterRandWrite_4K_ms": 110.20499992370605,
+        "randRead_64K": {
+          "n": 2000,
+          "median_us": 25.00009536743164,
+          "p99_us": 119.99988555908203,
+          "mean_us": 32.34500002861023,
+          "min_us": 4.999876022338867,
+          "max_us": 845.0000286102295,
+          "ops_per_s": 30916.679521269645,
+          "total_ms": 64.69000005722046
+        },
+        "randWrite_64K": {
+          "n": 2000,
+          "median_us": 49.99995231628418,
+          "p99_us": 209.99979972839355,
+          "mean_us": 64.33499991893768,
+          "min_us": 19.999980926513672,
+          "max_us": 869.999885559082,
+          "ops_per_s": 15543.63878542012,
+          "total_ms": 128.66999983787537
+        },
+        "flushAfterRandWrite_64K_ms": 148.47000002861023,
+        "writeAndFlush_4K": {
+          "n": 200,
+          "median_us": 500,
+          "p99_us": 964.9999141693115,
+          "mean_us": 583.6000001430511,
+          "min_us": 410.0000858306885,
+          "max_us": 995.0001239776611,
+          "ops_per_s": 1713.5023984833474,
+          "total_ms": 116.72000002861023
+        },
+        "reopenSeqRead_64MiB": {
+          "total_ms": 22.02999997138977,
+          "MiB_per_s": 2905.129372815089,
+          "lastChunkMarkerOk": true
+        },
+        "sizeAfterReopen": 1073741824,
+        "cleanupCheck": "NotFoundError",
+        "cleanedUp": true
+      },
+      "idb": {
+        "available": true,
+        "seqFill_256K": {
+          "bytes": 1073741824,
+          "total_ms": 6300.504999876022,
+          "MiB_per_s": 162.5266546126302,
+          "putsPerTransaction": 32
+        },
+        "estimateAfterFill": {
+          "quota": 11812936513,
+          "usage": 1075518273,
+          "usageDetails": {
+            "indexedDB": 1075518273
+          }
+        },
+        "randGet_256K": {
+          "n": 2000,
+          "median_us": 1335.0000381469727,
+          "p99_us": 6799.999952316284,
+          "mean_us": 1647.1349999904633,
+          "min_us": 845.0000286102295,
+          "max_us": 25140.000104904175,
+          "ops_per_s": 607.1147780878858,
+          "total_ms": 3294.2699999809265
+        },
+        "randPut_256K_oneTx": {
+          "n": 2000,
+          "median_us": 4384.999990463257,
+          "p99_us": 9250,
+          "mean_us": 4622.764999985695,
+          "min_us": 3225.0001430511475,
+          "max_us": 30789.999961853027,
+          "ops_per_s": 216.3207517585459,
+          "total_ms": 9245.52999997139
+        },
+        "randPut_256K_batch16": {
+          "transactions": 125,
+          "putsPerTransaction": 16,
+          "tx_median_us": 29809.99994277954,
+          "tx_p99_us": 40139.999866485596,
+          "put_mean_us": 1917.4199999570847,
+          "puts_per_s": 521.5341448521356,
+          "total_ms": 3834.8399999141693
+        },
+        "rmw_4K_in_256K": {
+          "n": 2000,
+          "median_us": 5555.000066757202,
+          "p99_us": 11069.999933242798,
+          "mean_us": 5841.004999995232,
+          "min_us": 3990.000009536743,
+          "max_us": 45240.00000953674,
+          "ops_per_s": 171.20341448103818,
+          "total_ms": 11682.009999990463
+        },
+        "cleanedUp": true
+      }
+    },
+    "estimateAfter": {
+      "quota": 10737626975,
+      "usage": 208735,
+      "usageDetails": {
+        "indexedDB": 208735
+      }
+    }
+  },
+  "msedge": {
+    "runsUsed": 3,
+    "browser": "msedge",
+    "run": 2,
+    "available": true,
+    "version": "157.0.4341.42",
+    "headless": true,
+    "freshProfile": true,
+    "profileSizeAfter_MiB": 14.35086727142334,
+    "profileDeleted": true,
+    "os": "Windows_NT 10.0.26200 (x64)",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+    "ramGiB": 64,
+    "wallClock_s": 40.181,
+    "consoleErrors": [],
+    "date": "2026-11-10T16:51:47.972Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36 Edg/157.0.0.0",
+    "hardwareConcurrency": 16,
+    "crossOriginIsolated": true,
+    "sizeMiB": 1024,
+    "ops": 2000,
+    "page": {
+      "opfsGetDirectory": true,
+      "syncAccessHandleOnWindow": false,
+      "persistApi": true
+    },
+    "estimateBefore": {
+      "quota": 10737418240,
+      "usage": 0,
+      "usageDetails": {}
+    },
+    "persisted_before": false,
+    "persist": false,
+    "persisted_after": false,
+    "worker": {
+      "worker": {
+        "crossOriginIsolated": true,
+        "clockResolution_us": 4.999876022338867,
+        "syncAccessHandle": true,
+        "estimateStart": {
+          "quota": 10737418240,
+          "usage": 0,
+          "usageDetails": {}
+        },
+        "estimateEnd": {
+          "quota": 10737627236,
+          "usage": 208996,
+          "usageDetails": {
+            "indexedDB": 208996
+          }
+        }
+      },
+      "opfs": {
+        "available": true,
+        "seqWrite_1MiB": {
+          "bytes": 1073741824,
+          "total_ms": 732.1299998760223,
+          "MiB_per_s": 1398.6587083897703
+        },
+        "flushAfterSeqWrite_ms": 1275.6550002098083,
+        "sizeAfterWrite": 1073741824,
+        "estimateAfterWrite": {
+          "quota": 11811160234,
+          "usage": 1073741994,
+          "usageDetails": {
+            "fileSystem": 1073741994
+          }
+        },
+        "randRead_4K": {
+          "n": 2000,
+          "median_us": 9.999990463256836,
+          "p99_us": 39.999961853027344,
+          "mean_us": 11.722499966621399,
+          "min_us": 0,
+          "max_us": 134.99999046325684,
+          "ops_per_s": 85306.03564490477,
+          "total_ms": 23.444999933242798
+        },
+        "randWrite_4K": {
+          "n": 2000,
+          "median_us": 24.99985694885254,
+          "p99_us": 110.0001335144043,
+          "mean_us": 30.06000006198883,
+          "min_us": 5.000114440917969,
+          "max_us": 1964.9999141693115,
+          "ops_per_s": 33266.7996652638,
+          "total_ms": 60.12000012397766
+        },
+        "flushAfterRandWrite_4K_ms": 112.1949999332428,
+        "randRead_64K": {
+          "n": 2000,
+          "median_us": 25.00009536743164,
+          "p99_us": 134.99999046325684,
+          "mean_us": 34.15749990940094,
+          "min_us": 4.999876022338867,
+          "max_us": 3230.0000190734863,
+          "ops_per_s": 29276.14733667252,
+          "total_ms": 68.31499981880188
+        },
+        "randWrite_64K": {
+          "n": 2000,
+          "median_us": 55.00006675720215,
+          "p99_us": 250,
+          "mean_us": 70.7574999332428,
+          "min_us": 14.999866485595703,
+          "max_us": 904.9999713897705,
+          "ops_per_s": 14132.777457420974,
+          "total_ms": 141.5149998664856
+        },
+        "flushAfterRandWrite_64K_ms": 187.59500002861023,
+        "writeAndFlush_4K": {
+          "n": 200,
+          "median_us": 545.0000762939453,
+          "p99_us": 4805.000066757202,
+          "mean_us": 639.0499997138977,
+          "min_us": 414.99996185302734,
+          "max_us": 4974.999904632568,
+          "ops_per_s": 1564.8227845203028,
+          "total_ms": 127.80999994277954
+        },
+        "reopenSeqRead_64MiB": {
+          "total_ms": 17.880000114440918,
+          "MiB_per_s": 3579.418321608953,
+          "lastChunkMarkerOk": true
+        },
+        "sizeAfterReopen": 1073741824,
+        "cleanupCheck": "NotFoundError",
+        "cleanedUp": true
+      },
+      "idb": {
+        "available": true,
+        "seqFill_256K": {
+          "bytes": 1073741824,
+          "total_ms": 5895.805000066757,
+          "MiB_per_s": 173.68281345607687,
+          "putsPerTransaction": 32
+        },
+        "estimateAfterFill": {
+          "quota": 11812936513,
+          "usage": 1075518273,
+          "usageDetails": {
+            "indexedDB": 1075518273
+          }
+        },
+        "randGet_256K": {
+          "n": 2000,
+          "median_us": 1220.0000286102295,
+          "p99_us": 2455.000162124634,
+          "mean_us": 1423.1349999904633,
+          "min_us": 850.0001430511475,
+          "max_us": 16984.999895095825,
+          "ops_per_s": 702.6740260106745,
+          "total_ms": 2846.2699999809265
+        },
+        "randPut_256K_oneTx": {
+          "n": 2000,
+          "median_us": 4279.9999713897705,
+          "p99_us": 12000,
+          "mean_us": 4645.629999995232,
+          "min_us": 3130.000114440918,
+          "max_us": 48134.99999046326,
+          "ops_per_s": 215.25605784382878,
+          "total_ms": 9291.259999990463
+        },
+        "randPut_256K_batch16": {
+          "transactions": 125,
+          "putsPerTransaction": 16,
+          "tx_median_us": 28404.99997138977,
+          "tx_p99_us": 52200.000047683716,
+          "put_mean_us": 1828.9075000286102,
+          "puts_per_s": 546.7745088170707,
+          "total_ms": 3657.8150000572205
+        },
+        "rmw_4K_in_256K": {
+          "n": 2000,
+          "median_us": 5434.999942779541,
+          "p99_us": 15640.000104904175,
+          "mean_us": 5936.7699999809265,
+          "min_us": 3990.000009536743,
+          "max_us": 69454.99992370605,
+          "ops_per_s": 168.44176210350287,
+          "total_ms": 11873.539999961853
+        },
+        "cleanedUp": true
+      }
+    },
+    "estimateAfter": {
+      "quota": 10737627236,
+      "usage": 208996,
+      "usageDetails": {
+        "indexedDB": 208996
+      }
+    }
+  },
+  "chromium": {
+    "runsUsed": 3,
+    "browser": "chromium",
+    "run": 2,
+    "available": true,
+    "version": "158.0.8127.18",
+    "headless": true,
+    "freshProfile": true,
+    "profileSizeAfter_MiB": 2.532759666442871,
+    "profileDeleted": true,
+    "os": "Windows_NT 10.0.26200 (x64)",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+    "ramGiB": 64,
+    "wallClock_s": 40.929,
+    "consoleErrors": [],
+    "date": "2026-11-10T16:53:48.086Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.8127.18 Safari/537.36",
+    "hardwareConcurrency": 16,
+    "crossOriginIsolated": true,
+    "sizeMiB": 1024,
+    "ops": 2000,
+    "page": {
+      "opfsGetDirectory": true,
+      "syncAccessHandleOnWindow": false,
+      "persistApi": true
+    },
+    "estimateBefore": {
+      "quota": 10737418240,
+      "usage": 0,
+      "usageDetails": {}
+    },
+    "persisted_before": false,
+    "persist": false,
+    "persisted_after": false,
+    "worker": {
+      "worker": {
+        "crossOriginIsolated": true,
+        "clockResolution_us": 4.999876022338867,
+        "syncAccessHandle": true,
+        "estimateStart": {
+          "quota": 10737418240,
+          "usage": 0,
+          "usageDetails": {}
+        },
+        "estimateEnd": {
+          "quota": 10737627159,
+          "usage": 208919,
+          "usageDetails": {
+            "indexedDB": 208919
+          }
+        }
+      },
+      "opfs": {
+        "available": true,
+        "seqWrite_1MiB": {
+          "bytes": 1073741824,
+          "total_ms": 580.079999923706,
+          "MiB_per_s": 1765.2737555762649
+        },
+        "flushAfterSeqWrite_ms": 879.8099999427795,
+        "sizeAfterWrite": 1073741824,
+        "estimateAfterWrite": {
+          "quota": 11811160234,
+          "usage": 1073741994,
+          "usageDetails": {
+            "fileSystem": 1073741994
+          }
+        },
+        "randRead_4K": {
+          "n": 2000,
+          "median_us": 5.000114440917969,
+          "p99_us": 29.999971389770508,
+          "mean_us": 8.122499942779541,
+          "min_us": 0,
+          "max_us": 130.00011444091797,
+          "ops_per_s": 123114.80542255288,
+          "total_ms": 16.244999885559082
+        },
+        "randWrite_4K": {
+          "n": 2000,
+          "median_us": 19.999980926513672,
+          "p99_us": 70.00017166137695,
+          "mean_us": 25.892500042915344,
+          "min_us": 4.999876022338867,
+          "max_us": 479.9997806549072,
+          "ops_per_s": 38621.222297675275,
+          "total_ms": 51.78500008583069
+        },
+        "flushAfterRandWrite_4K_ms": 93.5550000667572,
+        "randRead_64K": {
+          "n": 2000,
+          "median_us": 20.000219345092773,
+          "p99_us": 120.00012397766113,
+          "mean_us": 31.117499947547913,
+          "min_us": 4.999876022338867,
+          "max_us": 1750,
+          "ops_per_s": 32136.25778695634,
+          "total_ms": 62.234999895095825
+        },
+        "randWrite_64K": {
+          "n": 2000,
+          "median_us": 49.99995231628418,
+          "p99_us": 600.0001430511475,
+          "mean_us": 76.90500009059906,
+          "min_us": 9.999990463256836,
+          "max_us": 3065.000057220459,
+          "ops_per_s": 13003.055702775313,
+          "total_ms": 153.81000018119812
+        },
+        "flushAfterRandWrite_64K_ms": 158.86999988555908,
+        "writeAndFlush_4K": {
+          "n": 200,
+          "median_us": 529.9999713897705,
+          "p99_us": 759.9999904632568,
+          "mean_us": 557.700001001358,
+          "min_us": 394.9999809265137,
+          "max_us": 3755.000114440918,
+          "ops_per_s": 1793.0787129361418,
+          "total_ms": 111.5400002002716
+        },
+        "reopenSeqRead_64MiB": {
+          "total_ms": 15.34000015258789,
+          "MiB_per_s": 4172.099045853208,
+          "lastChunkMarkerOk": true
+        },
+        "sizeAfterReopen": 1073741824,
+        "cleanupCheck": "NotFoundError",
+        "cleanedUp": true
+      },
+      "idb": {
+        "available": true,
+        "seqFill_256K": {
+          "bytes": 1073741824,
+          "total_ms": 7180.950000047684,
+          "MiB_per_s": 142.5995167760812,
+          "putsPerTransaction": 32
+        },
+        "estimateAfterFill": {
+          "quota": 11812936498,
+          "usage": 1075518258,
+          "usageDetails": {
+            "indexedDB": 1075518258
+          }
+        },
+        "randGet_256K": {
+          "n": 2000,
+          "median_us": 1200.0000476837158,
+          "p99_us": 2660.0000858306885,
+          "mean_us": 1311.3624999523163,
+          "min_us": 765.0001049041748,
+          "max_us": 19619.999885559082,
+          "ops_per_s": 762.5656521643419,
+          "total_ms": 2622.7249999046326
+        },
+        "randPut_256K_oneTx": {
+          "n": 2000,
+          "median_us": 4089.9999141693115,
+          "p99_us": 10164.999961853027,
+          "mean_us": 4476.322499990463,
+          "min_us": 3045.0000762939453,
+          "max_us": 36759.99999046326,
+          "ops_per_s": 223.39766627675522,
+          "total_ms": 8952.644999980927
+        },
+        "randPut_256K_batch16": {
+          "transactions": 125,
+          "putsPerTransaction": 16,
+          "tx_median_us": 33934.99994277954,
+          "tx_p99_us": 54329.999923706055,
+          "put_mean_us": 2297.0199999809265,
+          "puts_per_s": 435.34666655418914,
+          "total_ms": 4594.039999961853
+        },
+        "rmw_4K_in_256K": {
+          "n": 2000,
+          "median_us": 5565.000057220459,
+          "p99_us": 19579.999923706055,
+          "mean_us": 6634.674999952316,
+          "min_us": 4194.999933242798,
+          "max_us": 358250,
+          "ops_per_s": 150.7232833570879,
+          "total_ms": 13269.349999904633
+        },
+        "cleanedUp": true
+      }
+    },
+    "estimateAfter": {
+      "quota": 10737627159,
+      "usage": 208919,
+      "usageDetails": {
+        "indexedDB": 208919
+      }
+    }
+  },
+  "firefox": {
+    "runsUsed": 3,
+    "browser": "firefox",
+    "run": 2,
+    "available": true,
+    "version": "159.0",
+    "headless": true,
+    "freshProfile": true,
+    "profileSizeAfter_MiB": 32.45639228820801,
+    "profileDeleted": true,
+    "os": "Windows_NT 10.0.26200 (x64)",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+    "ramGiB": 64,
+    "wallClock_s": 117.565,
+    "consoleErrors": [],
+    "date": "2026-11-10T16:55:53.278Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:159.0) Gecko/20100101 Firefox/159.0",
+    "hardwareConcurrency": 16,
+    "crossOriginIsolated": true,
+    "sizeMiB": 1024,
+    "ops": 2000,
+    "page": {
+      "opfsGetDirectory": true,
+      "syncAccessHandleOnWindow": false,
+      "persistApi": true
+    },
+    "estimateBefore": {
+      "quota": 10737418240,
+      "usage": 0
+    },
+    "persisted_before": false,
+    "persist": "pas de réponse en 5 s (invite usager probable)",
+    "persisted_after": false,
+    "worker": {
+      "worker": {
+        "crossOriginIsolated": true,
+        "clockResolution_us": 19.99999999998181,
+        "syncAccessHandle": true,
+        "estimateStart": {
+          "quota": 10737418240,
+          "usage": 0
+        },
+        "estimateEnd": {
+          "quota": 10737418240,
+          "usage": 491520
+        }
+      },
+      "opfs": {
+        "available": true,
+        "seqWrite_1MiB": {
+          "bytes": 1073741824,
+          "total_ms": 618.3999999999999,
+          "MiB_per_s": 1655.8861578266499
+        },
+        "flushAfterSeqWrite_ms": 354.6400000000001,
+        "sizeAfterWrite": 1073741824,
+        "estimateAfterWrite": {
+          "quota": 10737418240,
+          "usage": 1074233344
+        },
+        "randRead_4K": {
+          "n": 2000,
+          "median_us": 59.99999999994543,
+          "p99_us": 100.00000000013642,
+          "mean_us": 59.55000000000007,
+          "min_us": 19.99999999998181,
+          "max_us": 240.0000000000091,
+          "ops_per_s": 16792.61125104952,
+          "total_ms": 119.10000000000014
+        },
+        "randWrite_4K": {
+          "n": 2000,
+          "median_us": 180.00000000006366,
+          "p99_us": 260.0000000002183,
+          "mean_us": 181.53999999999996,
+          "min_us": 119.99999999989086,
+          "max_us": 579.9999999999272,
+          "ops_per_s": 5508.42789467886,
+          "total_ms": 363.0799999999999
+        },
+        "flushAfterRandWrite_4K_ms": 85.10000000000014,
+        "randRead_64K": {
+          "n": 2000,
+          "median_us": 59.99999999994543,
+          "p99_us": 120.00000000011823,
+          "mean_us": 62.700000000000045,
+          "min_us": 19.99999999998181,
+          "max_us": 239.99999999978172,
+          "ops_per_s": 15948.963317384358,
+          "total_ms": 125.40000000000009
+        },
+        "randWrite_64K": {
+          "n": 2000,
+          "median_us": 199.9999999998181,
+          "p99_us": 280.0000000002001,
+          "mean_us": 195.18000000000006,
+          "min_us": 139.99999999987267,
+          "max_us": 420.00000000007276,
+          "ops_per_s": 5123.475765959625,
+          "total_ms": 390.3600000000001
+        },
+        "flushAfterRandWrite_64K_ms": 124.30000000000018,
+        "writeAndFlush_4K": {
+          "n": 200,
+          "median_us": 660.0000000003092,
+          "p99_us": 1339.9999999996908,
+          "mean_us": 691.4999999999986,
+          "min_us": 559.9999999999454,
+          "max_us": 2699.999999999818,
+          "ops_per_s": 1446.1315979754186,
+          "total_ms": 138.29999999999973
+        },
+        "reopenSeqRead_64MiB": {
+          "total_ms": 14.640000000000327,
+          "MiB_per_s": 4371.584699453454,
+          "lastChunkMarkerOk": true
+        },
+        "sizeAfterReopen": 1073741824,
+        "cleanupCheck": "NotFoundError",
+        "cleanedUp": true
+      },
+      "idb": {
+        "available": true,
+        "seqFill_256K": {
+          "bytes": 1073741824,
+          "total_ms": 25518.239999999998,
+          "MiB_per_s": 40.128159308792455,
+          "putsPerTransaction": 32
+        },
+        "estimateAfterFill": {
+          "quota": 10737418240,
+          "usage": 1078174592
+        },
+        "randGet_256K": {
+          "n": 2000,
+          "median_us": 3299.9999999992724,
+          "p99_us": 4440.000000002328,
+          "mean_us": 3310.9500000000007,
+          "min_us": 2399.9999999941792,
+          "max_us": 11220.000000001164,
+          "ops_per_s": 302.02811881786187,
+          "total_ms": 6621.9000000000015
+        },
+        "randPut_256K_oneTx": {
+          "n": 2000,
+          "median_us": 10480.000000003201,
+          "p99_us": 76740.00000000524,
+          "mean_us": 11594.73,
+          "min_us": 6599.999999998545,
+          "max_us": 151360.00000000058,
+          "ops_per_s": 86.24607903763174,
+          "total_ms": 23189.46
+        },
+        "randPut_256K_batch16": {
+          "transactions": 125,
+          "putsPerTransaction": 16,
+          "tx_median_us": 147320.00000000698,
+          "tx_p99_us": 236020.00000000407,
+          "put_mean_us": 9891.080000000002,
+          "puts_per_s": 101.10119420730595,
+          "total_ms": 19782.160000000003
+        },
+        "rmw_4K_in_256K": {
+          "n": 2000,
+          "median_us": 12680.000000007567,
+          "p99_us": 70099.99999999127,
+          "mean_us": 13554.440000000002,
+          "min_us": 8820.000000006985,
+          "max_us": 92580.00000000175,
+          "ops_per_s": 73.77656325159872,
+          "total_ms": 27108.880000000005
+        },
+        "cleanedUp": true
+      }
+    },
+    "estimateAfter": {
+      "quota": 10737418240,
+      "usage": 491520
+    }
+  }
+}

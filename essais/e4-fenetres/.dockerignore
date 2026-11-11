@@ -1,0 +1,9 @@
+images/
+node_modules/
+lib/
+*.json
+*.mjs
+*.html
+*.py
+*.md
+

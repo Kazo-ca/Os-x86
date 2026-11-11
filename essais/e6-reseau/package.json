@@ -1,0 +1,12 @@
+{
+  "name": "e6-reseau",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Essai E6 — reseau et permissions par bouteille (prototype jetable)",
+  "dependencies": {
+    "playwright": "^1.65.0",
+    "v86": "^0.5.473",
+    "ws": "^8.18.0"
+  }
+}

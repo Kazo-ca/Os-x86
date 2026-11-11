@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E4 — fenêtre par fenêtre (v86)</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #1b1b1b; color: #ddd; }
+  #screen_container { display: inline-block; border: 1px solid #555; background: #000; vertical-align: top; }
+  #screen_container > div { white-space: pre; font: 14px monospace; line-height: 14px; color: #ccc; }
+  #serial { height: 160px; overflow: auto; background: #000; color: #8f8; padding: 6px; font: 12px monospace; white-space: pre-wrap; border: 1px solid #555; }
+  #marks, #stats { font: 12px monospace; white-space: pre; }
+  button, input, select { margin: 2px; }
+  .row { margin: 6px 0; }
+  /* "Bureau Kazo" : une div par fenêtre invité, positionnée aux coordonnées invité. */
+  #desk { position: relative; width: 1024px; height: 768px; border: 1px dashed #666; background: #2a2f3a; overflow: hidden; }
+  .win { position: absolute; border: 1px solid #889; box-shadow: 0 4px 16px #0008; background: #000; }
+  .win.focused { border-color: #fc6; }
+  .win .title { height: 22px; line-height: 22px; padding: 0 8px; background: #3b4252; color: #eee; font: 12px system-ui, sans-serif; cursor: move; user-select: none; white-space: nowrap; overflow: hidden; }
+  .win.override .title { background: #553; }
+  .win.transient .title { background: #355; }
+  .win canvas { display: block; cursor: default; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E4 — fenêtres X11 de l'invité comme fenêtres séparées <small id="status">(chargement…)</small></h3>
+<div class="row">
+  <select id="mode"><option value="composite">composite (agent XComposite + XGetImage)</option><option value="crop">découpage du canvas VGA</option></select>
+  <label>sondage <input id="poll" size="4" value="50"> ms</label>
+  <button id="btn_start">Démarrer</button>
+  <button id="btn_stop">Arrêter</button>
+  <button id="btn_save">Save state</button>
+  <button id="btn_upload" disabled>Envoyer l'état (images/state-e4.bin)</button>
+  <label>Charger un état : <input id="file_state" type="file"></label>
+</div>
+<div class="row">
+  <input id="serial_in" size="80" placeholder="commande pour la console série (Entrée pour envoyer)">
+</div>
+<div id="desk"></div>
+<div id="stats"></div>
+<details><summary>Écran VGA de la VM (source du mode « découpage »)</summary>
+<div id="screen_container">
+  <div></div>
+  <canvas style="display: none"></canvas>
+</div>
+</details>
+<pre id="serial"></pre>
+<div id="marks"></div>
+<script>
+"use strict";
+// Essai E4 — page. Tout l'état de mesure est exposé dans window.E4 pour run.mjs / drive.mjs.
+const E4 = window.E4 = {
+  t0: performance.now(),
+  params: Object.fromEntries(new URLSearchParams(location.search)),
+  marks: [],      // {name, uptime, t}
+  events: [],     // événements v86 {name, t}
+  serial: "",
+  state: null,
+  lastSave: null,
+  emu: null,
+  // mesure fenêtre par fenêtre
+  mode: null,
+  timer: null,
+  windows: new Map(),   // id -> {el, canvas, ctx, info, frame, hash, w, h}
+  stats: null,
+  changes: [],          // {id, t, seq, frame} : moment (hôte) où le contenu affiché d'une fenêtre a changé
+  samples: [],          // sondages JSON retenus (seq, t_ms, cpu) pour le calcul CPU invité
+  focused: null,
+  dragging: null,
+};
+
+const memMiB = Number(E4.params.mem || 1024);
+const stateName = E4.params.state;
+const config = {
+  wasm_path: "lib/v86.wasm",
+  memory_size: memMiB * 1024 * 1024,
+  vga_memory_size: 8 * 1024 * 1024,
+  screen_container: document.getElementById("screen_container"),
+  bios: { url: "lib/seabios.bin" },
+  vga_bios: { url: "lib/vgabios.bin" },
+  filesystem: { baseurl: "images/alpine-rootfs-flat/", basefs: "images/" + (E4.params.fs || "alpine-fs.json") },
+  autostart: true,
+  bzimage_initrd_from_filesystem: true,
+  cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci console=ttyS0 tsc=reliable mitigations=off",
+  disable_speaker: true,
+};
+if (stateName) config.initial_state = { url: "images/" + stateName };
+
+const emu = E4.emu = new V86(config);
+// v86 : read_file / create_file prennent un chemin SANS barre oblique initiale ("root/e4/x", pas "/root/e4/x").
+const _readFile = emu.read_file.bind(emu), _createFile = emu.create_file.bind(emu);
+emu.read_file = (p) => _readFile(p.replace(/^\/+/, ""));
+emu.create_file = (p, d) => _createFile(p.replace(/^\/+/, ""), d);
+for (const ev of ["emulator-ready", "emulator-started", "emulator-stopped", "download-error"]) {
+  emu.add_listener(ev, () => { E4.events.push({ name: ev, t: performance.now() }); setStatus(ev); });
+}
+
+const serialEl = document.getElementById("serial");
+const marksEl = document.getElementById("marks");
+let line = "";
+let promptSeen = false;
+function setStatus(s) { document.getElementById("status").textContent = "(" + s + ")"; }
+function addMark(name, uptime) {
+  const m = { name, uptime: Number(uptime), t: performance.now() };
+  E4.marks.push(m);
+  marksEl.textContent += `${name.padEnd(18)} t=${(m.t / 1000).toFixed(2)}s uptime=${uptime}\n`;
+}
+emu.add_listener("serial0-output-byte", (byte) => {
+  const c = String.fromCharCode(byte);
+  E4.serial += c;
+  serialEl.textContent += c;
+  if (serialEl.textContent.length > 200000) serialEl.textContent = serialEl.textContent.slice(-100000);
+  serialEl.scrollTop = serialEl.scrollHeight;
+  if (c === "\n") {
+    const l = line.trim();
+    line = "";
+    const mm = /^MARK (\S+)(?: (\S+))?$/.exec(l);
+    if (mm) addMark(mm[1], mm[2] || "0");
+  } else if (c !== "\r") {
+    line += c;
+  }
+  if (!promptSeen && c === " " && /[\n\r][\w().-]*:~# $/.test(E4.serial.slice(-40))) { promptSeen = true; addMark("shell-prompt", "0"); }
+});
+
+E4.send = (text) => emu.serial0_send(text);
+E4.saveState = async () => {
+  const t = performance.now();
+  const s = await emu.save_state();
+  E4.state = s;
+  E4.lastSave = { ms: performance.now() - t, bytes: s.byteLength };
+  document.getElementById("btn_upload").disabled = false;
+  setStatus(`état sauvegardé : ${(s.byteLength / 1048576).toFixed(1)} MiB en ${E4.lastSave.ms.toFixed(0)} ms`);
+  return E4.lastSave;
+};
+E4.restoreState = async (buf = E4.state) => {
+  await emu.stop();
+  await emu.restore_state(buf);
+  emu.run();
+};
+E4.uploadState = async (name = "state-e4.bin") => {
+  const CHUNK = 32 * 1048576;
+  let r;
+  for (let off = 0; off < E4.state.byteLength; off += CHUNK) {
+    r = await fetch(`/__state/${name}?offset=${off}`, { method: "PUT", body: E4.state.slice(off, Math.min(off + CHUNK, E4.state.byteLength)) });
+    if (!r.ok) throw new Error("upload: " + r.status);
+  }
+  E4.state = null;
+  return r.text();
+};
+// Lecture d'un fichier de l'invité par le système de fichiers 9p (en mémoire côté page).
+E4.readFile = (p) => emu.read_file(p);
+E4.readText = async (p) => new TextDecoder().decode(await emu.read_file(p));
+E4.writeFile = (p, text) => emu.create_file(p, new TextEncoder().encode(text));
+E4.writeBytesB64 = (p, b64) => emu.create_file(p, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+
+// ---------- fenêtre par fenêtre ----------
+const desk = document.getElementById("desk");
+const statsEl = document.getElementById("stats");
+const AGENT_DIR = "/root/e4";
+const screenCanvas = () => document.querySelector("#screen_container canvas");
+
+function newStats(mode, pollMs) {
+  return { mode, pollMs, t_start: performance.now(), polls: 0, json_ok: 0, json_err: 0, seq_applied: 0, handler_ms: 0, read_ms: 0, draw_ms: 0, detect_ms: 0,
+    frames_applied: 0, bytes_read: 0, frames_by_window: {}, last_seq: -1, last_json: null, first_json: null };
+}
+
+function guestClick(win, ev, button) {
+  // Clic sur la toile d'une fenêtre -> clic au même endroit dans l'invité (xdotool par la console série).
+  const r = win.canvas.getBoundingClientRect();
+  const gx = Math.round(win.info.x + (ev.clientX - r.left));
+  const gy = Math.round(win.info.y + (ev.clientY - r.top));
+  E4.send(`xdotool mousemove ${gx} ${gy} click ${button}\n`);
+}
+function focusWin(win) {
+  for (const w of E4.windows.values()) w.el.classList.remove("focused");
+  win.el.classList.add("focused");
+  E4.focused = win.info.id;
+  E4.send(`xdotool windowraise ${win.info.id} windowfocus ${win.info.id}\n`);
+}
+function makeWin(info) {
+  const el = document.createElement("div");
+  el.className = "win";
+  const title = document.createElement("div");
+  title.className = "title";
+  const canvas = document.createElement("canvas");
+  el.append(title, canvas);
+  desk.append(el);
+  const win = { el, title, canvas, ctx: canvas.getContext("2d"), info, frame: -1, hash: null, w: 0, h: 0 };
+  // Déplacement par la barre de titre : la div bouge tout de suite ; au relâchement, la fenêtre invité suit (xdotool windowmove).
+  title.onmousedown = (ev) => {
+    E4.dragging = { win, dx: ev.clientX - el.offsetLeft, dy: ev.clientY - el.offsetTop, moved: false };
+    focusWin(win);
+    ev.preventDefault();
+  };
+  canvas.onmousedown = (ev) => { focusWin(win); guestClick(win, ev, ev.button === 2 ? 3 : ev.button === 1 ? 2 : 1); ev.preventDefault(); };
+  canvas.oncontextmenu = (ev) => ev.preventDefault();
+  return win;
+}
+document.addEventListener("mousemove", (ev) => {
+  const d = E4.dragging;
+  if (!d) return;
+  d.moved = true;
+  d.win.el.style.left = (ev.clientX - d.dx) + "px";
+  d.win.el.style.top = (ev.clientY - d.dy) + "px";
+});
+document.addEventListener("mouseup", () => {
+  const d = E4.dragging;
+  if (!d) return;
+  E4.dragging = null;
+  if (!d.moved) return;
+  const x = Math.max(0, d.win.el.offsetLeft), y = Math.max(0, d.win.el.offsetTop + 22);
+  d.win.info.x = x; d.win.info.y = y;
+  d.win.pendingMove = { x, y, t: performance.now() };
+  E4.send(`xdotool windowmove ${d.win.info.id} ${x} ${y}\n`);
+});
+E4.moveWindow = (id, x, y) => {
+  // Même chose que le glisser, pilotable depuis run.mjs.
+  const win = E4.windows.get(id);
+  if (!win) throw new Error("fenêtre inconnue " + id);
+  win.el.style.left = x + "px"; win.el.style.top = (y - 22) + "px";
+  win.info.x = x; win.info.y = y;
+  win.pendingMove = { x, y, t: performance.now() };
+  E4.send(`xdotool windowmove ${id} ${x} ${y}\n`);
+};
+
+function sampleHash(data) {
+  // Empreinte bon marché : un pixel sur 8 (détection de changement, pour la latence).
+  let h = 2166136261;
+  for (let i = 0; i < data.length; i += 32) { h ^= data[i] + (data[i + 1] << 8) + (data[i + 2] << 16); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function noteChange(win, seq, data) {
+  const h = sampleHash(data);
+  if (win.hash !== null && h !== win.hash) E4.changes.push({ id: win.info.id, t: performance.now(), seq, frame: win.frame });
+  win.hash = h;
+}
+
+async function applyComposite(win, info, seq, st) {
+  if (info.frame === win.frame || !info.bytes) return;
+  const t = performance.now();
+  let raw;
+  try { raw = await emu.read_file(`${AGENT_DIR}/${info.file || "w-" + info.id + ".raw"}`); } catch { return; }
+  st.read_ms += performance.now() - t;
+  if (!raw || raw.length < info.w * info.h * 4) return;  // écriture en cours / taille obsolète
+  const t2 = performance.now();
+  const img = win.ctx.createImageData(info.w, info.h);
+  const d = img.data;
+  const n = info.w * info.h * 4;
+  for (let i = 0; i < n; i += 4) { d[i] = raw[i + 2]; d[i + 1] = raw[i + 1]; d[i + 2] = raw[i]; d[i + 3] = 255; }  // BGRX -> RGBA
+  win.ctx.putImageData(img, 0, 0);
+  st.draw_ms += performance.now() - t2;
+  st.bytes_read += raw.length;
+  st.frames_applied++;
+  st.frames_by_window[info.id] = (st.frames_by_window[info.id] || 0) + 1;
+  win.frame = info.frame;
+  win.lastInfo = { damage_t: info.damage_t, capture_t: info.capture_t, t_applied: performance.now() };
+  const t3 = performance.now();
+  noteChange(win, seq, d);
+  st.detect_ms += performance.now() - t3;
+}
+function applyCrop(win, info, seq, st) {
+  // Découpage piloté par les dommages de l'agent (mode geometry) : on ne redessine une fenêtre que si son numéro de trame a changé.
+  if (info.frame === win.frame) return;
+  const src = screenCanvas();
+  if (!src || !src.width) return;
+  const t2 = performance.now();
+  win.ctx.drawImage(src, info.x, info.y, info.w, info.h, 0, 0, info.w, info.h);
+  st.draw_ms += performance.now() - t2;
+  const t3 = performance.now();
+  const d = win.ctx.getImageData(0, 0, info.w, info.h).data;  // détection de changement seulement (mesure), compté dans detect_ms
+  st.detect_ms += performance.now() - t3;
+  win.frame = info.frame;
+  win.lastInfo = { damage_t: info.damage_t, capture_t: info.capture_t, t_applied: performance.now() };
+  st.frames_applied++;
+  st.frames_by_window[info.id] = (st.frames_by_window[info.id] || 0) + 1;
+  noteChange(win, seq, d);
+}
+
+async function poll() {
+  const st = E4.stats;
+  if (!st) return;
+  const t = performance.now();
+  st.polls++;
+  let j;
+  try { j = JSON.parse(await E4.readText(`${AGENT_DIR}/windows.json`)); st.json_ok++; }
+  catch (e) { st.json_err++; st.handler_ms += performance.now() - t; return; }
+  if (!st.first_json) st.first_json = j;
+  st.last_json = j;
+  if (j.seq !== st.last_seq) {
+    st.last_seq = j.seq;
+    st.seq_applied++;
+    if (E4.samples.length === 0 || j.seq - E4.samples[E4.samples.length - 1].seq >= 5) E4.samples.push({ seq: j.seq, t_ms: j.t_ms, cpu: j.cpu, t: performance.now() });
+    const seen = new Set();
+    for (const info of j.windows) {
+      if (!info.mapped || info.w < 2 || info.h < 2) continue;
+      seen.add(info.id);
+      let win = E4.windows.get(info.id);
+      if (!win) { win = makeWin(info); E4.windows.set(info.id, win); }
+      const dragged = E4.dragging && E4.dragging.win === win;
+      // confirmation du déplacement : à 2 px près (xterm a une bordure de 1 px : la fenêtre cliente est à +1,+1 du coin demandé)
+      if (win.pendingMove && Math.abs(info.x - win.pendingMove.x) <= 2 && Math.abs(info.y - win.pendingMove.y) <= 2) { E4.changes.push({ id: info.id, t: performance.now(), move_ms: performance.now() - win.pendingMove.t }); win.pendingMove = null; }
+      else if (win.pendingMove && performance.now() - win.pendingMove.t > 10000) win.pendingMove = null;  // abandon : on suit de nouveau l'invité
+      win.info = win.pendingMove ? { ...info, x: win.pendingMove.x, y: win.pendingMove.y } : info;
+      if (win.w !== info.w || win.h !== info.h) { win.canvas.width = info.w; win.canvas.height = info.h; win.w = info.w; win.h = info.h; win.frame = -1; }
+      if (!dragged && !win.pendingMove) { win.el.style.left = info.x + "px"; win.el.style.top = (info.y - 22) + "px"; }
+      win.el.style.zIndex = 10 + info.z;
+      win.el.classList.toggle("override", !!info.override);
+      win.el.classList.toggle("transient", !!info.transient_for);
+      const label = `${info.name || "(sans titre)"}  [${info.class || "?"}]${info.transient_for ? " ⇢ " + info.transient_for : ""}${info.type ? " " + info.type.replace("_NET_WM_WINDOW_TYPE_", "") : ""}${info.icon ? " icône " + info.icon : ""}`;
+      if (win.title.textContent !== label) win.title.textContent = label;
+      if (st.mode === "composite") await applyComposite(win, info, j.seq, st);
+      else applyCrop(win, info, j.seq, st);
+    }
+    for (const [id, win] of E4.windows) if (!seen.has(id)) { win.el.remove(); E4.windows.delete(id); }
+  }
+  st.handler_ms += performance.now() - t;
+  if (st.polls % 10 === 0) statsEl.textContent = E4.summary();
+}
+E4.summary = () => {
+  const st = E4.stats; if (!st) return "";
+  const dt = (performance.now() - st.t_start) / 1000;
+  const g = E4.guestCpu();
+  return `mode=${st.mode} poll=${st.pollMs}ms  durée=${dt.toFixed(1)}s  sondages=${st.polls} (json ok ${st.json_ok}, err ${st.json_err})  seq appliqués=${st.seq_applied}\n` +
+    `page: handler ${(st.handler_ms / dt).toFixed(1)} ms/s (lecture ${(st.read_ms / dt).toFixed(1)}, dessin ${(st.draw_ms / dt).toFixed(1)}, détection ${(st.detect_ms / dt).toFixed(1)})  trames=${st.frames_applied} (${(st.frames_applied / dt).toFixed(1)}/s)  octets lus=${(st.bytes_read / 1048576).toFixed(1)} Mio (${(st.bytes_read / dt / 1048576).toFixed(2)} Mio/s)\n` +
+    `invité: ${g ? `CPU total ${g.total_pct.toFixed(1)}%  agent ${g.agent_pct.toFixed(1)}%  X ${g.x_pct.toFixed(1)}%  sur ${g.dt_s.toFixed(1)} s invité` : "?"}  fenêtres=${E4.windows.size}  changements vus=${E4.changes.length}`;
+};
+E4.guestCpu = () => {
+  const a = E4.samples[0], b = E4.samples[E4.samples.length - 1];
+  if (!a || !b || a === b || !a.cpu || !b.cpu) return null;
+  const sum = (s) => s.reduce((x, y) => x + y, 0);
+  const total = sum(b.cpu.stat) - sum(a.cpu.stat);
+  const idle = (b.cpu.stat[3] + b.cpu.stat[4]) - (a.cpu.stat[3] + a.cpu.stat[4]);
+  const dt_s = (b.t_ms - a.t_ms) / 1000;
+  const hz = b.cpu.ticks_hz || 100;
+  return { dt_s, total_pct: 100 * (total - idle) / total, agent_pct: 100 * (b.cpu.agent_ms - a.cpu.agent_ms) / 1000 / dt_s, x_pct: 100 * (b.cpu.x_ms - a.cpu.x_ms) / 1000 / dt_s, ticks: total, hz };
+};
+E4.start = (mode = document.getElementById("mode").value, pollMs = Number(document.getElementById("poll").value)) => {
+  E4.stop();
+  E4.mode = mode;
+  E4.stats = newStats(mode, pollMs);
+  E4.changes = []; E4.samples = [];
+  for (const w of E4.windows.values()) { w.frame = -1; w.hash = null; }
+  let busy = false;
+  E4.timer = setInterval(async () => { if (busy) return; busy = true; try { await poll(); } finally { busy = false; } }, pollMs);
+  setStatus("mesure " + mode);
+};
+E4.stop = () => { if (E4.timer) clearInterval(E4.timer); E4.timer = null; };
+E4.resetStats = () => { const m = E4.stats?.mode, p = E4.stats?.pollMs; if (m) { E4.stats = newStats(m, p); E4.changes = []; E4.samples = []; for (const w of E4.windows.values()) w.hash = null; } };
+E4.screenPng = () => screenCanvas()?.toDataURL("image/png");
+E4.screenCount = (x, y, w, h, rgb) => {
+  // Compte, dans le rectangle du canvas VGA, les pixels d'une couleur donnée (vérité terrain pour le recouvrement).
+  const src = screenCanvas(); if (!src) return null;
+  const d = src.getContext("2d").getImageData(x, y, w, h).data; let n = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i] === rgb[0] && d[i + 1] === rgb[1] && d[i + 2] === rgb[2]) n++;
+  return { count: n, total: d.length / 4 };
+};
+E4.windowList = () => [...E4.windows.values()].map((w) => ({ ...w.info, el: { left: w.el.offsetLeft, top: w.el.offsetTop }, frame: w.frame, frames: E4.stats?.frames_by_window[w.info.id] || 0 }));
+
+document.getElementById("btn_start").onclick = () => E4.start();
+document.getElementById("btn_stop").onclick = () => E4.stop();
+document.getElementById("btn_save").onclick = () => E4.saveState();
+document.getElementById("btn_upload").onclick = async () => setStatus("envoyé : " + await E4.uploadState() + " octets");
+document.getElementById("file_state").onchange = async function () {
+  if (!this.files.length) return;
+  await E4.restoreState(await this.files[0].arrayBuffer());
+  this.value = "";
+};
+document.getElementById("serial_in").onkeydown = function (e) {
+  if (e.key === "Enter") { emu.serial0_send(this.value + "\n"); this.value = ""; }
+  e.stopPropagation();
+};
+</script>
+</body>
+</html>

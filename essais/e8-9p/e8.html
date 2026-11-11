@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E8 — 9p : vitesse et durcissement</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #1b1b1b; color: #ddd; }
+  #serial { height: 400px; overflow: auto; background: #000; color: #8f8; padding: 6px; font: 12px monospace; white-space: pre-wrap; border: 1px solid #555; }
+  #screen_container { display: none; }
+  button, input { margin: 2px; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E8 — 9p dans v86 <small id="status">(chargement…)</small></h3>
+<div>
+  <button onclick="E8.send('sh /root/bench9p.sh /mnt/share share\n')">bench 9p</button>
+  <button onclick="E8.send('sh /root/bench9p.sh /mnt/disk disk\n')">bench disque</button>
+  <button onclick="E8.send('sh /root/harden.sh /mnt/share\n')">harden</button>
+  <input id="serial_in" size="70" placeholder="commande série (Entrée)">
+</div>
+<div id="screen_container"><div></div><canvas></canvas></div>
+<pre id="serial"></pre>
+<script>
+"use strict";
+// Essai E8 — page de mesure. Tout est exposé dans window.E8 pour run.mjs.
+const E8 = window.E8 = {
+  params: Object.fromEntries(new URLSearchParams(location.search)),
+  marks: [], res: [], hard: [], events: [], lines: [], serial: "", emu: null,
+  faults: [], rawLog: [],
+};
+const memMiB = Number(E8.params.mem || 1024);
+const DISK_BYTES = 512 * 1024 * 1024;
+const config = {
+  wasm_path: "lib/v86.wasm",
+  memory_size: memMiB * 1024 * 1024,
+  vga_memory_size: 8 * 1024 * 1024,
+  screen_container: document.getElementById("screen_container"),
+  bios: { url: "lib/seabios.bin" },
+  vga_bios: { url: "lib/vgabios.bin" },
+  filesystem: { baseurl: "images/alpine-rootfs-flat/", basefs: "images/alpine-fs.json" },
+  hda: { url: "images/disk.img", async: true, size: DISK_BYTES },
+  autostart: false,
+  bzimage_initrd_from_filesystem: true,
+  cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci console=ttyS0 tsc=reliable mitigations=off",
+  disable_speaker: true,
+};
+const emu = E8.emu = new V86(config);
+const setStatus = (s) => (document.getElementById("status").textContent = "(" + s + ")");
+for (const ev of ["emulator-ready", "emulator-started", "emulator-stopped", "download-error", "9p-attach"]) {
+  emu.add_listener(ev, () => { E8.events.push({ name: ev, t: performance.now() }); setStatus(ev); });
+}
+// Octets lus via 9p (événements du bus de v86) : nombre de lectures et octets.
+E8.p9 = { reads: 0, readBytes: 0 };
+emu.add_listener("9p-read-end", (a) => { E8.p9.reads++; E8.p9.readBytes += a[1]; });
+
+// Les scripts invités sont injectés dans l'arborescence 9p avant le boot (create_file de v86).
+emu.add_listener("emulator-ready", async () => {
+  for (const f of ["bench9p.sh", "harden.sh", "wine9p.sh"]) {
+    const bytes = new Uint8Array(await (await fetch("guest/" + f, { cache: "no-store" })).arrayBuffer());
+    await emu.create_file("root/" + f, bytes);
+  }
+  E8.events.push({ name: "guest-files-injected", t: performance.now() });
+  emu.run();
+});
+
+const serialEl = document.getElementById("serial");
+let line = "";
+let promptSeen = false;
+emu.add_listener("serial0-output-byte", (byte) => {
+  const c = String.fromCharCode(byte);
+  E8.serial += c;
+  serialEl.textContent += c;
+  if (serialEl.textContent.length > 300000) serialEl.textContent = serialEl.textContent.slice(-150000);
+  serialEl.scrollTop = serialEl.scrollHeight;
+  if (c === "\n") {
+    const l = line.trim(); line = "";
+    const t = performance.now();
+    E8.lines.push({ l, t });
+    const mm = /^MARK (\S+)(?: (\S+))?$/.exec(l);
+    if (mm) E8.marks.push({ name: mm[1], uptime: Number(mm[2] || 0), t });
+    else if (l.startsWith("RES ")) E8.res.push({ l, t });
+    else if (l.startsWith("HARD ")) E8.hard.push({ l, t });
+  } else if (c !== "\r") line += c;
+  if (!promptSeen && c === " " && /[\n\r][\w().-]*:~# $/.test(E8.serial.slice(-40))) { promptSeen = true; E8.marks.push({ name: "shell-prompt", uptime: 0, t: performance.now() }); }
+});
+E8.send = (text) => emu.serial0_send(text);
+document.getElementById("serial_in").onkeydown = function (e) { if (e.key === "Enter") { E8.send(this.value + "\n"); this.value = ""; } e.stopPropagation(); };
+
+// ---------- côté « hôte » : inspection de la FS en mémoire de v86 ----------
+const fs9 = () => emu.fs9p;
+E8.hostStat = (p) => {
+  const r = fs9().SearchPath(p);
+  if (r.id === -1) return { exists: false, parentid: r.parentid, name: r.name };
+  const i = fs9().GetInode(r.id);
+  return { exists: true, id: r.id, mode: i.mode, modeOct: (i.mode & 0o7777).toString(8), type: (i.mode & 0o170000).toString(8),
+    size: i.size, nlinks: i.nlinks, symlink: i.symlink, major: i.major, minor: i.minor, uid: i.uid, gid: i.gid, status: i.status,
+    bufferBytes: fs9().inodedata[r.id] ? fs9().inodedata[r.id].byteLength : null };
+};
+E8.hostList = (p) => {
+  const r = fs9().SearchPath(p);
+  if (r.id === -1) return null;
+  const names = fs9().GetChildren(r.id);
+  return names.map((n) => ({ name: n, json: JSON.stringify(n), codepoints: [...n].map((c) => c.codePointAt(0)), utf8len: new TextEncoder().encode(n).length }));
+};
+E8.hostRead = async (p, max = 64) => {
+  const r = fs9().SearchPath(p);
+  if (r.id === -1) return null;
+  const i = fs9().GetInode(r.id);
+  const d = await fs9().Read(r.id, 0, Math.min(max, i.size));
+  return { size: i.size, symlink: i.symlink, head: d ? new TextDecoder().decode(d) : null };
+};
+E8.hostMem = () => (performance.memory ? { usedJSHeap_MiB: Math.round(performance.memory.usedJSHeapSize / 1048576), totalJSHeap_MiB: Math.round(performance.memory.totalJSHeapSize / 1048576) } : null);
+
+// ---------- « lecteur déconnecté » : la FS hôte échoue en pleine lecture ----------
+// mode "throw" : fs.Read rejette (comportement brut de v86 : la requête 9p n'a jamais de réponse) ;
+// mode "hang"  : fs.Read ne répond jamais ;
+// mode "eio"   : idem "throw" mais on répond Rlerror EIO à la requête Tread en attente (ce qu'un serveur doit faire).
+// Le virtqueue appelle une copie liée de ReceiveRequest : on intercepte donc pop_request pour mémoriser chaque requête
+// (bufchain + en-tête size/id/tag + fid) et pouvoir répondre une erreur à sa place.
+const dev9p = () => emu.v86.cpu.devices.virtio_9p;
+let origRead = null, origPop = null;
+const pending = [];
+E8.faultOn = (p, mode, afterBytes = 0) => {
+  const fs = fs9();
+  const r = fs.SearchPath(p);
+  if (r.id === -1) return "no such file";
+  const dev = dev9p(), vq = dev.virtqueue;
+  if (!origRead) origRead = fs.Read;
+  if (!origPop) origPop = vq.pop_request;
+  vq.pop_request = function () {
+    const bufchain = origPop.call(this);
+    const orig = bufchain.get_next_blob.bind(bufchain);
+    const entry = { bufchain, hdr: null };
+    bufchain.get_next_blob = (buf) => { const n = orig(buf); if (!entry.hdr) { entry.hdr = buf.slice(0, 11); pending.push(entry); if (pending.length > 64) pending.shift(); } return n; };
+    return bufchain;
+  };
+  let seen = 0;
+  fs.Read = async function (inodeid, offset, count) {
+    if (inodeid === r.id) {
+      seen += count;
+      if (seen > afterBytes) {
+        const f = { p, mode, offset, count, t: performance.now() };
+        if (mode === "eio") {
+          // Requête Tread (id 116) en attente dont le fid pointe sur cet inode.
+          const k = pending.findIndex((e) => e.hdr && e.hdr[4] === 116 && dev.fids[e.hdr[7] | (e.hdr[8] << 8) | (e.hdr[9] << 16) | (e.hdr[10] << 24)]?.inodeid === inodeid);
+          if (k >= 0) {
+            const e = pending.splice(k, 1)[0];
+            const tag = e.hdr[5] | (e.hdr[6] << 8);
+            dev.SendError(tag, "Input/output error", 5 /* EIO */);
+            dev.SendReply(e.bufchain);
+            f.replied = "Rlerror EIO"; f.tag = tag;
+          } else f.replied = "no pending Tread found";
+        }
+        E8.faults.push(f);
+        if (mode === "hang") return new Promise(() => {});
+        throw new Error("E8 simulated disconnect");
+      }
+    }
+    return origRead.call(this, inodeid, offset, count);
+  };
+  return "armed " + mode + " on inode " + r.id;
+};
+E8.faultOff = () => { if (origRead) fs9().Read = origRead; if (origPop) dev9p().virtqueue.pop_request = origPop; pending.length = 0; return "off"; };
+
+// ---------- client 9P2000.L brut côté hôte (messages forgés, sans passer par l'invité) ----------
+// Sert à envoyer au serveur 9p de v86 des requêtes qu'un noyau Linux n'enverrait jamais (walk "..", noms avec "/", etc.).
+const enc = new TextEncoder();
+function build(id, tag, fields) {
+  const parts = [];
+  const u8 = (v) => parts.push([v & 0xff]);
+  const u16 = (v) => parts.push([v & 0xff, (v >> 8) & 0xff]);
+  const u32 = (v) => parts.push([v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >>> 24) & 0xff]);
+  const u64 = (v) => { u32(Number(BigInt(v) & 0xffffffffn)); u32(Number(BigInt(v) >> 32n)); };
+  const str = (s) => { const b = typeof s === "string" ? enc.encode(s) : s; u16(b.length); parts.push([...b]); };
+  for (const [t, v] of fields) ({ b: u8, h: u16, w: u32, d: u64, s: str })[t](v);
+  const body = parts.flat();
+  const size = 7 + body.length;
+  return new Uint8Array([size & 0xff, (size >> 8) & 0xff, (size >> 16) & 0xff, 0, id, tag & 0xff, (tag >> 8) & 0xff, ...body]);
+}
+E8.raw = async (id, fields, tag = 0xbeef) => {
+  const dev = dev9p();
+  const msg = build(id, tag, fields);
+  let reply = null;
+  const bufchain = {
+    length_readable: msg.length,
+    get_next_blob(buf) { buf.set(msg.subarray(0, buf.length)); return msg.length; },
+    set_next_blob(buf) { reply = buf.slice(); },
+  };
+  const vq = dev.virtqueue;
+  dev.virtqueue = { push_reply() {}, flush_replies() {} };
+  try { await dev.ReceiveRequest(bufchain); } catch (e) { dev.virtqueue = vq; return { exception: String(e) }; }
+  dev.virtqueue = vq;
+  if (!reply) return { noReply: true };
+  const rid = reply[4], rtag = reply[5] | (reply[6] << 8);
+  const out = { rid, rtag, len: reply.length };
+  if (rid === 7) out.errno = reply[7] | (reply[8] << 8) | (reply[9] << 16) | (reply[10] << 24);
+  else if (rid === 111) { out.nwqid = reply[7] | (reply[8] << 8); out.qids = []; for (let i = 0; i < out.nwqid; i++) { const o = 9 + i * 13; out.qids.push({ type: reply[o], path: Number(new DataView(reply.buffer, reply.byteOffset + o + 5, 8).getBigUint64(0, true)) }); } }
+  else out.body = [...reply.subarray(7, Math.min(reply.length, 40))];
+  E8.rawLog.push({ id, fields: fields.map(([t, v]) => (v instanceof Uint8Array ? [t, "<" + v.length + " bytes>"] : [t, v])), out });
+  return out;
+};
+</script>
+</body>
+</html>

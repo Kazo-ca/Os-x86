@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E1 — Wine dans v86</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #1b1b1b; color: #ddd; }
+  #screen_container { display: inline-block; border: 1px solid #555; background: #000; vertical-align: top; }
+  #screen_container > div { white-space: pre; font: 14px monospace; line-height: 14px; color: #ccc; }
+  #serial { height: 320px; overflow: auto; background: #000; color: #8f8; padding: 6px; font: 12px monospace; white-space: pre-wrap; border: 1px solid #555; }
+  #marks { font: 12px monospace; }
+  button, input { margin: 2px; }
+  .row { margin: 6px 0; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E1 — Alpine 3.24 x86 + Wine 11 dans v86 <small id="status">(chargement…)</small></h3>
+<div class="row">
+  <button id="btn_bench_xvfb">Lancer le bench (Xvfb)</button>
+  <button id="btn_bench_xorg">Lancer le bench (Xorg sur VGA)</button>
+  <button id="btn_save">Save state</button>
+  <button id="btn_restore" disabled>Restore state</button>
+  <button id="btn_download" disabled>Download state</button>
+  <button id="btn_upload" disabled>Envoyer l'état au serveur (images/state.bin)</button>
+  <label>Charger un état : <input id="file_state" type="file"></label>
+</div>
+<div class="row">
+  <input id="serial_in" size="60" placeholder="commande pour la console série (Entrée pour envoyer)">
+</div>
+<div id="screen_container">
+  <div></div>
+  <canvas style="display: none"></canvas>
+</div>
+<pre id="serial"></pre>
+<div id="marks"></div>
+<script>
+"use strict";
+// Essai E1 — page de boot. Tout l'état de mesure est exposé dans window.E1 pour run.mjs.
+const E1 = window.E1 = {
+  t0: performance.now(),
+  timeOrigin: performance.timeOrigin,
+  params: Object.fromEntries(new URLSearchParams(location.search)),
+  marks: [],      // {name, uptime, t} ; t = performance.now() à réception de la ligne série
+  info: [],       // lignes MEM / XMODE / WINDOWS / PREFIX_KB / X ...
+  events: [],     // événements v86 {name, t}
+  serial: "",
+  state: null,    // ArrayBuffer du dernier save_state()
+  lastSave: null, // {ms, bytes}
+  lastRestore: null,
+  emu: null,
+};
+
+const memMiB = Number(E1.params.mem || 1024);
+const stateName = E1.params.state;  // ex. ?state=state.bin -> initial_state depuis images/
+const config = {
+  wasm_path: "lib/v86.wasm",
+  memory_size: memMiB * 1024 * 1024,
+  vga_memory_size: 8 * 1024 * 1024,
+  screen_container: document.getElementById("screen_container"),
+  bios: { url: "lib/seabios.bin" },
+  vga_bios: { url: "lib/vgabios.bin" },
+  filesystem: { baseurl: "images/alpine-rootfs-flat/", basefs: "images/alpine-fs.json" },
+  autostart: true,
+  bzimage_initrd_from_filesystem: true,
+  cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci console=ttyS0 tsc=reliable mitigations=off",
+  disable_speaker: true,
+};
+if (stateName) config.initial_state = { url: "images/" + stateName };
+
+const emu = E1.emu = new V86(config);
+for (const ev of ["emulator-ready", "emulator-started", "emulator-stopped", "download-error"]) {
+  emu.add_listener(ev, () => { E1.events.push({ name: ev, t: performance.now() }); setStatus(ev); });
+}
+
+const serialEl = document.getElementById("serial");
+const marksEl = document.getElementById("marks");
+let line = "";
+let promptSeen = false;
+function setStatus(s) { document.getElementById("status").textContent = "(" + s + ")"; }
+function addMark(name, uptime) {
+  const m = { name, uptime: Number(uptime), t: performance.now() };
+  E1.marks.push(m);
+  marksEl.textContent += `${name.padEnd(18)} t=${(m.t / 1000).toFixed(2)}s uptime=${uptime}\n`;
+}
+emu.add_listener("serial0-output-byte", (byte) => {
+  const c = String.fromCharCode(byte);
+  E1.serial += c;
+  serialEl.textContent += c;
+  if (serialEl.textContent.length > 200000) serialEl.textContent = serialEl.textContent.slice(-100000);
+  serialEl.scrollTop = serialEl.scrollHeight;
+  if (c === "\n") {
+    const l = line.trim();
+    line = "";
+    const mm = /^MARK (\S+)(?: (\S+))?$/.exec(l);
+    if (mm) addMark(mm[1], mm[2] || "0");
+    else if (/^(MEM|XMODE|WINDOWS|PREFIX_KB|X ) /.test(l) || /notepad/i.test(l)) E1.info.push({ line: l, t: performance.now() });
+  } else if (c !== "\r") {
+    line += c;
+  }
+  if (!promptSeen && c === " " && /[\n\r][\w().-]*:~# $/.test(E1.serial.slice(-40))) { promptSeen = true; addMark("shell-prompt", "0"); }
+});
+
+E1.send = (text) => emu.serial0_send(text);
+E1.bench = (mode) => { promptSeen = true; emu.serial0_send(`sh /root/bench.sh ${mode}\n`); };
+E1.saveState = async () => {
+  const t = performance.now();
+  const s = await emu.save_state();
+  E1.state = s;
+  E1.lastSave = { ms: performance.now() - t, bytes: s.byteLength };
+  document.getElementById("btn_restore").disabled = false;
+  document.getElementById("btn_download").disabled = false;
+  document.getElementById("btn_upload").disabled = false;
+  setStatus(`état sauvegardé : ${(s.byteLength / 1048576).toFixed(1)} MiB en ${E1.lastSave.ms.toFixed(0)} ms`);
+  return E1.lastSave;
+};
+E1.restoreState = async (buf = E1.state) => {
+  const t = performance.now();
+  await emu.stop();
+  await emu.restore_state(buf);
+  emu.run();
+  E1.lastRestore = { ms: performance.now() - t, bytes: buf.byteLength };
+  setStatus(`état restauré en ${E1.lastRestore.ms.toFixed(0)} ms`);
+  return E1.lastRestore;
+};
+E1.uploadState = async (name = "state.bin") => {
+  // Envoi par morceaux de 32 Mio : un fetch avec un corps de 600 Mo d'un coup a fait planter le renderer (1 Gio de VM + état + copie).
+  const CHUNK = 32 * 1048576;
+  let r;
+  for (let off = 0; off < E1.state.byteLength; off += CHUNK) {
+    r = await fetch(`/__state/${name}?offset=${off}`, { method: "PUT", body: E1.state.slice(off, Math.min(off + CHUNK, E1.state.byteLength)) });
+    if (!r.ok) throw new Error("upload: " + r.status);
+  }
+  return r.text();
+};
+E1.measureMemory = async () => {
+  if (!performance.measureUserAgentSpecificMemory) return { unsupported: true, crossOriginIsolated };
+  try { return await performance.measureUserAgentSpecificMemory(); } catch (e) { return { error: String(e) }; }
+};
+
+document.getElementById("btn_bench_xvfb").onclick = () => E1.bench("xvfb");
+document.getElementById("btn_bench_xorg").onclick = () => E1.bench("xorg");
+document.getElementById("btn_save").onclick = () => E1.saveState();
+document.getElementById("btn_restore").onclick = () => E1.restoreState();
+document.getElementById("btn_download").onclick = () => {
+  const a = document.createElement("a");
+  a.download = "e1-state.bin";
+  a.href = URL.createObjectURL(new Blob([E1.state]));
+  a.click();
+};
+document.getElementById("btn_upload").onclick = async () => setStatus("envoyé : " + await E1.uploadState() + " octets");
+document.getElementById("file_state").onchange = async function () {
+  if (!this.files.length) return;
+  const buf = await this.files[0].arrayBuffer();
+  await E1.restoreState(buf);
+  this.value = "";
+};
+document.getElementById("serial_in").onkeydown = function (e) {
+  if (e.key === "Enter") { emu.serial0_send(this.value + "\n"); this.value = ""; }
+  e.stopPropagation();
+};
+</script>
+</body>
+</html>
