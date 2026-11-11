@@ -13,6 +13,7 @@ import { chromium } from "playwright";
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const A = Object.fromEntries(process.argv.slice(2).map((a, i, all) => (a.startsWith("--") ? [a.slice(2), all[i + 1]?.startsWith("--") || all[i + 1] === undefined ? true : all[i + 1]] : [])).filter((x) => x.length));
 const RUNS = Number(A.runs || 2);
+const FIRST = Number(A.first || 1);
 const MEM = Number(A.mem || 512);
 const HEADLESS = !A.headed;
 const SRV = 8096, RELAY = 9099, T1 = 8080, T2 = 8443;
@@ -48,7 +49,7 @@ async function run(page, cmd, { tag = "D" + Math.random().toString(36).slice(2, 
   const m = new RegExp(`SENT_${tag} rc=(\\d+)`).exec(out);
   return { rc: m ? Number(m[1]) : null, out };
 }
-async function guestMemUsedKb(page) { const r = await run(page, `awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo`); const m = /(\d+)\s*$/m.exec(r.out.replace(/SENT_.*/s, "")); return m ? Number(m[1]) : null; }
+async function guestMemUsedKb(page) { const r = await run(page, `echo "RES memused $(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)"`); const m = /^RES memused (\d+)/m.exec(r.out); return m ? Number(m[1]) : null; }
 
 async function processMemory(browser) {
   try {
@@ -114,7 +115,7 @@ async function phaseLimits(page, result) {
   await run(page, `/root/bottle-net.sh nft on`, { timeout: MIN });
   // (3) coupure de duree : relais a MAX_SEC=5 s (ajuste a chaud), b1 ouvre un flux oisif (nc).
   await relayReset(); await relayMaxsec(5);
-  const nc = await run(page, `/root/bottle-net.sh run 1 'T0=$(cut -d" " -f1 /proc/uptime); sleep 60 | nc web.test 80 </dev/null; T1=$(cut -d" " -f1 /proc/uptime); echo "NC_CUT dt=$(awk "BEGIN{print $T1-$T0}")"'`, { timeout: 100_000 }).catch(() => ({ out: "nc-timeout" }));
+  const nc = await run(page, `/root/bottle-net.sh run 1 'T0=$(cut -d" " -f1 /proc/uptime); sleep 60 | nc web.test 80; T1=$(cut -d" " -f1 /proc/uptime); echo "NC_CUT dt=$(awk "BEGIN{print $T1-$T0}")"'`, { timeout: 100_000 }).catch(() => ({ out: "nc-timeout" }));
   const rsCut = await relayStats();
   await relayMaxsec(300);
   result.limits = {
@@ -175,7 +176,7 @@ async function phaseResources(context, browser, result, page) {
 // ---------- boucle ----------
 const browser = await chromium.launch({ channel: "chrome", headless: HEADLESS });
 log("navigateur", browser.version(), HEADLESS ? "headless" : "headed", "mem", MEM);
-for (let n = 1; n <= RUNS; n++) {
+for (let n = FIRST; n < FIRST + RUNS; n++) {
   const result = { run: n, date: new Date().toISOString(), mem_MiB: MEM, v86: "0.5.473 (npm)", relay: { max_streams: 4, max_sec: 300, ports: [80, 443] } };
   let ctx;
   try {

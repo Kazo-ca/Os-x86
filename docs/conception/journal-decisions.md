@@ -315,6 +315,82 @@ Tes consignes du soir (document « Consignes pour commencer ») répondent à tr
 | 150 | Fenêtres Wine à 1x1 pixel, périmètre du jalon 0 | **B, tranchée le 2026-11-10** : le jalon 0 est redéfini sur les programmes console (Wine `cmd`, programmes DOS, Linux) ; Wine graphique est repoussé à un jalon ultérieur sans date. Le bogue reste à comprendre à part (pistes dans [../essais/e1-wine-v86.md](../essais/e1-wine-v86.md), [../essais/e4-fenetres.md](../essais/e4-fenetres.md) et E13 : paquets i386 de WineHQ pour tester un autre Wine). Question posée dans [point-etape-2026-11-10.md](point-etape-2026-11-10.md). | D25, D26 |
 | 151 | Bouteille gabarit | **A, tranchée le 2026-11-10** : la première bouteille est fabriquée hors ligne dans l'état gabarit ; chaque nouvelle bouteille est une copie de cette bouteille gabarit (copie-sur-écriture à chiffrer), jamais un `wineboot` chez l'usager ; une mise à jour de Wine remplace l'état gabarit et la bouteille gabarit ensemble (C13-C14, 126). | D41 |
 
+## Réponses du 2026-11-11 aux séries 7, 8 et 9 (lot complet, 102 à 149)
+
+Source : ton document [reponses-2026-11-11.md](reponses-2026-11-11.md) (consigné avec ChatGPT pendant un appel, avec les extraits de transcription). Règles de lecture reprises de ce document : un « oui » ne valide que ce qui a été présenté à l'oral, pas les sous-options non lues ; une réponse libre n'est pas forcée dans A, B ou C ; les réserves « à préciser » de chaque réponse restent applicables. Les réponses plus récentes (144, 146, 150, 151) priment sur les formulations antérieures. Les tensions relevées sont posées en [série 10](serie-10-envoyee.md).
+
+| # | Sujet | Décision | Carte |
+|---|---|---|---|
+| 102 | Propriété d'une VM Programmes | **Par phases** : V1 environnements partagés utilisés à tour de rôle ; V2 base commune et différentiel personnel persistant. Ne pas confondre avec le choix privée/partagée des VM complètes (103). | D32 |
+| 103 | VM complète commune | **Tranchée** : VM complète privée ou accessible aux autres usagers Kazo, au choix ; l'invité gère ses comptes ; un usager à la fois ; la VM privée est protégée effectivement. | 105 |
+| 104 | BoxedWine et les VM complètes | **Oui**, BoxedWine gère aussi les VM complètes ; le rôle d'interface ne confère pas tous les droits. | 63 |
+| 106 | Écran sans BoxedWine | **Tranchée** : Os-x86 est le moteur et le cadre de rendu ; il n'ouvre aucune fenêtre de VM propre. Ses fenêtres de sécurité restent (63 A). Tension avec 109 et 111 → série 10. | 63 |
+| 107 | Portée des fichiers | **Principe** : même bouteille, mêmes permissions ; ça ne veut pas dire que tous les programmes voient tous les dossiers de la VM (précisé par 146). Ni 107 A ni 146 A tels quels. | D22, 146 |
+| 108 | Autre app lance un programme autorisé « toujours » | **Tranchée, règle modifiée** : pas de nouvelle demande et **pas de plafond fondé sur le lanceur** (le plafond de 108 A est écarté). À réconcilier avec D21, D43, D52. | D21, D43, D52 |
+| 109 | Sortie d'un programme console lancé par `./x.exe` | **Minimum V1** : une fenêtre console séparée suffit. Sortie dans le terminal courant et mode brut non exigés, pas interdits. Qui affiche cette fenêtre → série 10. | D27, 106 |
+| 110 | Vrai code de sortie | **Calendrier** : souhaité en V1 si possible, obligatoire en V2 ; voie technique (changements au shell) à étudier ; lancement via BoxedWine conservé. | 62 |
+| 111 | `.exe` DOS au terminal | **Principe** : un programme DOS tapé au terminal va directement à Os-x86/FreeDOS, sans BoxedWine ; les programmes Windows passent par BoxedWine. Reconnaissance du contenu (COM, NE, PE, extensions) à concilier. | D7, D28 |
+| 112 | Fenêtre par fenêtre | **Commencer simple**, réévaluer à la fin de V1 selon l'architecture retenue (agent dans la VM à examiner, pas choisi). Ni obligation en fin de V1 ni report ferme en V2. Essai E4 fait. | D26 |
+| 113 | État « déjà démarré » | **V1 : toujours démarrer à froid** ; état modèle évalué pour V2. Tension avec 151 A → série 10. | D25, 151 |
+| 114 | Synchro entre appareils | **V2** pour les disques, la bibliothèque et les décisions d'autorisation. Mécanismes non choisis. | — |
+| 115 | Sauvegarde demandée par l'usager | **Objectif** : retrouver l'environnement complet dans un seul fichier ; VM incluses par défaut, exclusion possible. Mécanisme et adaptations à proposer (E15). | C22 |
+| 116 | Réseau simulé | **Orientation** : viser plus complet à terme, version complète peut-être en V2 ; examiner ce qui est faisable en V1 et proposer des options avec leurs limites (après E6). Ni 116 A ni 116 B acceptées. | C31, E6 |
+| 117 | Fausses fenêtres de confiance | **Marque de Kazo** sur les fenêtres des programmes invités (première méthode) ; position, forme, plein écran à spécifier. | — |
+| 118 | Jalons démontrables | **Confirmé** ; le détail des jalons n'est pas validé par là. | — |
+| 119 | Linux en ligne de commande | **Point de départ V1** : shell interactif dans le terminal Kazo, même avec des touches manquantes ; intégration plus complète ensuite. | D27, E14 |
+| 120 | Réglages d'une VM | **Options Wine dans Os-x86**, avec les réglages de la VM. | — |
+| 121 | Profil partageable | **Contenu** : réglages de la VM et liste de programmes ; ni disques, ni bouteilles, ni autorisations (« la recette, pas le contenu »). Format et import/export ouverts. | — |
+| 122 | Limites et veto de l'admin | **Page admin Os-x86 dans Paramètres → Fonctionnalités** plus commande équivalente au terminal. | D43 |
+| 123 | Accord admin pour BoxedWine | **À l'installation de BoxedWine** ; à l'usage, opérations limitées aux droits de l'usager connecté. Changements Kazo nécessaires à spécifier. | D43 |
+| 124.1 | VM commune : administration | **Accepté avec précision** : admin seul règle, supprime, partage ; démarrer/arrêter : usager admis, un à la fois ; **plus** attribution d'une VM à un usager précis et restrictions par VM (certaines réservées aux admins, même pour démarrer). Calendrier → série 10. | 102, 103 |
+| 124.2 | Arrêt avec travail non enregistré | **Confirmation** ; vérifier ce que l'invité permet de détecter. | 66 |
+| 124.3 | Suppression disque/bouteille/point | **Confirmation par défaut** ; au terminal, option explicite (ex. `--force`) pour la sauter ; droits vérifiés dans tous les cas. Modifie 66 A.5. | 66 |
+| 124.4 | Import | Image partagée : **admin** ; son propre disque : **usager**. | 128, D34 |
+| 124.5 | Limites admin | **Admin seul** change une limite, une règle imposée, un refus machine. | — |
+| 124.6 | Permission réseau | **Jamais par l'API** : fenêtre de permission ou page des règles. | D61.2 |
+| 124.7 | Commande ou shell dans une VM | **Réconcilié avec 134 et 144** : la restriction « rien en V1 si l'héritage est reporté » est écartée ; permission exacte à préciser. | 134, 144 |
+| 124.8 | Dossier Kazo hors permissions | **Fenêtre d'Os-x86** de demande d'autorisation. | 107 |
+| 124.9 | Export disque/bouteille | **Confirmation** ; l'option terminal de 124.3 n'est pas étendue à l'export. | — |
+| 124.10 | App par défaut d'une extension | **Confirmation de Kazo** maintenue. | D61.10 |
+| 125 / 142 | Mode invité | **Quand aucun autre compte n'existe, l'invité est un admin** et peut faire les opérations admin d'Os-x86 avec les confirmations de Kazo. 125 A écartée pour ce cas. | ADR 0187 |
+| 126 | « Ne plus demander » le téléchargement | **Par usager, images officielles seulement** ; image présente = aucun téléchargement ; réactivable dans les réglages. | C13 |
+| 127 | Mise à jour indispensable | **App exigeant une image récente : mettre à jour ou annuler** ; mises à jour ordinaires reportables. Cas du moteur qui ne démarre plus l'ancienne image : non présenté. | — |
+| 128 | Image apportée | **Import libre pour l'image personnelle**, admin pour l'image partagée ; vérifier que l'image personnelle reste dans les droits de l'usager. | D34 |
+| 129 | Retirer une entrée de bibliothèque | **Laisse le programme installé** ; avant de supprimer une VM, avertir que les raccourcis seront supprimés. Comment désinstaller ensuite : ouvert. | — |
+| 130 | Programmes trouvés dans les bouteilles | **Facultatif pour livrer la V1**, report en V2 possible (pas seulement un interrupteur). | — |
+| 131 | Suppression d'un compte | **Deux choix distincts** : dossiers personnels, et images/VM personnelles (garder les uns sans les autres) ; VM partagées à part. | ADR 0169 |
+| 132 | Capture de la souris | **Réglage par VM, exception par application** ; touche de libération configurable, toujours disponible ; aucune touche précise choisie. | — |
+| 133 | Son | **Volume et muet par VM en V1 si les essais le permettent** (E5 : oui, pont worker → AudioWorklet) ; par programme plus tard ; vérifier la même chose pour les apps Kazo (souhaitable). | 75, E5 |
+| 135 | Trois issues dans Kazo-ca/Os | **Accord** pour les ouvrir, sans PR. Rien n'est ouvert encore ; confirmation directe demandée en série 10 avant toute publication. | — |
+| 136 | Presse-papiers réel | **V1 si les essais réussissent (E9), sinon V2** ; s'ajoute au partage de texte Kazo–invité de V1. | 74, C37 |
+| 137 | Journal d'événements | **Événements personnels : usager et admins ; événements système : journal général.** | — |
+| 138 | Tests entre dépôts | **PR dans Kazo au moment de l'implémentation** (« plus propre »). | — |
+| 139 | Liens et documents | **L'invité gère ses liens et documents** avec ses associations (pas d'intégration vers Kazo) ; un lien lancé depuis le terminal Kazo s'ouvre dans le navigateur Kazo. Remplace 139 A. | — |
+| 140 | Contrôle total de l'admin | **Administration graphique dès le premier jalon** (140 B), avec dans les Paramètres de Kazo deux sections, VM et utilisateurs, et **un rôle qui permet de gérer les VM** ; articulation avec les permissions des apps à préciser → série 10. | D32, D42 |
+| 141 | Permission « ses propres VM » | **Une permission qui couvre tout, plus une permission par cas** (courant ; suppression/export). Noms et niveaux à proposer. | — |
+| 143 | Permissions dangereuses d'une Feature | **Mêmes règles que Kazo** : approbation admin, refus par l'usager, jamais d'attribution silencieuse (l'ADR doit corriger le bogue du semeur). | ADR 0040 |
+| 144 | Droits de la bouteille | **Règle générale de V1** : tout ce qui s'exécute dans une bouteille a les droits de cette bouteille ; permissions fines en V2 au plus tôt. Généralise 134 et 124.7. | D20, D50 |
+| 145 | Deux opérations | **Distinctes** : commandes internes de BoxedWine (lancer, récupérer un résultat) et console interactive de l'usager, que l'app ne peut ni lire ni écrire ; droits de la bouteille dans les deux cas. | 134 |
+| 146 | Dossiers entre bouteilles d'une même VM | **Chaque bouteille accède aux dossiers pour lesquels elle a une permission** ; deux bouteilles partagent un dossier seulement si toutes deux y sont autorisées. Mécanisme d'isolation dans une VM commune à concevoir (E6, E8). | 107, D22 |
+| 147 | Fermeture de la console | **Si la console attend le programme, la fermer termine le programme** ; autres cas (graphiques, détachés) ouverts. | — |
+| 148 | Programme déjà dans une bouteille | **Même environnement et même résultat quel que soit le point de lancement** (Kazo ou invité) ; permissions de sa bouteille conservées ; identification à spécifier avec 108 et 146 (E12). | D41, E12 |
+| 149 | Images disque | **OPFS comme voie principale ; petites images (ex. Alpine) possibles dans IndexedDB** ; seuil à préciser ; base partagée et couches de différences à essayer. | E2 |
+
+Série 10 (posée le 2026-11-11 dans [serie-10-envoyee.md](serie-10-envoyee.md), répondue le même jour) :
+
+| # | Sujet | Décision | Carte |
+|---|---|---|---|
+| 152 | 113 contre 151 A | **A** : démarrage à froid en V1 ; bouteille gabarit livrée en fichiers dans l'image, préfabriquée, copiée par bouteille, jamais de `wineboot` chez l'usager ; état gabarit (VM déjà démarrée) évalué pour V2. 151 A reformulée ainsi, 113 tient. | D25, D41 |
+| 153 | Wine graphique et la fin de V1 | **Tes mots** : « on va essayer de la terminer à la fin de la V1, mais si trop complexe, on va la faire dans le début de la V2 ». Objectif de fin de V1 sans jalon daté ; si trop complexe, V1 se clôt sans lui et il ouvre V2. | D25, 150 |
+| 154 | Affichage de la console (109) et de DOS (111) | **B : le terminal de Kazo affiche** (E14) ; Os-x86 n'ouvre aucune fenêtre (106 tient). Réserve : DOS graphique non tranché par cette réponse. | 106, D28, E14 |
+| 155 | Attribution d'une VM à un usager (124.1) | **V2**. En V1, les VM communes sont visibles des usagers admis, avec les restrictions par VM de 124.1 (admin seul). | 102 |
+| 156 | « Rôle qui gère les VM » (140) | **B, tes mots** : « un vrai rôle Kazo. La fonctionnalité devra avoir la possibilité de déclarer des rôles » → ADR Kazo « rôles déclarés par une Feature » à écrire, avant le premier jalon. | 140, ADR |
+| 157 | Trois issues dans Kazo-ca/Os (135) | **Ouvre directement** : ouvertes le 2026-11-11 sur `main` 6aef3e0 : [Kazo-ca/Os#431](https://github.com/Kazo-ca/Os/issues/431) (`StartChild` sans capacité), [Kazo-ca/Os#432](https://github.com/Kazo-ca/Os/issues/432) (semeur : identifiants hors catalogue accordés en silence), [Kazo-ca/Os#433](https://github.com/Kazo-ca/Os/issues/433) (fichier de refus écrasable). | 135 |
+| 158 | Os-X86.Interface et Ix86 | **A** : `Os-x86.Interface` = paquet de contrats qui contient `Ix86` ; `x86-Lib` l'implémente ; la Feature enregistre l'instance ; BwLib dépend de `Ix86`, BoxedWine de `IBwLib`. | D10 |
+| 159 | Prénom dans le document | **A** : remplacé par « l'usager » dans la copie du dépôt. | — |
+
+Sujets ajoutés pendant l'appel, sans numéro (à garder tels quels) : conteneurs toujours actifs gérés par l'admin, partagés en V1, attribution personnelle en V2 ; **traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; **architecture des bibliothèques** : BoxedWine (app, BW), Os-x86 (Feature, x86), Boxed-WineLib (BwLib, réutilisable), x86-Lib (réutilisable), contrats IBwLib et Ix86, « Os-X86.Interface implémente Ix86 », BwLib dépend de Ix86 seulement (précision demandée en série 10) ; **périphériques** : admins seuls pour les VM partagées, l'usager pour la VM qu'il a créée.
+
 ## Reste à débattre après la série 6 (réponses 62, 63 et 64)
 
 Détail des recherches vérifiées du 2026-11-09 : [../recherche-2026-11-09/](../recherche-2026-11-09/) (en anglais ; `critique.md` liste les ambiguïtés qui ont servi à la série 3, `reponse-40/` celles de la série 5).
