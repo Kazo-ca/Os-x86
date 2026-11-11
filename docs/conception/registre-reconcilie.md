@@ -155,7 +155,7 @@ Faits de Kazo : lus au commit `cd89ee0` (2026-11-09 et 10), revérifiés sur `ma
 |---|---|---|---|
 | §11 | Les programmes invités accèdent, selon les permissions de leur bouteille (107, 146) : au dossier personnel Kazo, aux dossiers locaux autorisés au navigateur (`hostfs`), aux montages (Kazo n'a aucun montage distant en V1 : `hostfs` seulement). Droits conservés (lecture seule reste lecture seule) ; un montage ne crée pas d'accès plus large ; présentation comme lecteur réseau ou dossier partagé ; montage devenu inaccessible = erreur claire, jamais « dossier vide ». | consignes §11 ; vérification | Décidé |
 | Traduction des chemins | **Traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; montages et permissions à réconcilier. | Sujet sans numéro, 2026-11-11 | Décidé, réserve |
-| E8 (règles) | Programmes installés sur le disque de la VM, jamais sur le partage (9p 15 fois plus lent sur les petits fichiers, #1451 reproduit) ; partage réservé aux documents ; serveur 9p d'Os-x86 durci (30 exigences : liste blanche de noms, pas de résolution de chemin côté hôte, refus de mknod/fifo/liens durs/setuid/xattr, toute exception → EIO borné, un partage = un périphérique 9p). | E8 | À valider |
+| E8 (règles) | Programmes installés sur le disque de la VM, jamais sur le partage (9p environ 8 fois plus lent que le disque ext4 et 15 fois plus lent qu'un tmpfs sur les petits fichiers, #1451 reproduit) ; partage réservé aux documents ; serveur 9p d'Os-x86 durci (30 exigences : liste blanche de noms, pas de résolution de chemin côté hôte, refus de mknod/fifo/liens durs/setuid/xattr, toute exception → EIO borné, un partage = un périphérique 9p). | E8 | À valider |
 | Disque interne depuis Kazo | Exploration du disque interne d'une VM par l'explorateur Kazo : **fortement souhaitée en V1, report V2 accepté si trop complexe** ; forme, permissions, comportement pendant les écritures à proposer (E7 : lecture seule à l'arrêt ; par l'agent en marche). Distinct de l'accès de la VM aux dossiers Kazo. Icône de provenance VM : laissée de côté. Bouteilles invisibles aux autres apps (D61.12). | consignes §11 ; E7 | Conditionnel (E7) |
 
 ## I. Réseau
@@ -246,7 +246,7 @@ La série 11 (160 à 172, [serie-11-envoyee.md](serie-11-envoyee.md)) a été r�
 
 ## O. Propositions à valider (mes recommandations et résultats d'essais)
 
-Rien ici n'est retenu. Chacune est reprise dans le [plan](plan-2026-11-11.md) (section 5) et posée dans la [série 12](serie-12-envoyee.md) (173 à 192).
+Rien ici n'est retenu. Chacune est reprise dans le [plan](plan-2026-11-11.md) (section 5) et posée dans la [série 12](serie-12-envoyee.md) (173 à 199).
 
 - **E1/E4** : V1 garde une fenêtre Kazo par programme (D26 tel quel) ; fenêtre par fenêtre en V1.x avec un plan à part ; composite XComposite + XDamage comme mécanisme cible ; 18 points à ajouter dans Kazo.
 - **E2/149** : seuil de 64 Mio pour IndexedDB ; `flush()` périodique et à l'arrêt ; `persist()` après un geste ; éviction traitée comme risque réel (avertissement, export).
