@@ -408,6 +408,40 @@ Série 11 (160 à 172), posée le 2026-11-11 dans [serie-11-envoyee.md](serie-11
 | 171 | Vrai Windows invité | **A** : V2, avec un essai de faisabilité d'une journée en V1. | C18 |
 | 172 | Identifiants | **A** : `org.kazoos.x86` (points d'entrée `.cli`, `.permission`, `.rules`, `.admin`), `org.kazoos.boxedwine` ; espaces de noms `OsX86.Interface`, `OsX86`, `BoxedWine`, `BoxedWine.Lib` ; NuGet `Os-x86.Interface` et `BoxedWine.Lib`. À revérifier avant publication : `org.kazoos.*` non réservé aux apps système (sinon `ca.kazo.*`). | D35 |
 
+Série 12 (173 à 199), posée le 2026-11-11 dans [serie-12-envoyee.md](serie-12-envoyee.md) avec le [plan](plan-2026-11-11.md), répondue le même jour. Tes mots : « 185. ok pour les noms, mais bouteille est un nom français, on doit trouver quel nom anglais utiliser et je dois savoir quel nom sera utilisé. Pour le reste, je suis d'accord avec tes recommendations. » Toutes les recommandations sont donc acceptées explicitement ; 185 avec cette précision (question 200, ci-dessous).
+
+| # | Sujet | Décision | Carte |
+|---|---|---|---|
+| 173 | Partage de fichiers | **A** : programmes sur le disque de la VM, partage pour les documents, serveur 9p d'Os-x86 durci selon E8, un partage = un périphérique 9p. | 107, D22, E8 |
+| 174 | Règles réseau | **A** : décision, limites et journal au relais côté Kazo (ADR « relais : identités et décisions d'une Feature ») ; nftables dans l'invité en défense ; `relay_url` fixé par la Feature ; UDP 53 et IPv6 bloqués par règle. | D20, D21, 161, E6 |
+| 175 | Identité d'un programme mis à jour | **A** : chemin dans la bouteille, puis clé de signature, empreinte toujours, sélecteur en repli ; pas de chaîne X.509 en V1 ; E12 bis à faire. | D20, D41, E12 |
+| 176 | Permissions | **A** : `x86.programs.launch` (normale) ; `x86.vm` (dangereuse, couvre tout) ; `x86.vm.use` (normale) ; `x86.vm.destroy` (dangereuse) ; jamais les VM d'un autre usager. | 141, D32 |
+| 177 | Stockage | **A** : seuil 64 Mio pour IndexedDB ; `flush()` toutes les 5 s et à l'arrêt ; `persist()` après un geste ; éviction = avertissement et export ; espace affiché. | 149 |
+| 178 | Navigateurs et mobile | **A** : pas d'exigence SharedArrayBuffer ; plancher Chrome/Edge 108, Firefox 111, Safari 16.4 ; mobile = VM de 256 Mio plein écran après E16 ; fonctions absentes affichées. | E10 |
+| 179 | Fenêtre par fenêtre (mécanisme cible) | **A** : composite XComposite + XDamage, transport de pixels à revoir, 18 ajouts Kazo (ADR 23) ; plan détaillé à la réévaluation de fin de V1. | 112, E4 |
+| 180 | Console et commandes internes | **A** : « exécuter dans la bouteille » non interactive, arguments structurés, durée bornée (10 min), journalisée ; console avec bouteille, droits réseau et avertissement affichés. | 145 |
+| 181 | Réseau de BoxedWine | **A** : Os-x86 déclare `network.real.access` et télécharge ; BoxedWine n'a aucune permission réseau ; **D43 révisée** (BoxedWine ne déclare que les permissions de fichiers qu'il transmet). | D43, D61.7, 126 |
+| 182 | Modèle de menace | **A** : ADR d'Os-x86 ; dans le périmètre : programmes invités hostiles, apps Kazo qui abusent de l'API, usagers standards ; hors périmètre : JavaScript de même origine, noyau invité compromis, admin malveillant. | D61.1 |
+| 183 | Profils | **A** : JSON `.x86profile` défini par Os-x86, section « programmes » remplie par BoxedWine ; import/export par BoxedWine et `x86 profile` ; modèles prêts sous ce format. | 121 |
+| 184 | Route du shell (mécanisme) | **A** : enfant du shell, nouvelle instance par lancement, flux du shell, le terminal attend ; BoxedWine pas à instance unique ; Ctrl+C ferme l'instance et Os-x86 arrête le programme tant que l'ADR 22 manque. | 162, 163 |
+| 185 | Syntaxe de `x86` | **A, avec ta précision** : `x86 vm list/create/start/stop/delete/export/import/snapshot`, `x86 shell`, `x86 run`, `x86 detect`, `x86 rules`, `x86 profile`, `sudo x86 admin` ; une session `x86 shell` par VM en V1 ; `--force` sur `delete` seulement. **« Bouteille » doit avoir un nom anglais, à fixer (200).** | D60, 119, 145 |
+| 186 | D21 après 108 | **A** : D21 réécrite : Os-x86 ∩ sous-système ∩ décision ∩ règles admin ∩ relais ; « l'appelant » n'y figure plus pour un programme lancé par une app ; l'expéditeur marqué sert au journal. | D21, 108 |
+| 187 | Image | **A** : Alpine 3.24 x86 avec `linux-virt` ; Wine 11.0 d'Alpine si l'essai de 170 le fait marcher, sinon le Wine qui a réussi l'essai (épinglé, précise D35) ; Mono 10.4.1 et Gecko 2.47.4 ; v86 avec le correctif #1661 ; contrôle à chaque branche d'Alpine, reconstruction annuelle. | D35, E13 |
+| 188 | Retour arrière, état sûr | **A** : point de restauration avant toute mise à jour ; « à la fermeture » attend la dernière application de la VM ; retour au point en cas d'échec ; notes de version si présentes. | 127, 169 |
+| 189 | Jeux | **A** : fiche « fait partie d'un écosystème ; pas un jeu, mais les jeux font partie des logiciels exécutables » ; aucune mention de jeux dans Kazo-ca/Os. | C43 |
+| 190 | Rangement par usager | **A** : par identifiant stable (GUID), jamais par nom. | 131 |
+| 191 | Confirmations 124.2 et 124.3 | **A** : fenêtres d'Os-x86 ; BoxedWine ne fait que déclencher. | 124 |
+| 192 | Marque anti-imitation | **A** : pastille de l'app qui affiche, dans la barre de titre et le bouton de la barre des tâches, dessinée par Kazo, non masquable ; bande 3 s en plein écran. | 117 |
+| 193 | Choix de la bouteille | **A** : Os-x86 décide (identité, bouteille, permissions, sélecteur) ; BwLib exécute les commandes Wine dans la bouteille choisie. | D50 |
+| 194 | VM partagée ou séparées | **A** : une VM par genre et par image pour toutes les bouteilles de l'usager ; VM séparées pour les VM complètes et sur demande (profil « VM dédiée ») ; limite d'isolation écrite. | §6, E6 |
+| 195 | Shell Linux | **A** : par l'agent ; console série en repli pour une image sans agent (une session). | 119 |
+| 196 | Image sans agent | **A** : capacités réduites et affichées ; paquet de l'agent fourni pour l'installer soi-même. | 128 |
+| 197 | ADR | **A** : inventaire et ordre de la section 6 du plan tels quels. | C15 |
+| 198 | Jalons | **A** : J0 (deux étapes) à J4 tels quels. | C45 |
+| 199 | Réglages et dépôts | **A** : tableau de la section 9 et structure de la section 7 tels quels, lignes « proposé » comprises. | 120, C42 |
+
+Question ajoutée à la suite de 185 : **200, le nom anglais de « bouteille »** (posée le 2026-11-11 à la fin de [serie-12-envoyee.md](serie-12-envoyee.md)) : en attente.
+
 Sujets ajoutés pendant l'appel, sans numéro (à garder tels quels) : conteneurs toujours actifs gérés par l'admin, partagés en V1, attribution personnelle en V2 ; **traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; **architecture des bibliothèques** : BoxedWine (app, BW), Os-x86 (Feature, x86), Boxed-WineLib (BwLib, réutilisable), x86-Lib (réutilisable), contrats IBwLib et Ix86, « Os-X86.Interface implémente Ix86 », BwLib dépend de Ix86 seulement (précision demandée en série 10) ; **périphériques** : admins seuls pour les VM partagées, l'usager pour la VM qu'il a créée.
 
 ## Reste à débattre après la série 6 (réponses 62, 63 et 64)

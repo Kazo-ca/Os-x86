@@ -174,3 +174,19 @@ Les propositions du [plan](plan-2026-11-11.md) et du registre (section O) qui n'
 ---
 
 On retient quoi pour 173 à 199? Réponds par numéro ; une ligne vide n'accepte rien.
+
+## Question ajoutée après tes réponses du 2026-11-11
+
+Tu as accepté 173 à 199 ; pour 185 : « ok pour les noms, mais bouteille est un nom français, on doit trouver quel nom anglais utiliser et je dois savoir quel nom sera utilisé ».
+
+**200. Le nom anglais de « bouteille », dans le code, l'API, la commande et l'interface anglaise**
+> « Bouteille » traduit le concept de CrossOver (un préfixe Wine isolé par programme, avec son réseau et son compte) ; Wine lui-même dit « prefix » (`WINEPREFIX`). Dans le code et l'API, tout est en anglais (identifiants `OsX86`, `BoxedWine`, sous-commandes `vm`, `shell`, `run`) ; le français reste pour la documentation et l'interface française. Le mot choisi apparaîtra partout : types (`Ix86`), option de `x86 shell`, sous-commande, fichiers exportés, journal.
+
+- A) **`bottle`** : `x86 shell <vm> --bottle <id>`, `x86 bottle list|delete|export`, types `Bottle`, `BottleId`, `IBottleOperations` ; « bouteille » dans l'interface française, « bottle » dans l'anglaise ✨(Recommandé)
+  - Le mot de CrossOver, que les usagers de Wine connaissent ; un seul mot court ; `--prefix` aurait un autre sens habituel en ligne de commande.
+- B) **`prefix`** : le mot de Wine (`WINEPREFIX`) ; `--prefix`, `Prefix`, `PrefixId` ; « préfixe » en français au lieu de « bouteille »
+  - Exact pour Wine, mais ne dit pas « isolé par programme », et `--prefix` prête à confusion.
+- C) **`sandbox`** ou **`container`** : plus générique, mais déjà pris par d'autres sens dans Kazo et dans le projet (bac à sable serveur, conteneurs toujours actifs)
+- D) Autre : (Spécifiez)
+
+Réponds par « 200 A » (ou B, C, autre).
