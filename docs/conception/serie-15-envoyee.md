@@ -196,6 +196,15 @@ Deux faits revérifiés sur Kazo `main` (6aef3e05), sans question : `persist()` 
 
 **Appliqué dans Kazo-ca/Os le 2026-11-11** (cinq commits sur les branches de chantier, rien de fusionné par moi ; [#435](https://github.com/Kazo-ca/Os/pull/435) a été fusionnée par le mainteneur) : 0244 ([#437](https://github.com/Kazo-ca/Os/pull/437), `185b6942`), 0247 ([#440](https://github.com/Kazo-ca/Os/pull/440), `3e1aba1d`), 0252 ([#445](https://github.com/Kazo-ca/Os/pull/445), `25b31936`, nouveau §1 : le Terminal résout `Ix86` par le registre, lit lui-même l'en-tête, exécute le programme console dans son onglet, peut héberger des onglets « session Os-x86 »), et pour la cohérence 0245 ([#438](https://github.com/Kazo-ca/Os/pull/438), `f77a300c` : toute app peut consommer une interface de Feature, seule la fourniture est réservée aux Features) et 0251 ([#444](https://github.com/Kazo-ca/Os/pull/444), `a79a2fb3` : la route du shell demande d'abord à l'hôte du shell, puis au handler binfmt).
 
+**Deuxième lot, le 2026-11-11** (tout le reste). Réponse reçue : « 240. Os-x86 fournit une méthode pour déterminer le type d'application. C'est lui qui interprète le magic et l'extension. Ensuite le shell demande aux applications qui exposent des capacités d'exécution d'application si elles peuvent ouvrir l'application. Je crois qu'on devrait ajouter le support de MimeType (optionnel) et s'en servir aussi plus tard pour les protocoles (comme pour irc). Pour le reste je suis d'accord avec tes recommandations. »
+
+| # | Réponse | Lecture |
+|---|---|---|
+| 240 | **D** (ci-dessus) | Remplace le mécanisme de l'ADR 0251 : plus de `Magic` lu par le shell ni de `FileHandler.Executable`. (1) **Os-x86 détecte** : une méthode d'Os-x86 lit l'en-tête et l'extension et rend le type du programme, en type MIME ; (2) le shell demande aux apps qui déclarent une **capacité d'exécution** si elles peuvent ouvrir ce programme et lance celle qui accepte ; (3) les types MIME sont facultatifs dans les déclarations et serviront aux protocoles (`irc://` ; Kazo a déjà `x-scheme-handler/<schème>`, ADR 0096 et 0121). L'hôte du shell (251 A) reste consulté en premier. Quatre précisions à régler : **252 à 255** ci-dessous. ADR 0251 à réécrire ; 0243 §5 (binfmt réservé aux Features) et 0252 à ajuster. |
+| 222 | **A** | `ca.kazo.x86` et `ca.kazo.boxedwine` ; remplace 172 A ; identifiants du squelette changés dans Os-x86 (branche `j0/1b-ids`). |
+| 251 | **A** | `KazoShellOptions.ProgramHost` : l'hôte du shell (le Terminal) est consulté avant la détection et les apps à capacité d'exécution. |
+| 223, 224, 226 à 232, 234 à 239, 241 à 244, 246 à 250 | **A** | La recommandation de chaque question, déjà appliquée dans le texte des ADR. |
+
 ## Question nouvelle issue de la réécriture de 0252
 
 **251. Comment le Terminal prend-il le fichier avant le handler binfmt, sans que le shell connaisse une app?** Faits vérifiés dans Kazo : le shell connaît déjà son app hôte (`ShellSession.cs:90`), ses options de démarrage existent (`IKazoShell.cs:114-137`), le Terminal est une app système (`Kazo.Os.Ecosystem.csproj:53`).
@@ -203,3 +212,32 @@ Deux faits revérifiés sur Kazo `main` (6aef3e05), sans question : `persist()` 
 - B) Le shell cherche l'app Terminal par son identifiant et l'appelle directement (le shell connaît une app)
 - C) Aucun point d'accroche : le handler binfmt (`x86`) reçoit toujours le fichier et, lancé depuis le Terminal, affiche dans l'onglet (rédaction précédente de 0252, écartée par 245 B)
 - D) Autre : (Spécifiez)
+
+Répondue **A** dans le deuxième lot.
+
+## Précisions sur 240 D (252 à 255), posées le 2026-11-11
+
+Faits vérifiés dans Kazo avant de les poser : un gestionnaire de fichiers se déclare déjà avec un type MIME facultatif, des extensions, des actions et une priorité (`FileHandlerManifest(MediaType, Extensions, Actions, Priority)`, `AppManifest.cs:224-228`) ; un schème d'URI se prend déjà par un gestionnaire `x-scheme-handler/<schème>` (ADR 0096 et 0121 ; `xdg-open irc://…` cherche le gestionnaire du schème `irc`) ; `xdg-mime query filetype` existe ; le résolveur d'associations compare l'extension ou le type MIME donné par l'appelant, sans jamais lire le contenu (`FileAssociationResolver.cs:386-393`). « Ajouter le support de MimeType » revient donc à **s'en servir dans la route du shell** (détection par le contenu, puis gestionnaires par type MIME), pas à l'inventer.
+
+**252. Comment le shell atteint-il la détection d'Os-x86 sans connaître l'app?**
+- A) Une déclaration réservée aux Features, `FeatureDefinition.FormatDetectors` (remplace `BinaryFormats` de 0251) : la Feature nomme les types MIME qu'elle sait reconnaître et un point d'entrée `DetectAsync(en-tête de 64 octets, extension)` qui rend le type MIME et le détail (PE console, PE graphique, NE, MZ pur, ELF, lot DOS) ou « pas à moi » ; le shell interroge les détecteurs installés et activés dans l'ordre d'installation et s'arrête au premier qui répond ; sans détecteur, la table extension → type MIME de Kazo (`xdg-mime query filetype`) ✨(Recommandé)
+- B) Le shell résout `Ix86` par le registre (ADR 0245) et appelle sa détection : le shell connaît Os-x86
+- C) Pas de détecteur séparé : chaque app candidate lit elle-même l'en-tête quand le shell lui demande si elle peut ouvrir le fichier
+- D) Autre : (Spécifiez)
+
+**253. Quelle forme prend la « capacité d'exécution » d'une app?**
+- A) Une action `execute` des `FileHandlers` existants (type MIME et extensions), plus un appel `CanExecuteAsync(descripteur du programme)` sur l'app pour confirmer ou refuser (PE 64 bits, programme graphique quand l'hôte est le Terminal) ; si Kazo ne peut pas appeler une app installée sans la lancer, le refus se fait au lancement (code 126, candidat suivant) ; remplace `FileHandler.Executable` et `BinaryFormats` de 0251 ; BoxedWine déclare `execute` pour PE et NE, la commande `x86` d'Os-x86 pour MZ pur et ELF ✨(Recommandé)
+- B) Déclaratif seulement : la liste des types MIME suffit, aucun appel ; une app qui ne peut pas rend 126 après son lancement
+- C) Une déclaration à part dans le manifeste (`programLaunchers`), séparée des associations de fichiers
+- D) Autre : (Spécifiez)
+
+**254. Plusieurs apps répondent oui?**
+- A) L'association par défaut de l'usager pour ce type MIME et l'action `execute` (ADR 0121 : Paramètres ▸ Associations, `xdg-mime default`), sinon le candidat unique, sinon la fenêtre « Ouvrir avec » de l'OS (jamais une question au terminal, D61.5) ✨(Recommandé)
+- B) La `Priority` de la déclaration, la plus haute gagne, sans choix de l'usager
+- C) La fenêtre « Ouvrir avec » à chaque lancement
+- D) Autre : (Spécifiez)
+
+**255. Types MIME des programmes et protocoles.**
+- A) L'ADR fixe les types MIME que le détecteur rend, pris de la base freedesktop ou de l'IANA (`application/vnd.microsoft.portable-executable` pour PE, `application/x-dosexec` pour MZ pur, `application/x-executable` pour ELF, `application/x-bat` pour `.bat` et `.cmd`, `application/x-msi`) ; les protocoles passent par ce qui existe (`x-scheme-handler/<schème>` dans `FileHandlers`, `xdg-open`), rien de plus pour IRC ; un programme invité qui ouvre une URL (`open-url` de l'agent, 205 A) passe par `xdg-open` ✨(Recommandé)
+- B) Un champ `protocols` à part dans le manifeste, en plus des `FileHandlers`
+- C) Autre : (Spécifiez)
