@@ -70,3 +70,5 @@ Démonstration de fin de J0 (section 8 du plan) : `x86 shell` ouvre un shell dep
 ## 5. Ce qui reste à obtenir de toi
 
 Répondu le 2026-11-11 (219 à 221, A partout) : la série d'ADR `feature/base` dans Kazo-ca/Os puis son code (219 A) ; Kazo épinglé sur v3.2.1, 3.3.0 à sa publication (220 A) ; `j0/base` depuis `conception-os-x86` (221 A). À obtenir ensuite auprès de Kazo : l'origine d'hébergement R2 (202 A), l'accord pour un Web Worker JS et `cache: 'no-store'` (203 A).
+
+**État de la série Kazo (2026-11-11)** : les 13 ADR sont écrites (PR [#436](https://github.com/Kazo-ca/Os/pull/436) à [#448](https://github.com/Kazo-ca/Os/pull/448) vers `feature/base`, [#435](https://github.com/Kazo-ca/Os/pull/435) réserve les numéros), rien n'est fusionné. Leurs 28 questions au mainteneur sont la [série 15](serie-15-envoyee.md) (222 à 250). Réponses reçues : 225 A avec précision, 233 B, 245 B (le point 10 de la section 6 du plan reste tel quel : le Terminal dépend de `Os-x86.Interface` ; l'ADR 0252 est à réécrire) ; les 26 autres sont ouvertes. Le chantier 1 d'Os-x86 est fusionné dans `j0/base` ([#2](https://github.com/Kazo-ca/Os-x86/pull/2)).
