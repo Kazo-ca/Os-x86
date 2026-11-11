@@ -444,6 +444,10 @@ Série 12 (173 à 199), posée le 2026-11-11 dans [serie-12-envoyee.md](serie-12
 
 Question 200 posée le 2026-11-11 à la fin de [serie-12-envoyee.md](serie-12-envoyee.md), répondue le même jour (« 200 B : prefix »).
 
+**Résultat de l'essai dédié de 170 A (2026-11-11, [../essais/e17-wine-dedie.md](../essais/e17-wine-dedie.md))** : critère atteint au jour 1 avec le Wine i386 de WineHQ (11.0, glibc) sur un invité Debian trixie i386 et le noyau `linux-virt` d'Alpine, dans v86 : Notepad 721x512, utilisable 23 à 32 s après la commande ; le Wine 11.0 d'Alpine garde ses fenêtres à 1x1 quelles que soient les options Xorg (bogue propre à cette build). Selon la règle de 170 A, **Windows graphique reste en fin de V1 (jalon J3)** ; le jour 2 n'a pas lieu. Le Wine de l'image (187) suit la clause « sinon le Wine qui a réussi l'essai » ; la base de l'image (Debian i386 plutôt qu'Alpine + chroot) est posée en [série 13](serie-13-envoyee.md), avec les propositions d'E3.
+
+Série 13 (201 à 204), posée le 2026-11-11 dans [serie-13-envoyee.md](serie-13-envoyee.md) : en attente.
+
 Sujets ajoutés pendant l'appel, sans numéro (à garder tels quels) : conteneurs toujours actifs gérés par l'admin, partagés en V1, attribution personnelle en V2 ; **traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; **architecture des bibliothèques** : BoxedWine (app, BW), Os-x86 (Feature, x86), Boxed-WineLib (BwLib, réutilisable), x86-Lib (réutilisable), contrats IBwLib et Ix86, « Os-X86.Interface implémente Ix86 », BwLib dépend de Ix86 seulement (précision demandée en série 10) ; **périphériques** : admins seuls pour les VM partagées, l'usager pour la VM qu'il a créée.
 
 ## Reste à débattre après la série 6 (réponses 62, 63 et 64)

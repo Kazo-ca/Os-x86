@@ -13,3 +13,4 @@ Prototypes jetables prévus par [docs/conception/etudes-prevues.md](../docs/conc
 | `e8-9p/` | E8 : 9p contre disque (issue #1451, installation d'un programme, montage) et durcissement du serveur 9p (liens, noms, tailles, déconnexion) | `docs/essais/e8-9p.md` |
 
 Les images, dépendances et résultats bruts volumineux sont ignorés par git (voir les `.gitignore` des sous-dossiers).
+| `e17-wine-dedie/` | Wine dédié (170 A, jour 1) : invité Debian i386 + Wine i386 de WineHQ contre les fenêtres 1x1 de E1 (Notepad, winecfg, winemine ; options Xorg sur l'image E1) | `docs/essais/e17-wine-dedie.md` |

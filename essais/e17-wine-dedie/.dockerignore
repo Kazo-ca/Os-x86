@@ -1,0 +1,8 @@
+images/
+node_modules/
+lib/
+*.json
+*.mjs
+*.html
+*.py
+*.ps1
