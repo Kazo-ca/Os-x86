@@ -24,7 +24,7 @@ Ce qui ne dépend pas de Kazo commence tout de suite dans Os-x86 (chantiers 1 à
 | 6 | 0248 | Résolution des dépendances (Store, kazopkg) | BoxedWine dépend d'Os-x86 |
 | 7 | 0249 | Section « Fonctionnalités » des Paramètres | pages VM et utilisateurs |
 | 8 | 0250 | Persistance et éviction du stockage | OPFS, `persist()`, avertissement |
-| 9 | 0251 | Route du shell vers l'association et binfmt par en-tête | `./setup.exe`, `./hello.exe`, DOS, exception du Terminal |
+| 9 | 0251 | Route du shell vers les apps à capacité d'exécution (240 D ; ADR à réécrire après 252 à 255) | `./setup.exe`, `./hello.exe`, DOS, exception du Terminal |
 | 10 | 0252 | Le Terminal affiche un programme invité | `x86 shell`, console Wine, DOS texte (215 A, 216 A) |
 | 11 | 0253 | Expéditeur marqué | journal |
 | 12 | 0254 | Événements par usager | journal personnel (137) |
@@ -71,4 +71,4 @@ Démonstration de fin de J0 (section 8 du plan) : `x86 shell` ouvre un shell dep
 
 Répondu le 2026-11-11 (219 à 221, A partout) : la série d'ADR `feature/base` dans Kazo-ca/Os puis son code (219 A) ; Kazo épinglé sur v3.2.1, 3.3.0 à sa publication (220 A) ; `j0/base` depuis `conception-os-x86` (221 A). À obtenir ensuite auprès de Kazo : l'origine d'hébergement R2 (202 A), l'accord pour un Web Worker JS et `cache: 'no-store'` (203 A).
 
-**État de la série Kazo (2026-11-11)** : les 13 ADR sont écrites (PR [#436](https://github.com/Kazo-ca/Os/pull/436) à [#448](https://github.com/Kazo-ca/Os/pull/448) vers `feature/base`, [#435](https://github.com/Kazo-ca/Os/pull/435) réserve les numéros), rien n'est fusionné. Leurs 28 questions au mainteneur sont la [série 15](serie-15-envoyee.md) (222 à 250). Réponses reçues : 225 A avec précision, 233 B, 245 B (le point 10 de la section 6 du plan reste tel quel : le Terminal dépend de `Os-x86.Interface` ; l'ADR 0252 est à réécrire) ; les 26 autres sont ouvertes. Le chantier 1 d'Os-x86 est fusionné dans `j0/base` ([#2](https://github.com/Kazo-ca/Os-x86/pull/2)).
+**État de la série Kazo (2026-11-11)** : les 13 ADR sont écrites (PR [#436](https://github.com/Kazo-ca/Os/pull/436) à [#448](https://github.com/Kazo-ca/Os/pull/448) vers `feature/base`, [#435](https://github.com/Kazo-ca/Os/pull/435) réserve les numéros), rien n'est fusionné. Leurs 28 questions au mainteneur sont la [série 15](serie-15-envoyee.md) (222 à 250). Réponses reçues le même jour, en deux lots : 225 A avec précision, 233 B, 245 B (le point 10 de la section 6 du plan reste tel quel : le Terminal dépend de `Os-x86.Interface` ; ADR 0252 réécrite), puis **240 D** (Os-x86 détecte le type du programme, le shell demande aux apps à capacité d'exécution ; ADR 0251 à réécrire une fois les précisions 252 à 255 répondues), 222 A (identifiants `ca.kazo.x86`, changés dans le squelette par la branche `j0/1b-ids`), 251 A et A partout ailleurs. Le chantier 1 d'Os-x86 est fusionné dans `j0/base` ([#2](https://github.com/Kazo-ca/Os-x86/pull/2)).
