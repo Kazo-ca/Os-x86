@@ -1,0 +1,107 @@
+# Point d'étape du 2026-11-10 (soir)
+
+Ce que j'ai fait depuis tes « Consignes pour commencer », ce que ça donne, et ce qui attend ta décision. Rien de ce qui suit n'est retenu sans ta validation explicite, question par question ; aucun code de production n'a été écrit ; rien n'est commité ni poussé.
+
+## 1. Réponses ingérées : 101, 105, 134
+
+Enregistrées dans [journal-decisions.md](journal-decisions.md) (section « Réponses du 2026-11-10 ») avec ta nouvelle règle : les autres questions des séries 7 et 8 restent ouvertes, aucune n'est acceptée par défaut.
+
+- **105 et 134 vérifiées dans le code de Kazo** (commit cd89ee0) : [verification-105-134.md](verification-105-134.md). Faits saillants : Kazo ne donne à aucune app ni Feature sa fenêtre d'authentification d'administrateur (seules les passerelles internes l'ont) ; aujourd'hui seul `sudo x86 …` donne une opération authentifiée admin ; l'invité de Kazo est un administrateur sans mot de passe (ma 125 A tombe) ; toute permission déclarée hors du catalogue de Kazo est accordée en silence à la connexion (même bogue que l'ADR 0040) ; sous Wine, l'héritage fin des droits par programme est impossible sans modifier Wine (un seul `wineserver` par bouteille), donc « droits de la bouteille » est la seule règle possible en V1 pour Windows. Recommandations R105.1 à R105.5 et R134.1 à R134.6 : à valider.
+- **Série 9 (140 à 149)** pour ChatGPT : [serie-9-pour-chatgpt.md](serie-9-pour-chatgpt.md), document autonome.
+
+## 2. Essais lancés (réponse 101 A)
+
+| Essai | État | Rapport |
+|---|---|---|
+| E2 stockage des disques | **Terminé** | [../essais/e2-stockage.md](../essais/e2-stockage.md) |
+| E1 Wine dans v86 (démarrage, état, mémoire) | **Terminé, un critère non atteint** | [../essais/e1-wine-v86.md](../essais/e1-wine-v86.md) |
+| E4 fenêtre par fenêtre (affichage) | **Terminé** (critère atteint avec des fenêtres X11 natives, pas Wine) | [../essais/e4-fenetres.md](../essais/e4-fenetres.md) |
+| E5 son | **Terminé** | [../essais/e5-son.md](../essais/e5-son.md) |
+
+Code jetable dans [../../essais/](../../essais/) (images et états ignorés par git, 1,4 Go sur le disque).
+
+### E2 en une ligne
+OPFS (`createSyncAccessHandle` dans un worker) contre IndexedDB par blocs de 4 Kio : 130 à 185 fois plus rapide dans Chrome, 55 à 70 fois dans Firefox ; écriture séquentielle 1,4 à 1,8 Gio/s ; quota 10 Gio partout ; `persist()` refusé sans geste. D'où la question 149.
+
+### E1 en six lignes (Chrome 156 sans fenêtre, Ryzen 7 3700X, localhost)
+- Boot Linux à froid jusqu'au prompt : 62 à 65 s (coût CPU, pas réseau : à chaud c'est pareil). Xorg sur le VGA de v86 : 12 à 16 s. Ça ne sert qu'à fabriquer l'état gabarit chez nous.
+- `wineboot` (première bouteille) : **7 à 7,6 minutes**. Lancer un programme Wine ensuite : 7 à 9 s.
+- Depuis un état sauvegardé : VM vivante en 2 s, invité qui répond en 4 s, cache froid ou chaud. Sauvegarde d'un état : 607 Mo en 0,4 s (137 à 157 Mio en zstd) ; restauration en page : 0,25 s.
+- Mémoire : l'invité n'utilise que 110 Mio, mais le renderer Chrome paie 1,4 Gio dès le boot (`memory_size` 1 Gio) et 3,3 Gio si l'état reste en mémoire.
+- Téléchargement première visite : image 187 Mio zstd + état 140 à 160 Mio ≈ 350 Mio ; v86 redemande les fichiers `.zst` à chaque boot malgré le cache HTTP.
+- **Échec : les fenêtres de Wine 11 restent à 1x1 pixel** (Notepad, winecfg, winemine ; avec Xorg fbdev, modesetting ou Xvfb ; avec ou sans gestionnaire de fenêtres, bureau virtuel, cache d'écrans effacé). Piste restante : la machine à états des fenêtres de winex11 (réécrite dans Wine 10) ignore les `WM_NORMAL_HINTS` qu'elle reçoit (« Ignoring window … expected … »). « Bloc-notes utilisable < 30 s » **n'a donc pas été mesuré**.
+
+### E5 en six lignes (Chrome 156 sans fenêtre, même machine)
+- `snd-sb16` est déjà dans `linux-virt` : aucun noyau plus gros à distribuer. Image E5 : 196 Mio zstd ; état avec 256 Mio de RAM : 78 Mo, rechargé en 0,7 s.
+- `aplay` de 10 s, page au repos : son continu, 0 trou, latence marque → premier échantillon 340 à 410 ms, dans les deux modes (v86 sur le fil principal, ou v86 dans un Web Worker avec pont direct vers un AudioWorklet).
+- Page bloquée 300 à 500 ms (« Kazo sous charge ») : **le pont worker → AudioWorklet ne perd rien** ; la voie native de v86 (fil principal) donne 6 à 7 trous de 270 ms, des trames rejouées et parfois `aplay` qui meurt. C'est le bogue v86 #1660 ; le correctif #1661 n'est pas dans la version 0.5.473 et la PR est toujours ouverte.
+- Worker gelé 300 à 500 ms : sans garde, `aplay` meurt en 2 s ; avec une garde équivalente à #1661, lecture complète, seuls restent les trous du gel. Les gels de la VM (JIT, sauvegarde d'état) resteront audibles.
+- PipeWire dans l'invité marche (muet par flux démontré, question 133) mais double le CPU (205 à 219 % contre 90 à 105 % pour `aplay` seul) ; le muet global côté page est gratuit.
+- Non mesuré : son d'un programme Wine, vraie carte son (tout est compté dans le worklet), blocage réel d'autoplay (Chrome sous Playwright accepte `resume()` sans geste), Firefox/Edge/Safari.
+
+### E4 en six lignes (même machine, clients X11 natifs : xterm, xclock, xeyes, xmessage)
+- Critère atteint : quatre fenêtres de l'invité affichées comme quatre fenêtres séparées dans la page, avec titre, classe, dialogue rattaché à son parent, ordre z, glisser par la barre (souris → `xdotool`) et clics renvoyés à l'invité. Pas avec des fenêtres Wine (toujours 1x1).
+- Deux mécanismes comparés : **composite** (agent C dans l'invité, XComposite + XDamage + XGetImage, pixels envoyés par fenêtre) et **découpage** (la page découpe l'écran VGA selon la liste de fenêtres). Seul le composite gère le recouvrement (0 pixel parasite contre 12 000 en découpage).
+- Coût au repos : composite 2 % du CPU invité et 1,7 ms/s de page ; sous charge (xterm qui défile) 2,6 trames/s et 1 Mio/s, goulot = écriture des pixels sur 9p (130 ms par trame de 557 Kio). Le découpage monte à 11 trames/s.
+- Délai « ligne écrite dans l'invité → vue dans la page » : environ 160 ms en composite, 85 ms en découpage, hors chemin série (CPU émulé + sondage de 50 ms).
+- Wine 1x1 **non résolu** après la boîte de 45 minutes : ce n'est pas XRandR. La trace montre que le côté Win32 calcule des rectangles corrects mais que winex11 reçoit une fenêtre (0,0)-(1,1) et demande lui-même des `WM_NORMAL_HINTS` 1x1 ; aucun mode d'affichage n'est jamais écrit dans le registre (seulement `Default_Monitor`). Piste : `X11DRV_UpdateDisplayDevices` (chemin Xinerama) n'ajoute aucun mode dans ce Wine 11.0 i386 d'Alpine ; à comparer avec un autre Wine (question 150).
+- Tableau de 18 points « ce que Kazo doit ajouter » (ordre z, focus, placement, transients, fenêtres override-redirect pour menus et infobulles, fenêtres sans propriétaire, icône de repli, titres en trois encodages, curseur) : Kazo devrait devenir le gestionnaire de fenêtres de l'invité. Proposition de l'essai, à valider : V1 garde une fenêtre Kazo par programme (D26 tel quel), fenêtre par fenêtre en V1.x avec un plan à part (nourrit 112).
+
+### E12 (lecture) : identité d'un programme mis à jour — [../essais/e12-identite-programme.md](../essais/e12-identite-programme.md)
+- .NET sous WebAssembly ne sait vérifier aucune signature Authenticode : `X509Certificate2`, `X509Chain.Build`, RSA, ECDsa et `SignedCms` sont marqués non pris en charge dans le navigateur ; seuls SHA-1/2, HMAC et le décodeur ASN.1 managé existent. La vérification cryptographique passerait par `SubtleCrypto` ; tout l'Authenticode (table de certificats PE, hachage du fichier, PKCS#7, chaîne, horodatages) serait à écrire, environ 2 500 lignes, la moitié sans la chaîne.
+- Point clé : vérifier la signature avec la clé du signataire, sans chaîne ni racines, suffit à prouver « même clé que la version déjà autorisée » (modèle des APK Android) ; la chaîne n'ajoute que « éditeur vérifié ».
+- Part de programmes signés : une seule mesure trouvée (2018, 31 % de 43 601 téléchargements bénins) ; pour les titres 1995-2010, estimation sous un sur dix, signatures SHA-1 ou MD5. La règle par signature vaut donc peu pour les vieux programmes.
+- Règle recommandée, à valider : « chemin dans la bouteille d'abord, clé de signature ensuite, empreinte toujours, sélecteur D41 en repli ». Un exécutable réécrit à son propre chemin dans `drive_c` est le même programme (ça repose sur D50 : l'API n'écrit jamais d'exécutable dans une bouteille), `VERSIONINFO` et nom de fichier servent à l'affichage seulement, pas de chaîne X.509 en V1.
+- Rien n'a été exécuté : que `System.Formats.Asn1` et `SubtleCrypto` marchent ensemble depuis Blazor reste à prouver (E12 bis proposé, code jetable).
+
+### E10 (lecture) : navigateurs et mobile — [../essais/e10-navigateurs.md](../essais/e10-navigateurs.md)
+- Les cinq fonctions qu'utilisent les prototypes (OPFS `SyncAccessHandle`, Worker + OffscreenCanvas, AudioWorklet, SharedArrayBuffer, `persist()`) existent partout depuis 2023 : plancher Chrome/Edge 108, Firefox 111, Safari 16.4.
+- SharedArrayBuffer exige l'isolation d'origine croisée ; Safari n'a pas COEP `credentialless`, donc l'exiger casserait les ressources tierces de Kazo. Proposition : fonctionner sans SAB (worker + MessagePort comme E5), SAB seulement si détecté.
+- Memory64 : Chrome 133, Firefox 134, absent de Safari 27.2. Stockage : Safari efface tout le stockage de script, OPFS compris, après 7 jours sans interaction ; Firefox plafonne à 10 Gio sans `persist()` (invite).
+- Pointer Lock et Keyboard Lock : bureau seulement, jamais iOS ; Keyboard Lock toujours en plein écran. Fenêtre détachée (Document PiP) : Chrome/Edge et Firefox bureau, jamais Safari ni mobile.
+- Déchargement d'onglet : Chrome Memory Saver détruit la page sans événement préalable ; iOS tue l'onglet (WebContent) sans signal JS. Mémoire mobile : iOS environ 300 Mo à 1 Gio fiables pour le wasm ; le 1,4 Gio de E1 n'y est pas viable ; 256 Mio (config E5) est la seule taille plausible, non mesurée.
+- Conséquence pour la disposition mobile de Kazo, à valider : une VM plein écran de 256 Mio, clavier et pavé virtuels, point de restauration sur `visibilitychange`, pas de fenêtre par fenêtre ni de fenêtre détachée. 45 sources ; cellules Samsung Internet et quelques points Safari marqués « non vérifié ».
+
+### E13 (lecture) : chaîne 32 bits — [../essais/e13-chaine-32-bit.md](../essais/e13-chaine-32-bit.md)
+- Alpine x86 est vivant : 3.24.4 (2026-11-05), `linux-virt` x86 rebâti chaque semaine jusque dans edge, aucune dépréciation annoncée ; Wine x86 construit nativement par un mainteneur unique (11.0 en 3.24 et edge, figé depuis janvier).
+- WineHQ publie toujours des paquets i386 pour Debian (stable 11.0, devel/staging 11.21) : meilleure roue de secours, et le meilleur moyen de tester le bogue « fenêtres 1x1 » de E1 avec un autre Wine (question 150). Le nouveau WoW64 de Wine 11 exige un hôte x86_64 : sans valeur dans v86, précieux pour un palier Linux x86_64.
+- Construire Wine i386 nous-mêmes : faisable en heures depuis l'APKBUILD d'Alpine ; le vrai coût est de tester chaque build dans v86 (7 minutes de `wineboot`).
+- x86_64 en WebAssembly : v86 reste 32 bits, aucun fork 64 bits ; QEMU Wasm progresse (TCI 64 bits accepté en janvier 2026, backend wasm64 encore en revue), exige SharedArrayBuffer donc COOP/COEP (voir E10) ; aucun chiffre de performance primaire lisible.
+- Vrai Windows 32 bits dans v86 : NX est dans v86 depuis le 2026-10-04 (0.5.470), Windows 10 et 7 démarrent selon un contributeur ; ACPI minimal, IDE seulement, monocœur. **Verdict C18, à valider : « peu de changements » ne tient pas pour un Windows utilisable** (disque de 32 Go, pas d'état gabarit pour raison de licence, pas de pont 9p ni d'agent) → report en V2 avec un essai de faisabilité en V1.
+- Plan de repli écrit : si Alpine lâche x86, dernière branche supportée puis Debian i386 ou Buildroot (2 à 4 semaines, transparent pour l'usager) ; si Wine i386 disparaît, WineHQ puis notre build, puis le palier x86_64 où WoW64 couvre le 32 bits ; v86 restera 32 bits : le palier x86_64 passe par QEMU Wasm derrière l'abstraction moteur (D4).
+
+### E8 : 9p, vitesse et durcissement — [../essais/e8-9p.md](../essais/e8-9p.md)
+- Issue v86 #1451 reproduite : 2 500 petits fichiers lus en 10,9 s par 9p contre 1,3 s sur un disque ext4 et 0,7 s en tmpfs (×15) ; v86 sert une requête `Tread` par 1,8 Kio, c'est le coût par message. Débit 9p ≈ 8 à 13 Mo/s contre 76 à 150 Mo/s pour le disque IDE.
+- Installation d'un programme (archive de 43 Mo, 3 000 fichiers) : ≈ 135 s sur 9p, ≈ 101 s sur disque, ≈ 76 s en tmpfs ; l'extraction est dominée par le CPU émulé, la relecture par le transport 9p. Montage 9p à chaud impossible avec l'image de E1 (un seul canal virtio, pris par la racine) : non mesuré.
+- Durcissement : le serveur 9p intégré de v86 accepte tout (`CON`, `NUL`, points et espaces finaux, `: \ * ? " < > |`, caractères de contrôle, noms NFC/NFD distincts, octets non UTF-8 remplacés en silence, `Tlcreate "../evil"` crée une entrée littérale, mknod, fifo, setuid exécuté, liens durs, chown) ; un `truncate -s 2G` bloque l'invité ; une exception côté hôte bloque le processus invité pour toujours (kill -9 sans effet), alors qu'un `Rlerror EIO` renvoyé donne une erreur propre en 2,6 s. Table de 30 exigences pour le serveur 9p d'Os-x86.
+- Propositions, à valider (nourrissent 107 et D22) : programmes installés sur le disque de la VM, jamais sur le partage ; partage réservé aux documents ; liste blanche de noms (UTF-8 strict, NFC, ≤ 255 octets, sans réservés Windows ni `..`), casse selon 107 ; jamais de résolution de chemin côté hôte, liens symboliques stockés comme chaînes ; refuser mknod, fifo, liens durs, setuid, xattr ; toute exception → EIO avec délai maximal ; un partage = un périphérique 9p.
+- Non mesuré : Wine sur 9p contre disque (`wineboot` 7 min, script fourni), montage à chaud, Firefox/Edge/Safari, vrai VFS de Kazo.
+
+## 3. Questions nouvelles à trancher
+
+Même protocole : une lettre, ou rien pour la recommandation ✨, ou « Autre ». Les numéros suivent la série 9 (140 à 149).
+
+Réponses reçues le 2026-11-10 : **150 B** et **151 A**, enregistrées dans le journal.
+
+**150 — Fenêtres Wine à 1x1 pixel : que fait-on du jalon 0 « Wine graphique » ?**
+Contexte : tout le reste de la chaîne marche (boot, Xorg, bouteille, programme console Wine, état sauvegardé). Le point bloquant est connu et localisé (winex11 de Wine 11.0 i386 d'Alpine), pas compris. E4 commence par 45 minutes d'essais bornés sur les pistes XRandR non encore tentées. Tes consignes §4 demandent de te proposer un changement de périmètre quand une cible n'est pas atteinte.
+- A ✨(Recommandé) : après les 45 minutes de E4, si c'est toujours 1x1, un essai dédié d'une journée au plus (autre Wine : 10.x, build Debian i386, ou trace complète `+win,+x11drv`) avant de toucher au périmètre ; le plan garde « Wine graphique en fin de V1 » tant que cet essai n'a pas échoué.
+- B : redéfinir le jalon 0 dès maintenant sur les programmes console (Wine `cmd`, programmes DOS, Linux), Wine graphique repoussé à un jalon ultérieur sans date.
+- C : les deux en parallèle : le jalon 0 est défini sur la console, et l'essai Wine d'une journée continue à part.
+- Autre : (Spécifiez)
+
+**151 — Bouteille gabarit : 7 minutes de `wineboot` dans v86**
+Contexte : D41 prévoit une bouteille par programme (isolation réseau, D20). `wineboot` prend 7 minutes dans v86 sur un Ryzen 3700X (10 s en natif) ; la bouteille fait 210 Mio.
+- A ✨(Recommandé) : la première bouteille est fabriquée hors ligne, dans l'état gabarit ; chaque nouvelle bouteille est une copie de cette bouteille gabarit (copie-sur-écriture à chiffrer, suite de E2 ou E8), jamais un `wineboot` chez l'usager. Conséquence : une mise à jour de Wine remplace l'état gabarit et la bouteille gabarit ensemble (C13-C14, 126).
+- B : `wineboot` chez l'usager avec un indicateur d'attente et une estimation du temps ; pas de bouteille gabarit à distribuer.
+- Autre : (Spécifiez)
+
+Les autres propositions issues de E1 (512 Mio de mémoire par VM à essayer, ne jamais garder l'état en mémoire, servir image et état compressés, cache des `.zst` côté Kazo, points de restauration fréquents crédibles) sont dans la section « Ce que ça veut dire pour Os-x86 » du rapport E1, chacune marquée « à valider » ; je les reprendrai dans le registre réconcilié quand tu auras répondu, pas avant.
+
+## 4. Ce qui n'est pas fait ou pas vérifié
+
+- E1, E2, E4, E5 (essais) et E10, E12, E13 (lecture) sont faits ; E3 et E6 à E9 restent à lancer dès que C: a de la place (voir ci-dessous), puis E11, E14, E15.
+- Safari non mesuré (pas de Mac) ; Firefox et Edge mesurés pour E2 seulement ; E1 sur Chrome seul, deux runs, sans Mono ni Gecko, v86 dans le fil principal (pas encore en Web Worker).
+- **Disque C:** : descendu à 3,8 Go libres après E5. Sur ton accord (« Oui, libère C: ») j'ai supprimé les trois images Docker des essais (`e1-wine-v86`, `e4-fenetres`, `e5-son`, 2,7 Go), le cache de construction Docker (11,5 Go) et, sur disque, l'export tar de E1 et les deux états sauvegardés (`state.bin` de E1, `state-snd.bin` de E5, 1,2 Go en tout ; `build.ps1` et un run les recréent). Résultat : 5,0 Go libres. L'espace rendu à Docker n'est pas rendu à Windows : son disque virtuel (`docker_data.vhdx`, 69 Go) ne rétrécit qu'en le compactant, ce qui arrête tous les conteneurs, dont les huit de tes autres projets qui tournent ; je ne l'ai pas fait. Sur ton second accord (« Oui, compacte ») : l'arrêt de Docker Desktop et de WSL a libéré 10 Go à lui seul (fichiers temporaires), mais le compactage du disque virtuel exige une élévation que je ne peux pas obtenir ; Docker Desktop est relancé, les huit conteneurs valoria tournent de nouveau. Script prêt pour toi, à lancer en administrateur : [../../essais/compacter-disque-docker.ps1](../../essais/compacter-disque-docker.ps1) (trim, arrêt, compactage, relance). Première exécution sans effet (69,2 Go avant et après) : ext4 ne remet pas à zéro les blocs libérés, il fallait un `fstrim` avant ; fait depuis, le script l'inclut maintenant. Seconde exécution : disque Docker 69,2 → 58,7 Go, mais C: est retombé à 5 Go libres : le fichier d'échange de Windows (`pagefile.sys`, géré automatiquement, 39,4 Go) a grossi dans l'intervalle et une sauvegarde ValorIA de 2,9 Go s'est écrite. Ce sont des réglages système et tes autres projets : je n'y touche pas. Options durables, à ton choix : déplacer le disque virtuel de Docker vers un autre lecteur (P: a 510 Go libres ; Docker Desktop → Settings → Resources → Disk image location), fixer la taille du fichier d'échange ou le mettre sur un autre lecteur, désactiver la veille prolongée (`hiberfil.sys`, 25,6 Go). Tant que C: reste sous 10 Go, je ne lance pas E3, E6 à E9 ; les études de lecture E10, E12 et E13 sont lancées (aucun disque). Les essais restants (E3, E6 à E9) restent lourds en disque.
+- Rien n'est commité ni poussé sur `conception-os-x86` ; je le fais quand tu le dis.
+- Les réponses aux séries 7 et 8 (102 à 139) et à la série 9 (140 à 149) restent attendues ; le registre réconcilié et le plan (consignes §20) viennent après.

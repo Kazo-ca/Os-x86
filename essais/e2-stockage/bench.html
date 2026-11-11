@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Essai E2 — stockage des disques</title>
+<style>body{font-family:system-ui,sans-serif;margin:1rem} pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<h1>Essai E2 — stockage des disques</h1>
+<p>Paramètres : <code>?size=</code> (Mio, défaut 1024), <code>?ops=</code> (opérations aléatoires, défaut 2000).</p>
+<pre id="log"></pre>
+<script>
+(async () => {
+  const logEl = document.getElementById('log');
+  const log = (m) => { logEl.textContent += m + '\n'; };
+  const params = new URLSearchParams(location.search);
+  const sizeMiB = Number(params.get('size') || 1024);
+  const ops = Number(params.get('ops') || 2000);
+  const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise((res) => setTimeout(() => res(fallback), ms))]);
+
+  const results = {
+    date: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    crossOriginIsolated: window.crossOriginIsolated,
+    sizeMiB, ops,
+    page: {
+      opfsGetDirectory: !!(navigator.storage && navigator.storage.getDirectory),
+      syncAccessHandleOnWindow: typeof FileSystemFileHandle !== 'undefined' && 'createSyncAccessHandle' in FileSystemFileHandle.prototype,
+      persistApi: !!(navigator.storage && navigator.storage.persist),
+    },
+  };
+  try {
+    results.estimateBefore = await navigator.storage.estimate();
+    results.persisted_before = await navigator.storage.persisted();
+    // persist() peut afficher une invite (Firefox) : on n'attend pas plus de 5 s.
+    results.persist = await withTimeout(navigator.storage.persist(), 5000, 'pas de réponse en 5 s (invite usager probable)');
+    results.persisted_after = await navigator.storage.persisted();
+  } catch (e) { results.storageApiError = e.name + ': ' + e.message; }
+  log('estimate avant : ' + JSON.stringify(results.estimateBefore));
+  log('persist() : ' + results.persist);
+
+  const worker = new Worker('bench-worker.js');
+  worker.onmessage = async (ev) => {
+    if (ev.data.type === 'log') { log(ev.data.msg); return; }
+    if (ev.data.type === 'done') {
+      results.worker = ev.data.results;
+      try { results.estimateAfter = await navigator.storage.estimate(); } catch (e) { results.estimateAfter = { error: e.message }; }
+      log('estimate après : ' + JSON.stringify(results.estimateAfter));
+      window.__results = results;
+      window.__done = true;
+      log('TERMINÉ');
+    }
+  };
+  worker.onerror = (e) => { window.__error = e.message; window.__done = true; log('ERREUR worker : ' + e.message); };
+  worker.postMessage({ sizeMiB, ops });
+})();
+</script>
+</body>
+</html>

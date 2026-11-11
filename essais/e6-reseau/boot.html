@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E6 — reseau par bouteille dans v86</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #1b1b1b; color: #ddd; }
+  #serial { height: 360px; overflow: auto; background: #000; color: #8f8; padding: 6px; font: 12px monospace; white-space: pre-wrap; border: 1px solid #555; }
+  #marks { font: 12px monospace; color: #ccf; }
+  button, input { margin: 2px; }
+  .row { margin: 6px 0; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E6 — Alpine 3.24 x86 (netns par bouteille) dans v86 <small id="status">(chargement…)</small></h3>
+<div class="row">
+  <input id="serial_in" size="80" placeholder="commande pour la console serie (Entree pour envoyer)">
+</div>
+<div id="screen_container" style="display:none"><div></div><canvas></canvas></div>
+<pre id="serial"></pre>
+<div id="marks"></div>
+<script>
+"use strict";
+// Essai E6 — page de boot. Etat de mesure expose dans window.E6 pour run.mjs.
+const E6 = window.E6 = {
+  t0: performance.now(),
+  params: Object.fromEntries(new URLSearchParams(location.search)),
+  marks: [], info: [], events: [], serial: "", emu: null,
+};
+const memMiB = Number(E6.params.mem || 512);
+const relayPort = E6.params.relay || "9099";
+const netId = Number(E6.params.netid || 0);
+const stateName = E6.params.state;
+// MODE "inbrowser" volontairement NON fourni : voir run.mjs (verification que la page le bloque).
+const config = {
+  wasm_path: "lib/v86.wasm",
+  memory_size: memMiB * 1024 * 1024,
+  vga_memory_size: 2 * 1024 * 1024,
+  screen_container: document.getElementById("screen_container"),
+  bios: { url: "lib/seabios.bin" },
+  vga_bios: { url: "lib/vgabios.bin" },
+  filesystem: { baseurl: "images/alpine-rootfs-flat/", basefs: "images/alpine-fs.json" },
+  autostart: true,
+  bzimage_initrd_from_filesystem: true,
+  cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci console=ttyS0 tsc=reliable mitigations=off",
+  disable_speaker: true,
+  net_device: { type: "virtio", relay_url: "ws://localhost:" + relayPort + "/", id: netId },
+};
+if (stateName) config.initial_state = { url: "images/" + stateName };
+
+const emu = E6.emu = new V86(config);
+for (const ev of ["emulator-ready", "emulator-started", "emulator-stopped", "download-error"]) {
+  emu.add_listener(ev, () => { E6.events.push({ name: ev, t: performance.now() }); setStatus(ev); });
+}
+const serialEl = document.getElementById("serial");
+const marksEl = document.getElementById("marks");
+let line = "", promptSeen = false;
+function setStatus(s) { document.getElementById("status").textContent = "(" + s + ")"; }
+function addMark(name, uptime) {
+  const m = { name, uptime: Number(uptime), t: performance.now() };
+  E6.marks.push(m);
+  marksEl.textContent += `${name.padEnd(20)} t=${(m.t / 1000).toFixed(2)}s uptime=${uptime}\n`;
+}
+emu.add_listener("serial0-output-byte", (byte) => {
+  const c = String.fromCharCode(byte);
+  E6.serial += c; serialEl.textContent += c;
+  if (serialEl.textContent.length > 4000000) serialEl.textContent = serialEl.textContent.slice(-2000000);
+  serialEl.scrollTop = serialEl.scrollHeight;
+  if (c === "\n") {
+    const l = line.trim(); line = "";
+    const mm = /^MARK (\S+)(?: (\S+))?$/.exec(l);
+    if (mm) addMark(mm[1], mm[2] || "0");
+    else if (/^RES /.test(l)) E6.info.push({ line: l, t: performance.now() });
+  } else if (c !== "\r") line += c;
+  if (!promptSeen && c === " " && /[\n\r][\w().-]*:~# $/.test(E6.serial.slice(-40))) { promptSeen = true; addMark("shell-prompt", "0"); }
+});
+E6.send = (text) => emu.serial0_send(text);
+E6.saveState = async () => { const t = performance.now(); const s = await emu.save_state(); E6.state = s; return { ms: performance.now() - t, bytes: s.byteLength }; };
+E6.hasNetworkAdapter = () => !!(emu.network_adapter);
+E6.adapterName = () => emu.network_adapter ? emu.network_adapter.constructor.name : null;
+document.getElementById("serial_in").onkeydown = function (e) {
+  if (e.key === "Enter") { emu.serial0_send(this.value + "\n"); this.value = ""; }
+  e.stopPropagation();
+};
+</script>
+</body>
+</html>
