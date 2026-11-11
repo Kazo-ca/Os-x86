@@ -390,6 +390,8 @@ Série 10 (posée le 2026-11-11 dans [serie-10-envoyee.md](serie-10-envoyee.md),
 | 158 | Os-X86.Interface et Ix86 | **A** : `Os-x86.Interface` = paquet de contrats qui contient `Ix86` ; `x86-Lib` l'implémente ; la Feature enregistre l'instance ; BwLib dépend de `Ix86`, BoxedWine de `IBwLib`. | D10 |
 | 159 | Prénom dans le document | **A** : remplacé par « l'usager » dans la copie du dépôt. | — |
 
+Série 11 (160 à 172), posée le 2026-11-11 dans [serie-11-envoyee.md](serie-11-envoyee.md) à partir des points ouverts du [registre](registre-reconcilie.md) : en attente de réponse.
+
 Sujets ajoutés pendant l'appel, sans numéro (à garder tels quels) : conteneurs toujours actifs gérés par l'admin, partagés en V1, attribution personnelle en V2 ; **traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; **architecture des bibliothèques** : BoxedWine (app, BW), Os-x86 (Feature, x86), Boxed-WineLib (BwLib, réutilisable), x86-Lib (réutilisable), contrats IBwLib et Ix86, « Os-X86.Interface implémente Ix86 », BwLib dépend de Ix86 seulement (précision demandée en série 10) ; **périphériques** : admins seuls pour les VM partagées, l'usager pour la VM qu'il a créée.
 
 ## Reste à débattre après la série 6 (réponses 62, 63 et 64)

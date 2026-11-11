@@ -237,7 +237,7 @@ Faits de Kazo : lus au commit `cd89ee0` (2026-11-09 et 10), revérifiés sur `ma
 
 ## N. Ce qui reste ouvert (ta réponse requise)
 
-Liste courte, point 10 de §20. Chaque point sera posé avec contexte et options dans la série 11 (à partir de 160), ou dans le plan là où il est dit.
+Liste courte, point 10 de §20. Posée le 2026-11-11 dans la [série 11](serie-11-envoyee.md) (160 à 172), sauf le point 11 (après E15) et les détails de rédaction (points 10 et 14 en partie), qui vont dans le plan.
 
 1. **Mécanisme du contrôle total de l'admin** : 140 B et 156 ont tranché l'administration graphique dès le premier jalon avec un rôle Kazo (la lecture (a) « `sudo x86` seulement » de R105.2 est remplacée). Reste à dire si le rôle suffit, ou s'il faut en plus une authentification d'admin par l'OS à chaque opération (réserve de 140), et ce que devient « gérer les sous-systèmes » (D32) face au rôle.
 2. **Réseau simulé en V1** (116) : options et limites à proposer après E6 ; la version complète peut-être en V2.
