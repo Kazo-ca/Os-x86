@@ -129,3 +129,5 @@ Ce qui est déjà réglé par les règles que tu as validées, sans question : l
 ---
 
 On retient quoi pour 205 à 218? Réponds par numéro ; une ligne vide n'accepte rien.
+
+Réponse du 2026-11-11 : « je suis d'accord avec tes recommendations » (205 à 218 : A).
