@@ -245,6 +245,7 @@ La série 11 (160 à 172, [serie-11-envoyee.md](serie-11-envoyee.md)) a été r�
 2. **121** : format et mécanisme d'import/export des profils : proposé dans le plan, à valider là.
 3. **Mécanisme de la route du shell** (enfant du shell, instance, flux, instance déjà ouverte) et syntaxe exacte des commandes `x86` : proposés dans le plan, à valider là.
 4. **172** : vérifier avant publication que `org.kazoos.*` n'est pas réservé aux apps système de Kazo.
+5. **Série 14** (205 à 218, [serie-14-envoyee.md](serie-14-envoyee.md)) : propositions d'E7 (protocole de l'agent, cgroup par lancement, modèle de processus Kazo, console et 167 A, réserve de 102, durcissement, disque interne, images sans agent) et d'E14 (voie pty, DOS à 33 ms, contenu de l'ADR 10, Ctrl+C, DOS graphique, dépendances v86) : en attente.
 
 ## O. Propositions à valider (mes recommandations et résultats d'essais)
 
