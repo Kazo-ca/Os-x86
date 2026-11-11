@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTrimmable>true</IsTrimmable>
+    <RootNamespace>OsX86</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- x86-Lib (plan §1.1): the reusable implementation of Ix86. Engine, storage, network, share, agent, identity and VM registry live here. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OsX86.Interface\OsX86.Interface.csproj" />
+  </ItemGroup>
+</Project>

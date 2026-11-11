@@ -1,0 +1,12 @@
+> [English version](../en/README.md)
+
+# Documentation d'Os-x86
+
+| Document | Contenu |
+| --- | --- |
+| [`features.md`](features.md) | Les fonctionnalités : disponibles, en cours, prévues |
+| [`changelog.md`](changelog.md) | Les changements par version |
+| [`../conception/`](../conception/) | La conception : plan approuvé, registre des décisions, séries de questions, ordre du jalon 0 (français seulement) |
+| [`../essais/`](../essais/) | Les rapports des prototypes de mesure (français seulement) |
+
+Chaque PR qui livre, change ou prévoit une fonctionnalité met à jour `features.md` et `changelog.md` dans les deux langues ; un changement de l'API publique met à jour `src/OsX86.Interface/PublicAPI.Unshipped.txt`.

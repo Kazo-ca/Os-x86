@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+.idea/
+TestResults/
+artifacts/
+
+# Private keys: never in the repository.
+*.pem
+
+# Local tooling of the Claude desktop app (launch configurations).
+.claude/
