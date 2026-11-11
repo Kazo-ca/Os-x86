@@ -1,1 +1,1 @@
-Une app fenêtrée Kazo OS créée avec le modèle kazoos-solution.
+Fait tourner des machines virtuelles x86 (Linux, FreeDOS, programmes Windows par Wine) dans Kazo OS.
