@@ -69,4 +69,4 @@ Démonstration de fin de J0 (section 8 du plan) : `x86 shell` ouvre un shell dep
 
 ## 5. Ce qui reste à obtenir de toi
 
-Posé dans le chat le 2026-11-11 (219 à 221) : ouverture de la série d'ADR dans Kazo-ca/Os et de son code ; tag de Kazo à épingler ; branche de départ de `j0/base`. À obtenir ensuite auprès de Kazo : l'origine d'hébergement R2 (202 A), l'accord pour un Web Worker JS et `cache: 'no-store'` (203 A).
+Répondu le 2026-11-11 (219 à 221, A partout) : la série d'ADR `feature/base` dans Kazo-ca/Os puis son code (219 A) ; Kazo épinglé sur v3.2.1, 3.3.0 à sa publication (220 A) ; `j0/base` depuis `conception-os-x86` (221 A). À obtenir ensuite auprès de Kazo : l'origine d'hébergement R2 (202 A), l'accord pour un Web Worker JS et `cache: 'no-store'` (203 A).
