@@ -1,0 +1,6 @@
+# Essai E7 — environnement du shell série root (dash, lu via ENV). Pilotage de l'essai seulement.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+export DISPLAY=:0
+export PS1='debian:~# '
+cd /root

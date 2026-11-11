@@ -14,3 +14,4 @@ Prototypes jetables prévus par [docs/conception/etudes-prevues.md](../docs/conc
 
 Les images, dépendances et résultats bruts volumineux sont ignorés par git (voir les `.gitignore` des sous-dossiers).
 | `e17-wine-dedie/` | Wine dédié (170 A, jour 1) : invité Debian i386 + Wine i386 de WineHQ contre les fenêtres 1x1 de E1 (Notepad, winecfg, winemine ; options Xorg sur l'image E1) | `docs/essais/e17-wine-dedie.md` |
+| `e7-agent-processus/` | E7 : agent invité et processus (protocole JSON sur virtio-console, lancement et arrêt par bouteille/cgroup, fenêtres, console d'usager R134.5, bombe de processus, écritures hors compte, partage 9p disparu, disque ext4 lu depuis Node, Alpine nue sans agent) | `docs/essais/e7-agent-processus.md` |

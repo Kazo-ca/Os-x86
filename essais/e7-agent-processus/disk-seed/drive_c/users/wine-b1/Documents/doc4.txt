@@ -1,0 +1,1 @@
+document 4 de la bouteille b1 (graine du disque ext4 ; les runs ont tourné avec des fichiers de 27 Kio générés aléatoirement)

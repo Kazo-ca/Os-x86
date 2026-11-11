@@ -1,0 +1,9 @@
+{
+  "name": "e7-agent-processus",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.65.0"
+  }
+}

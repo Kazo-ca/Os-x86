@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E7 — agent et processus dans v86</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #1b1b1b; color: #ddd; }
+  #screen_container { display: inline-block; border: 1px solid #555; background: #000; vertical-align: top; }
+  #screen_container > div { white-space: pre; font: 14px monospace; line-height: 14px; color: #ccc; }
+  pre.log { height: 220px; overflow: auto; background: #000; color: #8f8; padding: 6px; font: 12px monospace; white-space: pre-wrap; border: 1px solid #555; }
+  #agentlog { color: #8cf; } #console { color: #fc8; }
+  input { margin: 2px; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E7 — agent et processus <small id="status">(chargement…)</small></h3>
+<div><input id="serial_in" size="70" placeholder="console série root (ttyS0) — Entrée pour envoyer"></div>
+<div><input id="agent_in" size="70" placeholder='agent (hvc1) — JSON, ex. {"op":"ping"}'></div>
+<div><input id="console_in" size="70" placeholder="console d'usager (hvc2) — Entrée pour envoyer"></div>
+<div id="screen_container"><div></div><canvas style="display: none"></canvas></div>
+<pre id="serial" class="log"></pre>
+<pre id="agentlog" class="log"></pre>
+<pre id="console" class="log"></pre>
+<script>
+"use strict";
+// Essai E7 — page de boot (dérivée de E17). Paramètres d'URL : ?fs=e7-fs.json ?flat=rootfs-flat ?mem=1024
+//   ?disk=disk-b1.img (ext4 de la bouteille, chargé en mémoire : hda) ?state=<état> ?alpine=1 (image E6 nue, sans
+//   virtio-console ni disque). Tout l'état de mesure est exposé dans window.E7 pour drive.mjs / run.mjs.
+const E7 = window.E7 = { t0: performance.now(), params: Object.fromEntries(new URLSearchParams(location.search)), marks: [], info: [], events: [], serial: "", agentRaw: "", agentEvents: [], console: "", pending: new Map(), nextId: 1, rtts: [], state: null, emu: null, faults: [] };
+const memMiB = Number(E7.params.mem || 1024);
+const alpine = !!E7.params.alpine;
+const fsName = E7.params.fs || (alpine ? "alpine-fs.json" : "e7-fs.json");
+const flatDir = E7.params.flat || (alpine ? "alpine-rootfs-flat" : "rootfs-flat");
+const setStatus = (s) => { document.getElementById("status").textContent = "(" + s + ")"; };
+
+async function main() {
+  const config = {
+    wasm_path: "lib/v86.wasm", memory_size: memMiB * 1024 * 1024, vga_memory_size: 8 * 1024 * 1024,
+    screen_container: document.getElementById("screen_container"),
+    bios: { url: "lib/seabios.bin" }, vga_bios: { url: "lib/vgabios.bin" },
+    filesystem: { baseurl: "images/" + flatDir + "/", basefs: "images/" + fsName },
+    autostart: true, bzimage_initrd_from_filesystem: true,
+    cmdline: "rw root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose modules=virtio_pci console=ttyS0 tsc=reliable mitigations=off",
+    disable_speaker: true,
+    virtio_console: !alpine,
+  };
+  if (E7.params.disk) {
+    const t = performance.now();
+    const r = await fetch("images/" + E7.params.disk, { cache: "no-store" });
+    const buf = await r.arrayBuffer();
+    E7.diskLoad = { ms: Math.round(performance.now() - t), bytes: buf.byteLength };
+    config.hda = { buffer: buf };
+  }
+  if (E7.params.state) config.initial_state = { url: "images/" + E7.params.state };
+  const emu = E7.emu = new V86(config);
+  const _readFile = emu.read_file.bind(emu), _createFile = emu.create_file.bind(emu);
+  emu.read_file = (p) => _readFile(p.replace(/^\/+/, ""));
+  emu.create_file = (p, d) => _createFile(p.replace(/^\/+/, ""), d);
+  for (const ev of ["emulator-ready", "emulator-started", "emulator-stopped", "download-error"]) emu.add_listener(ev, () => { E7.events.push({ name: ev, t: performance.now() }); setStatus(ev); });
+
+  // --- console série (ttyS0) : shell root de pilotage, marques MARK.
+  const serialEl = document.getElementById("serial");
+  let line = "", promptSeen = false;
+  emu.add_listener("serial0-output-byte", (byte) => {
+    const c = String.fromCharCode(byte);
+    E7.serial += c; serialEl.textContent += c;
+    if (serialEl.textContent.length > 200000) serialEl.textContent = serialEl.textContent.slice(-100000);
+    serialEl.scrollTop = serialEl.scrollHeight;
+    if (c === "\n") {
+      const l = line.trim(); line = "";
+      const mm = /^MARK (\S+)(?: (\S+))?$/.exec(l);
+      if (mm) E7.marks.push({ name: mm[1], uptime: Number(mm[2] || 0), t: performance.now() });
+      else if (/^(RES|MEM|WIN|X |INO) /.test(l)) E7.info.push({ line: l, t: performance.now() });
+    } else if (c !== "\r") line += c;
+    if (!promptSeen && c === " " && /[\n\r][\w().~:-]*[#$] $/.test(E7.serial.slice(-40))) { promptSeen = true; E7.marks.push({ name: "shell-prompt", uptime: 0, t: performance.now() }); }
+  });
+  E7.send = (text) => emu.serial0_send(text);
+
+  // --- port virtio-console 1 (hvc1) : protocole de l'agent, JSON par ligne, réponses appariées par id.
+  const agentEl = document.getElementById("agentlog");
+  const dec = new TextDecoder(), enc = new TextEncoder();
+  let agentLine = "";
+  const onAgentLine = (l) => {
+    agentEl.textContent += l + "\n"; agentEl.scrollTop = agentEl.scrollHeight;
+    if (agentEl.textContent.length > 300000) agentEl.textContent = agentEl.textContent.slice(-150000);
+    let obj; try { obj = JSON.parse(l); } catch { E7.agentEvents.push({ raw: l, t: performance.now() }); return; }
+    if (obj.event) { E7.agentEvents.push({ ...obj, t: performance.now() }); return; }
+    const p = E7.pending.get(obj.id);
+    if (p) { E7.pending.delete(obj.id); const ms = performance.now() - p.t; E7.rtts.push({ op: p.op, ms }); p.resolve({ ...obj, _ms: Math.round(ms * 10) / 10 }); }
+  };
+  emu.add_listener("virtio-console1-output-bytes", (bytes) => {
+    const s = dec.decode(bytes); E7.agentRaw += s;
+    for (const ch of s) { if (ch === "\n") { if (agentLine) onAgentLine(agentLine); agentLine = ""; } else if (ch !== "\r") agentLine += ch; }
+  });
+  const sendBytes = (port, bytes) => { for (let i = 0; i < bytes.length; i += 1024) emu.bus.send(`virtio-console${port}-input-bytes`, bytes.subarray(i, Math.min(i + 1024, bytes.length))); };
+  E7.agent = (req, timeoutMs = 60000) => new Promise((resolve, reject) => {
+    const id = E7.nextId++;
+    const msg = JSON.stringify({ id, ...req });
+    const timer = setTimeout(() => { E7.pending.delete(id); reject(new Error(`agent: délai dépassé (${req.op}, ${timeoutMs} ms)`)); }, timeoutMs);
+    E7.pending.set(id, { op: req.op, t: performance.now(), resolve: (r) => { clearTimeout(timer); resolve(r); } });
+    sendBytes(1, enc.encode(msg + "\n"));
+  });
+
+  // --- port virtio-console 2 (hvc2) : console d'usager (pty attaché par l'agent).
+  const consEl = document.getElementById("console");
+  emu.add_listener("virtio-console2-output-bytes", (bytes) => { const s = dec.decode(bytes); E7.console += s; consEl.textContent += s; consEl.scrollTop = consEl.scrollHeight; });
+  E7.consoleSend = (text) => sendBytes(2, enc.encode(text));
+
+  // --- 9p : « partage disparu » = le serveur répond Rlerror EIO à toute requête dont le fid vise le sous-arbre.
+  // On intercepte virtqueue.pop_request (la copie liée de ReceiveRequest n'est pas remplaçable, voir E8) : la
+  // requête est lue ici ; si elle vise un inode en faute, on répond EIO nous-mêmes et on rend au serveur une
+  // requête factice d'id 0 (ignorée) ; sinon on lui rend une copie qui rejoue les octets lus.
+  const fs9 = () => emu.fs9p, dev9p = () => emu.v86.cpu.devices.virtio_9p;
+  let origPop = null; const faulted = new Set();
+  E7.faultOn = (p) => {
+    const fs = fs9(); const r = fs.SearchPath(p.replace(/^\/+/, "")); if (r.id === -1) return "no such path";
+    const walk = (id) => { faulted.add(id); const ino = fs.GetInode(id); if (ino.direntries) for (const [name, cid] of ino.direntries) if (name !== "." && name !== "..") walk(cid); };
+    walk(r.id);
+    const dev = dev9p(), vq = dev.virtqueue;
+    if (!origPop) {
+      origPop = vq.pop_request;
+      vq.pop_request = function () {
+        const real = origPop.call(this);
+        const buf = new Uint8Array(real.length_readable); real.get_next_blob(buf);
+        const id = buf[4], tag = buf[5] | (buf[6] << 8), fid = buf[7] | (buf[8] << 8) | (buf[9] << 16) | (buf[10] << 24);
+        const ino = dev.fids[fid]?.inodeid;
+        const hit = faulted.size && id !== 120 /* Tclunk */ && id !== 100 && id !== 104 && ino !== undefined && faulted.has(ino);
+        const stub = Object.create(real);
+        if (hit) {
+          E7.faults.push({ id, tag, fid, inodeid: ino, t: performance.now() });
+          dev.SendError(tag, "Input/output error", 5); dev.SendReply(real);
+          stub.get_next_blob = (b) => { b.fill(0); b[0] = 7; b[4] = 0; return Math.min(7, b.length); };
+        } else stub.get_next_blob = (b) => { b.set(buf.subarray(0, b.length)); return Math.min(buf.length, b.length); };
+        return stub;
+      };
+    }
+    return `armed: ${faulted.size} inodes under ${p}`;
+  };
+  E7.faultOff = () => { faulted.clear(); return "off"; };
+
+  // --- disque hda (ext4 de la bouteille, en mémoire) : export vers le serveur pour lecture côté hôte.
+  E7.diskBuffer = () => { const ide = emu.v86.cpu.devices.ide; const b = ide?.primary?.master?.buffer; return b && (b.buffer || null); };
+  E7.uploadDisk = async (name = "disk-after.img") => {
+    const buf = E7.diskBuffer(); if (!buf) throw new Error("pas de disque");
+    const CHUNK = 32 * 1048576; let r;
+    for (let off = 0; off < buf.byteLength; off += CHUNK) { r = await fetch(`/__state/${name}?offset=${off}`, { method: "PUT", body: buf.slice(off, Math.min(off + CHUNK, buf.byteLength)) }); if (!r.ok) throw new Error("upload: " + r.status); }
+    return Number(await r.text());
+  };
+
+  E7.readText = async (p) => new TextDecoder().decode(await emu.read_file(p));
+  E7.writeFile = (p, text) => emu.create_file(p, new TextEncoder().encode(text));
+  E7.writeBytesB64 = (p, b64) => emu.create_file(p, Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+  E7.saveState = async () => { const t = performance.now(); const s = await emu.save_state(); E7.state = s; return { ms: performance.now() - t, bytes: s.byteLength }; };
+  E7.dropState = () => { E7.state = null; };
+  E7.measureMemory = async () => { if (!performance.measureUserAgentSpecificMemory) return { unsupported: true }; try { return await performance.measureUserAgentSpecificMemory(); } catch (e) { return { error: String(e) }; } };
+  E7.ready = true;
+
+  document.getElementById("serial_in").onkeydown = function (e) { if (e.key === "Enter") { emu.serial0_send(this.value + "\n"); this.value = ""; } e.stopPropagation(); };
+  document.getElementById("agent_in").onkeydown = function (e) { if (e.key === "Enter") { try { E7.agent(JSON.parse(this.value)).then((r) => console.log(r)); } catch (x) { alert(x); } this.value = ""; } e.stopPropagation(); };
+  document.getElementById("console_in").onkeydown = function (e) { if (e.key === "Enter") { E7.consoleSend(this.value + "\n"); this.value = ""; } e.stopPropagation(); };
+}
+main().catch((e) => { setStatus("erreur: " + e.message); E7.error = String(e); });
+</script>
+</body>
+</html>
