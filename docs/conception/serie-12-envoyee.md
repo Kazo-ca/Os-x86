@@ -90,7 +90,7 @@ Les propositions du [plan](plan-2026-11-11.md) et du registre (section O) qui n'
 - C) Autre : (Spécifiez)
 
 **185. Syntaxe de `x86` (D60 : nom décidé ; 119, 124.3, 145, 162)**
-- A) `x86 vm list|create|start|stop|delete|export|import|snapshot <vm>` ; `x86 shell <vm> [--bouteille <id>]` ; `x86 run <vm> -- <commande>` ; `x86 detect <fichier>` ; `x86 rules` (ouvre la page des règles) ; `x86 profile export|import` ; `sudo x86 admin …` ; une seule session `x86 shell` par VM en V1 ; `--force` seulement sur `delete` ✨(Recommandé)
+- A) `x86 vm list|create|start|stop|delete|export|import|snapshot <vm>` ; `x86 shell <vm> [--prefix <id>]` (nom anglais fixé par 200 B) ; `x86 run <vm> -- <commande>` ; `x86 detect <fichier>` ; `x86 rules` (ouvre la page des règles) ; `x86 profile export|import` ; `sudo x86 admin …` ; une seule session `x86 shell` par VM en V1 ; `--force` seulement sur `delete` ✨(Recommandé)
 - B) Style `docker` : `x86 ps`, `x86 exec`, `x86 rm` (familier, mais mélange conteneur et VM, consignes §5)
 - C) Autre : (Spécifiez)
 
@@ -190,3 +190,5 @@ Tu as accepté 173 à 199 ; pour 185 : « ok pour les noms, mais bouteille est u
 - D) Autre : (Spécifiez)
 
 Réponds par « 200 A » (ou B, C, autre).
+
+Réponse du 2026-11-11 : « 200 B : prefix ».

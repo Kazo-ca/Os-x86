@@ -440,7 +440,9 @@ Série 12 (173 à 199), posée le 2026-11-11 dans [serie-12-envoyee.md](serie-12
 | 198 | Jalons | **A** : J0 (deux étapes) à J4 tels quels. | C45 |
 | 199 | Réglages et dépôts | **A** : tableau de la section 9 et structure de la section 7 tels quels, lignes « proposé » comprises. | 120, C42 |
 
-Question ajoutée à la suite de 185 : **200, le nom anglais de « bouteille »** (posée le 2026-11-11 à la fin de [serie-12-envoyee.md](serie-12-envoyee.md)) : en attente.
+| 200 | Nom anglais de « bouteille » | **B (pas ma recommandation) : `prefix`**, le mot de Wine (`WINEPREFIX`) : `x86 shell <vm> --prefix <id>`, `x86 prefix list|delete|export`, types `Prefix`, `PrefixId` ; en français, « préfixe » remplace « bouteille » dans les nouveaux textes (interface française, spécification, ADR). Les documents déjà écrits gardent « bouteille » ; les deux mots désignent la même chose (glossaire du registre). | 185, D20 |
+
+Question 200 posée le 2026-11-11 à la fin de [serie-12-envoyee.md](serie-12-envoyee.md), répondue le même jour (« 200 B : prefix »).
 
 Sujets ajoutés pendant l'appel, sans numéro (à garder tels quels) : conteneurs toujours actifs gérés par l'admin, partagés en V1, attribution personnelle en V2 ; **traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; **architecture des bibliothèques** : BoxedWine (app, BW), Os-x86 (Feature, x86), Boxed-WineLib (BwLib, réutilisable), x86-Lib (réutilisable), contrats IBwLib et Ix86, « Os-X86.Interface implémente Ix86 », BwLib dépend de Ix86 seulement (précision demandée en série 10) ; **périphériques** : admins seuls pour les VM partagées, l'usager pour la VM qu'il a créée.
 
