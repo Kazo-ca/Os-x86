@@ -244,8 +244,9 @@ La série 11 (160 à 172, [serie-11-envoyee.md](serie-11-envoyee.md)) a été r�
 1. **115** : image de base incluse ou non dans l'export, et sauvegarde pendant la marche : après E15.
 2. **121** : format et mécanisme d'import/export des profils : proposé dans le plan, à valider là.
 3. **Mécanisme de la route du shell** (enfant du shell, instance, flux, instance déjà ouverte) et syntaxe exacte des commandes `x86` : proposés dans le plan, à valider là.
-4. **172** : vérifier avant publication que `org.kazoos.*` n'est pas réservé aux apps système de Kazo.
+4. **172** : vérifier avant publication que `org.kazoos.*` n'est pas réservé aux apps système de Kazo. Vérifié le 2026-11-11 : non réservé par le code, mais l'app IRC publiée par Kazo utilise `ca.kazo.` ; question **222** (série 15), ouverte.
 5. **Série 14** (205 à 218, [serie-14-envoyee.md](serie-14-envoyee.md)) : propositions d'E7 (protocole de l'agent, cgroup par lancement, modèle de processus Kazo, console et 167 A, réserve de 102, durcissement, disque interne, images sans agent) et d'E14 (voie pty, DOS à 33 ms, contenu de l'ADR 10, Ctrl+C, DOS graphique, dépendances v86) : répondue le 2026-11-11, A partout.
+6. **Série 15** (222 à 250, [serie-15-envoyee.md](serie-15-envoyee.md)) : les 28 questions des ADR 0243 à 0255 de Kazo, plus la rédaction de l'ADR 0252 (245). Répondue en partie le 2026-11-11 : **225 A** avec précision (aucune restriction pour l'app qui embarque la bibliothèque), **233 B** (l'admin porte tous les rôles d'office), **245 B** (le Terminal dépend de `Os-x86.Interface`, seule app système à utiliser la Feature ; ADR 0252 à réécrire) ; les 26 autres sont ouvertes.
 
 ## O. Propositions à valider (mes recommandations et résultats d'essais)
 
