@@ -246,7 +246,7 @@ La série 11 (160 à 172, [serie-11-envoyee.md](serie-11-envoyee.md)) a été r�
 
 ## O. Propositions à valider (mes recommandations et résultats d'essais)
 
-Rien ici n'est retenu. Chacune sera présentée dans le plan avec son impact, ou dans la série 11.
+Rien ici n'est retenu. Chacune est reprise dans le [plan](plan-2026-11-11.md) (section 5) et posée dans la [série 12](serie-12-envoyee.md) (173 à 192).
 
 - **E1/E4** : V1 garde une fenêtre Kazo par programme (D26 tel quel) ; fenêtre par fenêtre en V1.x avec un plan à part ; composite XComposite + XDamage comme mécanisme cible ; 18 points à ajouter dans Kazo.
 - **E2/149** : seuil de 64 Mio pour IndexedDB ; `flush()` périodique et à l'arrêt ; `persist()` après un geste ; éviction traitée comme risque réel (avertissement, export).

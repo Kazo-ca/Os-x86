@@ -2,7 +2,7 @@
 
 Débat de conception. Aucun code avant que le plan soit approuvé.
 Carte complète des questions et contraintes : [../recherche-2026-11-08/decisions.md](../recherche-2026-11-08/decisions.md) (numérotée C1 à C45 ci-dessous).
-État final de chaque point, par thème, avec les décisions remplacées et ce qui reste ouvert : [registre-reconcilie.md](registre-reconcilie.md) (2026-11-11). Ce journal reste la source chronologique.
+État final de chaque point, par thème, avec les décisions remplacées et ce qui reste ouvert : [registre-reconcilie.md](registre-reconcilie.md) (2026-11-11). Le plan (consignes §20) : [plan-2026-11-11.md](plan-2026-11-11.md), avec ses propositions à valider dans la [série 12](serie-12-envoyee.md) (173 à 192). Ce journal reste la source chronologique.
 
 ## Série 1 — envoyée le 2026-11-08, répondue le 2026-11-09
 
