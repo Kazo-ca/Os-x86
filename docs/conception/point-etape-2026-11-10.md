@@ -17,6 +17,8 @@ Enregistrées dans [journal-decisions.md](journal-decisions.md) (section « Rép
 | E1 Wine dans v86 (démarrage, état, mémoire) | **Terminé, un critère non atteint** | [../essais/e1-wine-v86.md](../essais/e1-wine-v86.md) |
 | E4 fenêtre par fenêtre (affichage) | **Terminé** (critère atteint avec des fenêtres X11 natives, pas Wine) | [../essais/e4-fenetres.md](../essais/e4-fenetres.md) |
 | E5 son | **Terminé** | [../essais/e5-son.md](../essais/e5-son.md) |
+| E8 9p, vitesse et durcissement | **Terminé** | [../essais/e8-9p.md](../essais/e8-9p.md) |
+| E6 réseau et permissions par bouteille | **Terminé** (critère atteint ; sans Wine, cibles locales) | [../essais/e6-reseau.md](../essais/e6-reseau.md) |
 
 Code jetable dans [../../essais/](../../essais/) (images et états ignorés par git, 1,4 Go sur le disque).
 
@@ -77,6 +79,15 @@ OPFS (`createSyncAccessHandle` dans un worker) contre IndexedDB par blocs de 4 K
 - Propositions, à valider (nourrissent 107 et D22) : programmes installés sur le disque de la VM, jamais sur le partage ; partage réservé aux documents ; liste blanche de noms (UTF-8 strict, NFC, ≤ 255 octets, sans réservés Windows ni `..`), casse selon 107 ; jamais de résolution de chemin côté hôte, liens symboliques stockés comme chaînes ; refuser mknod, fifo, liens durs, setuid, xattr ; toute exception → EIO avec délai maximal ; un partage = un périphérique 9p.
 - Non mesuré : Wine sur 9p contre disque (`wineboot` 7 min, script fourni), montage à chaud, Firefox/Edge/Safari, vrai VFS de Kazo.
 
+### E6 : réseau et permissions par bouteille — [../essais/e6-reseau.md](../essais/e6-reseau.md)
+- Critère atteint aux 3 runs : deux bouteilles (espaces de noms réseau, adresse source distincte, sans NAT) avec deux décisions différentes ; b1 (port 80 autorisé) obtient HTTP 200 et le relais journalise le flux avec son identité ; b2 (refus total) n'atteint jamais le relais (nftables dans l'invité) et serait refusé par la décision du relais de toute façon.
+- Limites du §14 tenues au relais : 5 flux parallèles → 4 ouverts, 1 refusé ; port 443 refusé par la décision, 8443 refusé hors 80/443 ; coupure de durée prouvée par le journal du relais (réglé à 5 s).
+- Confinement depuis une bouteille (usager non root) : 8 contrôles tiennent (`unshare -n` et `nsenter` refusés, dossiers 0700 d'une autre bouteille et `/dev/ttyS0` illisibles, pas de socket brut, aucun setuid, home `nosuid`, programme hors bouteille sans réseau). Aucune garantie de la section 134 réfutée ; UDP 53 et IPv6 bloqués de fait, pas par règle explicite.
+- Une VM à deux bouteilles ≈ 1,45 Gio côté navigateur contre ≈ 2,4 Gio pour deux VM séparées (+1 Gio, un processus et un démarrage de 62 à 66 s de plus) ; N=4 extrapolé, non mesuré.
+- Le mode `inbrowser`/`fetch` de v86 dépend du seul `relay_url` de la page ; avec une URL `ws://`, l'invité ne peut pas le réactiver. Surcoût netns + nftables sur le débit : 15 à 30 %, le goulot est le CPU émulé (5 à 9 Mio/s sur `localhost`).
+- Propositions, à valider (nourrissent 116, D20, D21, §6 et §14) : décision, limites et journal au relais côté Kazo, nftables de l'invité en défense en profondeur ; VM partagée quand l'attribution est fiable, VM séparées pour l'isolation d'affichage et de presse-papiers ; `relay_url` fixé par la Feature, jamais exposé à l'invité ; UDP et IPv6 écrits comme règles explicites.
+- Non testé : Wine (programmes `curl`/`nc`), Internet réel, connexions entrantes (§14), console avancée (E7), pile TCP du relais = maquette.
+
 ## 3. Questions nouvelles à trancher
 
 Même protocole : une lettre, ou rien pour la recommandation ✨, ou « Autre ». Les numéros suivent la série 9 (140 à 149).
@@ -100,8 +111,8 @@ Les autres propositions issues de E1 (512 Mio de mémoire par VM à essayer, ne 
 
 ## 4. Ce qui n'est pas fait ou pas vérifié
 
-- E1, E2, E4, E5 (essais) et E10, E12, E13 (lecture) sont faits ; E3 et E6 à E9 restent à lancer dès que C: a de la place (voir ci-dessous), puis E11, E14, E15.
+- E1, E2, E4, E5, E6, E8 (essais) et E10, E12, E13 (lecture) sont faits ; E3, E7 et E9 restent à lancer (C: ≈ 18,7 Go libres), puis E11, E14, E15.
 - Safari non mesuré (pas de Mac) ; Firefox et Edge mesurés pour E2 seulement ; E1 sur Chrome seul, deux runs, sans Mono ni Gecko, v86 dans le fil principal (pas encore en Web Worker).
 - **Disque C:** : descendu à 3,8 Go libres après E5. Sur ton accord (« Oui, libère C: ») j'ai supprimé les trois images Docker des essais (`e1-wine-v86`, `e4-fenetres`, `e5-son`, 2,7 Go), le cache de construction Docker (11,5 Go) et, sur disque, l'export tar de E1 et les deux états sauvegardés (`state.bin` de E1, `state-snd.bin` de E5, 1,2 Go en tout ; `build.ps1` et un run les recréent). Résultat : 5,0 Go libres. L'espace rendu à Docker n'est pas rendu à Windows : son disque virtuel (`docker_data.vhdx`, 69 Go) ne rétrécit qu'en le compactant, ce qui arrête tous les conteneurs, dont les huit de tes autres projets qui tournent ; je ne l'ai pas fait. Sur ton second accord (« Oui, compacte ») : l'arrêt de Docker Desktop et de WSL a libéré 10 Go à lui seul (fichiers temporaires), mais le compactage du disque virtuel exige une élévation que je ne peux pas obtenir ; Docker Desktop est relancé, les huit conteneurs valoria tournent de nouveau. Script prêt pour toi, à lancer en administrateur : [../../essais/compacter-disque-docker.ps1](../../essais/compacter-disque-docker.ps1) (trim, arrêt, compactage, relance). Première exécution sans effet (69,2 Go avant et après) : ext4 ne remet pas à zéro les blocs libérés, il fallait un `fstrim` avant ; fait depuis, le script l'inclut maintenant. Seconde exécution : disque Docker 69,2 → 58,7 Go, mais C: est retombé à 5 Go libres : le fichier d'échange de Windows (`pagefile.sys`, géré automatiquement, 39,4 Go) a grossi dans l'intervalle et une sauvegarde ValorIA de 2,9 Go s'est écrite. Ce sont des réglages système et tes autres projets : je n'y touche pas. Options durables, à ton choix : déplacer le disque virtuel de Docker vers un autre lecteur (P: a 510 Go libres ; Docker Desktop → Settings → Resources → Disk image location), fixer la taille du fichier d'échange ou le mettre sur un autre lecteur, désactiver la veille prolongée (`hiberfil.sys`, 25,6 Go). Tant que C: reste sous 10 Go, je ne lance pas E3, E6 à E9 ; les études de lecture E10, E12 et E13 sont lancées (aucun disque). Les essais restants (E3, E6 à E9) restent lourds en disque.
-- Rien n'est commité ni poussé sur `conception-os-x86` ; je le fais quand tu le dis.
-- Les réponses aux séries 7 et 8 (102 à 139) et à la série 9 (140 à 149) restent attendues ; le registre réconcilié et le plan (consignes §20) viennent après.
+- Poussé sur `conception-os-x86` à ta demande du 2026-11-10 (adfb4df) et du 2026-11-11 (79819ff : réponses 102 à 159, rapport E8) ; le rapport E6 suit dans un commit à part.
+- Les séries 7 à 10 (102 à 159) sont répondues et consignées dans le journal ; le registre réconcilié et le plan (consignes §20) viennent après.
