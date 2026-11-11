@@ -1,0 +1,4 @@
+# Essai E14 — outils pour modifier l'image FreeDOS (mtools, unzip). Image Docker e14-mtools.
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends mtools unzip && apt-get clean && rm -rf /var/lib/apt/lists/*
+WORKDIR /work

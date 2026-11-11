@@ -1,0 +1,7 @@
+node_modules/
+images/
+*.img
+*.iso
+*.bin.state
+results-*.json
+lib/

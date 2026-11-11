@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>E14 — DOS et console dans le terminal (simulateur du terminal de Kazo)</title>
+<style>
+  body { font: 13px system-ui, sans-serif; margin: 12px; background: #202020; color: #ddd; }
+  .row { margin: 6px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  select, input, button { font: inherit; }
+  #term { display: inline-block; background: #000; color: #aaa; border: 2px solid #555; padding: 4px; outline: none;
+          font: 16px/19px "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; white-space: pre; cursor: text; }
+  #term:focus { border-color: #4c9; }
+  #term div { height: 19px; }
+  #term span.cur { outline: 1px solid #ccc; }
+  #status { font: 12px monospace; white-space: pre-wrap; color: #9c9; }
+  #serial { height: 140px; overflow: auto; background: #111; color: #8f8; padding: 4px; font: 11px monospace; white-space: pre-wrap; border: 1px solid #444; }
+  small { color: #999; }
+</style>
+<script src="lib/libv86.js"></script>
+<body>
+<h3>E14 — simulateur du terminal de Kazo <small id="state">(chargement…)</small></h3>
+<div class="row">
+  <label>Invité : <b id="guest_name"></b></label>
+  <label>Voie : <select id="route"><option value="vga">VGA (get_text_screen)</option><option value="pty">pty / ttyS1 (émulateur)</option></select></label>
+  <label>Sondage : <select id="poll"><option>16</option><option selected>33</option><option>50</option><option>100</option></select> ms</label>
+  <label>Taille : <input id="cols" size="3" value="80"> × <input id="rows" size="3" value="25"> <button id="btn_resize">redimensionner</button></label>
+  <label><input type="checkbox" id="strict" checked> jeu de touches Kazo strict (sans F1-F12, Alt, Home/End/Suppr)</label>
+  <label>Ctrl+C : <select id="ctrlc"><option value="kazo">Kazo (ferme la commande)</option><option value="pass">transmis à l'invité</option></select></label>
+</div>
+<div id="term" tabindex="0" title="Cliquer ici puis taper"></div>
+<div id="status"></div>
+<div class="row"><input id="serial_in" size="70" placeholder="commande pour le shell de contrôle ttyS0 (Entrée pour envoyer)"></div>
+<pre id="serial"></pre>
+<script src="terminal.js"></script>
+</body>
+</html>

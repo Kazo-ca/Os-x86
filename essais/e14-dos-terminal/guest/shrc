@@ -1,0 +1,9 @@
+# Essai E14 — environnement du shell de contrôle (ttyS0).
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export HOME=/root
+export WINEPREFIX=/root/.wine
+export WINEDLLOVERRIDES="mscoree,mshtml="
+export WINEDEBUG=-all
+export XDG_RUNTIME_DIR=/run
+export PS1='debian:~# '
+cd /root

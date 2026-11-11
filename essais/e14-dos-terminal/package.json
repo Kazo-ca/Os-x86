@@ -1,0 +1,8 @@
+{
+  "name": "e14-dos-terminal",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.65.0"
+  }
+}
