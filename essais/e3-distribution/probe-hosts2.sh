@@ -1,0 +1,23 @@
+#!/bin/sh
+UA="Mozilla/5.0 (compatible; e3-probe)"
+ORIGIN="https://example.org"
+probe() {
+  echo "=================================================================="
+  echo "### $1"
+  echo "--- HEAD"
+  curl.exe -sS -I -L --max-time 30 -A "$UA" -H "Origin: $ORIGIN" "$1" | tr -d '\r' | grep -iE "^(HTTP/|access-control|accept-ranges|content-length|etag|cache-control|age:|server:|x-cache|cf-cache|content-type|location|cross-origin|vary|content-encoding)"
+  echo "--- GET Range: bytes=0-1023"
+  curl.exe -sS -L --max-time 30 -A "$UA" -H "Origin: $ORIGIN" -H "Range: bytes=0-1023" -o /dev/null -D - -w "octets-recus=%{size_download} temps=%{time_total}s\n" "$1" | tr -d '\r' | grep -iE "^(HTTP/|access-control|accept-ranges|content-length|content-range|etag|cache-control|age:|x-cache|cf-cache|location|octets-recus)"
+  echo "--- OPTIONS (prévol CORS, Range demandé)"
+  curl.exe -sS -X OPTIONS -L --max-time 30 -A "$UA" -H "Origin: $ORIGIN" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: range" -o /dev/null -D - "$1" | tr -d '\r' | grep -iE "^(HTTP/|access-control)"
+}
+probe "https://microsoft.github.io/monaco-editor/node_modules/monaco-editor/min/vs/editor/editor.main.js"
+probe "https://microsoft.github.io/monaco-editor/playground.html"
+probe "https://raw.githubusercontent.com/copy/v86/master/Readme.md"
+probe "https://raw.githubusercontent.com/microsoft/monaco-editor/main/package-lock.json"
+probe "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/editor/editor.main.js"
+probe "https://cdn.jsdelivr.net/gh/copy/v86@master/Readme.md"
+probe "https://github.com/cli/cli/releases/download/v2.63.0/gh_2.63.0_checksums.txt"
+probe "https://pages.cloudflare.com/"
+probe "https://cloudflare-docs.pages.dev/"
+probe "https://developers.cloudflare.com/r2/buckets/public-buckets/"

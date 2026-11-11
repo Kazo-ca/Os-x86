@@ -1,0 +1,267 @@
+==================================================================
+### https://microsoft.github.io/monaco-editor/node_modules/monaco-editor/min/vs/editor/editor.main.js
+--- HEAD
+HTTP/1.1 200 OK
+Content-Length: 79052
+Server: GitHub.com
+Content-Type: application/javascript; charset=utf-8
+Access-Control-Allow-Origin: *
+ETag: "6af3a50e-134cc"
+Cache-Control: max-age=600
+Accept-Ranges: bytes
+Age: 0
+X-Cache: MISS
+X-Cache-Hits: 0
+Vary: Accept-Encoding
+--- GET Range: bytes=0-1023
+HTTP/1.1 206 Partial Content
+Content-Length: 1024
+Access-Control-Allow-Origin: *
+ETag: "6af3a50e-134cc"
+Cache-Control: max-age=600
+Accept-Ranges: bytes
+Age: 0
+Content-Range: bytes 0-1023/79052
+X-Cache: HIT
+X-Cache-Hits: 0
+octets-recus=1024 temps=0.081232s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 405 Method Not Allowed
+==================================================================
+### https://microsoft.github.io/monaco-editor/playground.html
+--- HEAD
+HTTP/1.1 200 OK
+Content-Length: 238
+Server: GitHub.com
+Content-Type: text/html; charset=utf-8
+Access-Control-Allow-Origin: *
+ETag: "6af3a50e-ee"
+Cache-Control: max-age=600
+Accept-Ranges: bytes
+Age: 0
+X-Cache: MISS
+X-Cache-Hits: 0
+Vary: Accept-Encoding
+--- GET Range: bytes=0-1023
+HTTP/1.1 206 Partial Content
+Content-Length: 238
+Access-Control-Allow-Origin: *
+ETag: "6af3a50e-ee"
+Cache-Control: max-age=600
+Accept-Ranges: bytes
+Age: 0
+Content-Range: bytes 0-237/238
+X-Cache: HIT
+X-Cache-Hits: 0
+octets-recus=238 temps=0.083026s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 405 Method Not Allowed
+==================================================================
+### https://raw.githubusercontent.com/copy/v86/master/Readme.md
+--- HEAD
+HTTP/1.1 200 OK
+Content-Length: 11551
+Cache-Control: max-age=300
+Content-Type: text/plain; charset=utf-8
+ETag: "a7df156aa4edbe39831ec195dec5e82aac497833f26250c571b5ff30cf85edeb"
+Accept-Ranges: bytes
+X-Cache: MISS
+X-Cache-Hits: 0
+Vary: Authorization,Accept-Encoding
+Access-Control-Allow-Origin: *
+Cross-Origin-Resource-Policy: cross-origin
+--- GET Range: bytes=0-1023
+HTTP/1.1 206 Partial Content
+Content-Length: 1024
+Cache-Control: max-age=300
+ETag: "a7df156aa4edbe39831ec195dec5e82aac497833f26250c571b5ff30cf85edeb"
+Accept-Ranges: bytes
+X-Cache: HIT
+X-Cache-Hits: 1
+Access-Control-Allow-Origin: *
+Content-Range: bytes 0-1023/11551
+octets-recus=1024 temps=0.099622s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 403 Forbidden
+Access-Control-Allow-Origin: *
+==================================================================
+### https://raw.githubusercontent.com/microsoft/monaco-editor/main/package-lock.json
+--- HEAD
+HTTP/1.1 200 OK
+Content-Length: 586326
+Cache-Control: max-age=300
+Content-Type: text/plain; charset=utf-8
+ETag: "66a87fdc7db355be9a1afecae2b7b18ddee0fcde012fb6844a283b34a9c6e1a0"
+Accept-Ranges: bytes
+X-Cache: MISS
+X-Cache-Hits: 0
+Vary: Authorization,Accept-Encoding
+Access-Control-Allow-Origin: *
+Cross-Origin-Resource-Policy: cross-origin
+--- GET Range: bytes=0-1023
+HTTP/1.1 206 Partial Content
+Content-Length: 1024
+Cache-Control: max-age=300
+ETag: "66a87fdc7db355be9a1afecae2b7b18ddee0fcde012fb6844a283b34a9c6e1a0"
+Accept-Ranges: bytes
+X-Cache: HIT
+X-Cache-Hits: 1
+Access-Control-Allow-Origin: *
+Content-Range: bytes 0-1023/586326
+octets-recus=1024 temps=0.078202s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 403 Forbidden
+Access-Control-Allow-Origin: *
+==================================================================
+### https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/editor/editor.main.js
+--- HEAD
+HTTP/1.1 200 OK
+Content-Type: application/javascript; charset=utf-8
+access-control-allow-origin: *
+access-control-expose-headers: *
+Cache-Control: public, max-age=31536000, s-maxage=31536000, immutable
+cross-origin-resource-policy: cross-origin
+etag: W/"3975e6-X1HgQrIdfLx4Z4Mh1faeRPBxUrY"
+x-cache: HIT, HIT
+vary: Accept-Encoding
+Age: 7989064
+cf-cache-status: HIT
+Server: cloudflare
+--- GET Range: bytes=0-1023
+HTTP/1.1 206 Partial Content
+access-control-allow-origin: *
+access-control-expose-headers: *
+Cache-Control: public, max-age=31536000, s-maxage=31536000, immutable
+etag: W/"3975e6-X1HgQrIdfLx4Z4Mh1faeRPBxUrY"
+Age: 7989065
+x-cache: HIT, HIT
+content-range: bytes 0-1023/920981
+cf-cache-status: HIT
+octets-recus=0 temps=0.092258s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 200 OK
+access-control-allow-origin: *
+access-control-expose-headers: *
+==================================================================
+### https://cdn.jsdelivr.net/gh/copy/v86@master/Readme.md
+--- HEAD
+HTTP/1.1 200 OK
+Content-Type: text/markdown; charset=utf-8
+access-control-allow-origin: *
+access-control-expose-headers: *
+cache-control: public, max-age=604800, s-maxage=43200
+cross-origin-resource-policy: cross-origin
+etag: W/"2d1f-ad86a81251d73c8a"
+x-cache: HIT, MISS
+vary: Accept-Encoding
+cf-cache-status: MISS
+Server: cloudflare
+--- GET Range: bytes=0-1023
+HTTP/1.1 206 Partial Content
+access-control-allow-origin: *
+access-control-expose-headers: *
+cache-control: public, max-age=604800, s-maxage=43200
+etag: W/"2d1f-ad86a81251d73c8a"
+Age: 0
+x-cache: HIT, MISS
+content-range: bytes 0-1023/4701
+cf-cache-status: HIT
+octets-recus=1752 temps=0.098244s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 200 OK
+access-control-allow-origin: *
+access-control-expose-headers: *
+==================================================================
+### https://github.com/cli/cli/releases/download/v2.63.0/gh_2.63.0_checksums.txt
+--- HEAD
+HTTP/1.1 302 Found
+Content-Type: text/html; charset=utf-8
+Vary: X-PJAX, X-PJAX-Container, Turbo-Visit, Turbo-Frame, X-Requested-With, X-GitHub-Client-Version, Sec-Fetch-Site,Accept-Encoding, Accept, X-Requested-With
+Location: https://release-assets.githubusercontent.com/github-production-release-asset/212613049/88d57730-04e9-4aef-a40e-05ff1366f523?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-11-11T05%3A40%3A45Z&rscd=attachment%3B+filename%3Dgh_2.63.0_checksums.txt&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-11-11T04%3A40%3A03Z&ske=2026-11-11T05%3A40%3A45Z&sks=b&skv=2018-11-09&sig=teFwkW16p3QCJSKeu7PkoyHqnmtMvkBElwQN4O5JGfo%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc5NDM3MzY3MSwibmJmIjoxNzk0MzczMzcxLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.r1WAbppAX_999D33rfJKDw2-NNL3ZN0pdzQIvXjR5kU&response-content-disposition=attachment%3B%20filename%3Dgh_2.63.0_checksums.txt&response-content-type=application%2Foctet-stream
+Cache-Control: no-cache
+Server: github.com
+Content-Length: 0
+HTTP/1.1 200 OK
+Content-Length: 1856
+ETag: "0x8DD0F27F81DFB2B"
+Server: Windows-Azure-Blob/1.0 Microsoft-HTTPAPI/2.0
+Accept-Ranges: bytes
+Age: 0
+X-Cache: HIT, MISS
+X-Cache-Hits: 536, 0
+Content-Type: application/octet-stream
+--- GET Range: bytes=0-1023
+HTTP/1.1 302 Found
+Location: https://release-assets.githubusercontent.com/github-production-release-asset/212613049/88d57730-04e9-4aef-a40e-05ff1366f523?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-11-11T05%3A40%3A45Z&rscd=attachment%3B+filename%3Dgh_2.63.0_checksums.txt&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-11-11T04%3A40%3A03Z&ske=2026-11-11T05%3A40%3A45Z&sks=b&skv=2018-11-09&sig=teFwkW16p3QCJSKeu7PkoyHqnmtMvkBElwQN4O5JGfo%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc5NDM3MzY3MSwibmJmIjoxNzk0MzczMzcxLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.r1WAbppAX_999D33rfJKDw2-NNL3ZN0pdzQIvXjR5kU&response-content-disposition=attachment%3B%20filename%3Dgh_2.63.0_checksums.txt&response-content-type=application%2Foctet-stream
+Cache-Control: no-cache
+Content-Length: 0
+HTTP/1.1 206 Partial Content
+Content-Length: 1024
+ETag: "0x8DD0F27F81DFB2B"
+Accept-Ranges: bytes
+Age: 0
+X-Cache: HIT, HIT
+X-Cache-Hits: 536, 1
+Content-Range: bytes 0-1023/1856
+octets-recus=1024 temps=0.191609s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 404 Not Found
+==================================================================
+### https://pages.cloudflare.com/
+--- HEAD
+HTTP/1.1 301 Moved Permanently
+Content-Type: text/html; charset=UTF-8
+Location: https://www.cloudflare.com/products/pages/
+Server: cloudflare
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Cache-Control: public, max-age=10, s-maxage=10
+Vary: accept-encoding
+Cross-Origin-Opener-Policy: unsafe-none
+Cross-Origin-Resource-Policy: cross-origin
+Server: cloudflare
+--- GET Range: bytes=0-1023
+HTTP/1.1 301 Moved Permanently
+Location: https://www.cloudflare.com/products/pages/
+HTTP/1.1 200 OK
+CF-Cache-Status: MISS
+Accept-Ranges: bytes
+Cache-Control: public, max-age=10, s-maxage=10
+octets-recus=600878 temps=0.355954s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 301 Moved Permanently
+HTTP/1.1 200 OK
+==================================================================
+### https://cloudflare-docs.pages.dev/
+--- HEAD
+HTTP/1.1 404 Not Found
+Access-Control-Allow-Origin: *
+Cache-Control: no-store
+Server: cloudflare
+--- GET Range: bytes=0-1023
+HTTP/1.1 404 Not Found
+Content-Length: 0
+Access-Control-Allow-Origin: *
+Cache-Control: no-store
+octets-recus=0 temps=0.113797s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 405 Method Not Allowed
+Access-Control-Allow-Origin: *
+==================================================================
+### https://developers.cloudflare.com/r2/buckets/public-buckets/
+--- HEAD
+HTTP/1.1 200 OK
+Content-Type: text/html
+CF-Cache-Status: HIT
+Access-Control-Allow-Origin: *
+Cache-Control: public, max-age=0, must-revalidate
+Vary: accept-encoding
+Server: cloudflare
+--- GET Range: bytes=0-1023
+HTTP/1.1 200 OK
+CF-Cache-Status: HIT
+Access-Control-Allow-Origin: *
+octets-recus=137773 temps=0.143077s
+--- OPTIONS (prévol CORS, Range demandé)
+HTTP/1.1 405 Method Not Allowed
+Access-Control-Allow-Origin: *

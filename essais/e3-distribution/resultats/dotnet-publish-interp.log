@@ -1,0 +1,9 @@
+  Identification des projets à restaurer...
+  Tous les projets sont à jour pour la restauration.
+  E3Sha -> <depot>\essais\e3-distribution\dotnet\bin\Release\net10.0\E3Sha.dll
+  E3Sha (Blazor output) -> <depot>\essais\e3-distribution\dotnet\bin\Release\net10.0\wwwroot
+  L'optimisation de la taille des assemblys peut modifier le comportement de l'application. Assurez-vous de tester après la publication. Voir : https://aka.ms/dotnet-illink
+  Optimisation des assemblages pour la taille. Ce processus peut prendre un certain temps.
+  Publishing without optimizations. Although it's optional for Blazor, we strongly recommend using `wasm-tools` workload! You can install it by running `dotnet workload install wasm-tools` from the command line.
+  E3Sha -> <depot>\essais\e3-distribution\dotnet\publish\interp\
+exit 0

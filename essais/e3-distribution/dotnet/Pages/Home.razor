@@ -1,0 +1,92 @@
+﻿@page "/"
+@using System.Diagnostics
+@using System.Security.Cryptography
+@using System.Text.Json
+@inject IJSRuntime JS
+
+<PageTitle>Essai E3 — SHA-256 .NET WebAssembly</PageTitle>
+<h1>Essai E3 — SHA-256 en .NET WebAssembly</h1>
+<pre id="out">@output</pre>
+
+@code {
+    // Code jetable de mesure : hache un tampon de N Mio (défaut 64) avec SHA256.HashData et IncrementalHash,
+    // plusieurs passes, et publie les Mo/s dans window.__results (lu par Playwright).
+    private string output = "en cours…";
+    private const int MiB = 1024 * 1024;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var href = await JS.InvokeAsync<string>("eval", "location.href");
+            var query = new Uri(href).Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(kv => kv.Split('=', 2)).ToDictionary(kv => kv[0], kv => kv.Length > 1 ? kv[1] : "");
+            int sizeMiB = query.TryGetValue("size", out var s) && int.TryParse(s, out var sv) ? sv : 64;
+            int passes = query.TryGetValue("passes", out var p) && int.TryParse(p, out var pv) ? pv : 3;
+            int blockKiB = query.TryGetValue("block", out var b) && int.TryParse(b, out var bv) ? bv : 1024;
+            var results = Run(sizeMiB, passes, blockKiB);
+            var json = JsonSerializer.Serialize(results);
+            output = json;
+            StateHasChanged();
+            await JS.InvokeVoidAsync("eval", "window.__results = " + json + "; window.__done = true;");
+        }
+        catch (Exception e)
+        {
+            output = "ERREUR " + e;
+            StateHasChanged();
+            await JS.InvokeVoidAsync("eval", "window.__error = " + JsonSerializer.Serialize(e.ToString()) + "; window.__done = true;");
+        }
+    }
+
+    private static Dictionary<string, object> Run(int sizeMiB, int passes, int blockKiB)
+    {
+        var buffer = new byte[sizeMiB * MiB];
+        uint x = 0x9e3779b9;
+        for (int i = 0; i < buffer.Length; i += 4)
+        {
+            x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+            buffer[i] = (byte)x; buffer[i + 1] = (byte)(x >> 8); buffer[i + 2] = (byte)(x >> 16); buffer[i + 3] = (byte)(x >> 24);
+        }
+        var hashData = new List<double>();
+        string hex = "";
+        for (int n = 0; n < passes; n++)
+        {
+            var sw = Stopwatch.StartNew();
+            var h = SHA256.HashData(buffer);
+            sw.Stop();
+            hashData.Add(sw.Elapsed.TotalMilliseconds);
+            hex = Convert.ToHexStringLower(h);
+        }
+        var incremental = new List<double>();
+        string hexInc = "";
+        int block = blockKiB * 1024;
+        for (int n = 0; n < passes; n++)
+        {
+            var sw = Stopwatch.StartNew();
+            using var ih = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            for (int off = 0; off < buffer.Length; off += block)
+                ih.AppendData(buffer, off, Math.Min(block, buffer.Length - off));
+            var h = ih.GetHashAndReset();
+            sw.Stop();
+            incremental.Add(sw.Elapsed.TotalMilliseconds);
+            hexInc = Convert.ToHexStringLower(h);
+        }
+        // Témoin : une boucle C# pure sur le tampon (dit si le jiterpreter / l'AOT est actif).
+        var sw2 = Stopwatch.StartNew();
+        uint acc = 0;
+        for (int i = 0; i < buffer.Length; i++) acc += buffer[i];
+        sw2.Stop();
+        double MBps(double ms) => sizeMiB * 1.048576 / (ms / 1000.0);
+        return new Dictionary<string, object>
+        {
+            ["sizeMiB"] = sizeMiB, ["passes"] = passes, ["blockKiB"] = blockKiB,
+            ["runtime"] = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            ["isDynamicCodeSupported"] = System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled,
+            ["hashData_ms"] = hashData, ["hashData_MBps_best"] = MBps(hashData.Min()),
+            ["incremental_ms"] = incremental, ["incremental_MBps_best"] = MBps(incremental.Min()),
+            ["sha256"] = hex, ["sha256_incremental"] = hexInc,
+            ["byteSumLoop_ms"] = sw2.Elapsed.TotalMilliseconds, ["byteSumLoop_MBps"] = MBps(sw2.Elapsed.TotalMilliseconds), ["acc"] = acc,
+        };
+    }
+}

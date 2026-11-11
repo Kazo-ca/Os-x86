@@ -1,0 +1,310 @@
+[
+ {
+  "browser": "chrome",
+  "version": "156.0.8078.80",
+  "scenario": "resume",
+  "params": {
+   "chunkMiB": 32
+  },
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 7.473,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "chunkMiB": 32,
+   "coi": true,
+   "workerRetry": {
+    "mode": "chunked",
+    "chunkSize": 33554432,
+    "nChunks": 7,
+    "size": 209715200,
+    "etag": "\"c800000-1a1c8fbbade\"",
+    "acceptRanges": "bytes",
+    "resumed": false,
+    "verifiedAtStart": 0,
+    "downloaded": 7,
+    "bytesReceived": 272629760,
+    "wastedBytes": 62914560,
+    "retries": 5,
+    "errors": [
+     {
+      "chunk": 0,
+      "attempt": 0,
+      "received": 0,
+      "error": "statut 503 au lieu de 206"
+     },
+     {
+      "chunk": 0,
+      "attempt": 1,
+      "received": 0,
+      "error": "statut 503 au lieu de 206"
+     },
+     {
+      "chunk": 3,
+      "attempt": 0,
+      "received": 20971520,
+      "error": "network error"
+     },
+     {
+      "chunk": 3,
+      "attempt": 1,
+      "received": 20971520,
+      "error": "network error"
+     },
+     {
+      "chunk": 3,
+      "attempt": 2,
+      "received": 20971520,
+      "error": "network error"
+     }
+    ],
+    "net_ms": 409.1549997329712,
+    "hash_ms": 167.62499952316284,
+    "write_ms": 146.31000018119812,
+    "state_ms": 66.71500039100647,
+    "chunk_ms": [
+     137.24000000953674,
+     112.12999987602234,
+     128.5149998664856,
+     117.65000009536743,
+     108.89499998092651,
+     141.6449999809265,
+     43.894999980926514
+    ],
+    "firstByte_ms": 381.6600000858307,
+    "flush_ms": 50.519999980926514,
+    "total_ms": 1973.4400000572205,
+    "MiBps": 113.50737797627748,
+    "verify": {
+     "read_ms": 57.50000023841858,
+     "hash_ms": 164.1949999332428,
+     "ok": 7,
+     "bad": 0,
+     "MiBps": 902.14032722947,
+     "ms": 221.99499988555908
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 0.8823528289794922,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 2206.7549998760223,
+    "crossOriginIsolated": true,
+    "cdpPeak": {
+     "jsHeapUsed_MiB": 0.8758430480957031,
+     "jsHeapTotal_MiB": 1.75
+    },
+    "processPeak": {
+     "processes": 8,
+     "renderers": 3,
+     "rendererMaxWorkingSet_MiB": 141.48046875,
+     "rendererMaxPrivate_MiB": 102.52734375,
+     "totalWorkingSet_MiB": 561.59375,
+     "totalPrivate_MiB": 318.43359375,
+     "samples": 3
+    },
+    "processBaseline": {
+     "processes": 8,
+     "renderers": 3,
+     "rendererMaxWorkingSet_MiB": 88.94921875,
+     "rendererMaxPrivate_MiB": 47.51953125,
+     "totalWorkingSet_MiB": 472.4296875,
+     "totalPrivate_MiB": 232.453125,
+     "samples": 1
+    },
+    "serverRequests": 13,
+    "serverBytes_MiB": 260,
+    "cutResponses": 3,
+    "responses503": 2
+   },
+   "pageReload": [
+    {
+     "attempt": 1,
+     "resumed": false,
+     "verifiedAtStart": 0,
+     "downloaded": 5,
+     "aborted": true,
+     "wastedBytes_MiB": 20,
+     "errors": [
+      {
+       "chunk": 5,
+       "attempt": 0,
+       "received": 20971520,
+       "error": "network error"
+      }
+     ],
+     "total_ms": 729.1949999332428,
+     "serverRequests": 7,
+     "serverBytes_MiB": 180
+    },
+    {
+     "attempt": 2,
+     "resumed": true,
+     "verifiedAtStart": 5,
+     "downloaded": 2,
+     "aborted": false,
+     "wastedBytes_MiB": 0,
+     "errors": [],
+     "total_ms": 208.06500005722046,
+     "serverRequests": 3,
+     "serverBytes_MiB": 40
+    },
+    {
+     "attempt": 3,
+     "resumed": true,
+     "verifiedAtStart": 7,
+     "downloaded": 0,
+     "aborted": false,
+     "wastedBytes_MiB": 0,
+     "errors": [],
+     "total_ms": 14.714999914169312,
+     "serverRequests": 1,
+     "serverBytes_MiB": 0
+    },
+    {
+     "attempt": 4,
+     "resumed": true,
+     "verifiedAtStart": 7,
+     "downloaded": 0,
+     "aborted": false,
+     "wastedBytes_MiB": 0,
+     "errors": [],
+     "total_ms": 15.15499997138977,
+     "verify": {
+      "read_ms": 53.260000467300415,
+      "hash_ms": 155.9599997997284,
+      "ok": 7,
+      "bad": 0,
+      "MiBps": 955.931554080579,
+      "ms": 209.43500018119812
+     },
+     "serverRequests": 1,
+     "serverBytes_MiB": 0
+    }
+   ],
+   "cleanup": {
+    "mode": "cleanup",
+    "gone": true,
+    "memory": {
+     "jsHeapPeak_MiB": 2.7914533615112305,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 33.13499999046326,
+    "crossOriginIsolated": true
+   }
+  }
+ },
+ {
+  "browser": "chrome",
+  "version": "156.0.8078.80",
+  "scenario": "whole",
+  "params": {},
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 8.42,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "coi": true,
+   "withIntegrity": {
+    "mode": "whole",
+    "integrity": true,
+    "size": 209715200,
+    "headers_ms": 598.1349999904633,
+    "body_ms": 976.0550000667572,
+    "write_ms": 280.7300000190735,
+    "total_ms": 1256.7850000858307,
+    "MiBps": 159.13620864852876,
+    "memory": {
+     "jsHeapPeak_MiB": 0.8592453002929688,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 1265.8999998569489,
+    "crossOriginIsolated": true,
+    "cdpPeak": {
+     "jsHeapUsed_MiB": 0.8531455993652344,
+     "jsHeapTotal_MiB": 1.25
+    },
+    "processPeak": {
+     "processes": 8,
+     "renderers": 3,
+     "rendererMaxWorkingSet_MiB": 280.83203125,
+     "rendererMaxPrivate_MiB": 245.78125,
+     "totalWorkingSet_MiB": 697.4296875,
+     "totalPrivate_MiB": 458.68359375,
+     "samples": 2
+    },
+    "processBaseline": {
+     "processes": 8,
+     "renderers": 3,
+     "rendererMaxWorkingSet_MiB": 85.75,
+     "rendererMaxPrivate_MiB": 43.31640625,
+     "totalWorkingSet_MiB": 463.44140625,
+     "totalPrivate_MiB": 223.14453125,
+     "samples": 1
+    }
+   },
+   "withoutIntegrity": {
+    "mode": "whole",
+    "integrity": false,
+    "size": 209715200,
+    "headers_ms": 6.525000095367432,
+    "body_ms": 369.62000012397766,
+    "write_ms": 232.5149998664856,
+    "total_ms": 602.1349999904633,
+    "MiBps": 332.1514278412111,
+    "memory": {
+     "jsHeapPeak_MiB": 1.4533758163452148,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 609.579999923706,
+    "crossOriginIsolated": true,
+    "cdpPeak": {
+     "jsHeapUsed_MiB": 1.4400672912597656,
+     "jsHeapTotal_MiB": 2.5
+    },
+    "processPeak": {
+     "processes": 8,
+     "renderers": 3,
+     "rendererMaxWorkingSet_MiB": 85.8515625,
+     "rendererMaxPrivate_MiB": 43.328125,
+     "totalWorkingSet_MiB": 490.29296875,
+     "totalPrivate_MiB": 250.18359375,
+     "samples": 2
+    },
+    "processBaseline": {
+     "processes": 8,
+     "renderers": 3,
+     "rendererMaxWorkingSet_MiB": 85.8515625,
+     "rendererMaxPrivate_MiB": 43.328125,
+     "totalWorkingSet_MiB": 489.29296875,
+     "totalPrivate_MiB": 248.75390625,
+     "samples": 1
+    }
+   },
+   "cleanup": {
+    "mode": "cleanup",
+    "gone": true,
+    "memory": {
+     "jsHeapPeak_MiB": 1.476064682006836,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 40.50499987602234,
+    "crossOriginIsolated": true
+   }
+  }
+ }
+]

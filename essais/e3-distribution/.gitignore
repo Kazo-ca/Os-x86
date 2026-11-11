@@ -1,0 +1,10 @@
+node_modules/
+bin/
+obj/
+images/
+*.bin
+data-*.bin
+results-*.json
+dotnet/publish/
+resultats/cf-r2-*.html
+dotnet/wwwroot/lib/

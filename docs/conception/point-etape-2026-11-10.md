@@ -19,6 +19,7 @@ Enregistrées dans [journal-decisions.md](journal-decisions.md) (section « Rép
 | E5 son | **Terminé** | [../essais/e5-son.md](../essais/e5-son.md) |
 | E8 9p, vitesse et durcissement | **Terminé** | [../essais/e8-9p.md](../essais/e8-9p.md) |
 | E6 réseau et permissions par bouteille | **Terminé** (critère atteint ; sans Wine, cibles locales) | [../essais/e6-reseau.md](../essais/e6-reseau.md) |
+| E3 distribution des images | **Terminé** (critère atteint dans Chrome, Edge, Firefox ; R2 non mesuré) | [../essais/e3-distribution.md](../essais/e3-distribution.md) |
 
 Code jetable dans [../../essais/](../../essais/) (images et états ignorés par git, 1,4 Go sur le disque).
 
@@ -88,6 +89,14 @@ OPFS (`createSyncAccessHandle` dans un worker) contre IndexedDB par blocs de 4 K
 - Propositions, à valider (nourrissent 116, D20, D21, §6 et §14) : décision, limites et journal au relais côté Kazo, nftables de l'invité en défense en profondeur ; VM partagée quand l'attribution est fiable, VM séparées pour l'isolation d'affichage et de presse-papiers ; `relay_url` fixé par la Feature, jamais exposé à l'invité ; UDP et IPv6 écrits comme règles explicites.
 - Non testé : Wine (programmes `curl`/`nc`), Internet réel, connexions entrantes (§14), console avancée (E7), pile TCP du relais = maquette.
 
+### E3 : distribution des images — [../essais/e3-distribution.md](../essais/e3-distribution.md)
+- Critère atteint : 800 Mio par morceaux de 32 Mio (Range → `SubtleCrypto.digest` → OPFS) en 68,5 s à 100 Mbit/s (4 s sur localhost) ; vérification complète sur place en 1 s ; reprise après 3 coupures et 2 erreurs 503 sans perdre plus que le morceau en cours, y compris après rechargement de page ; identique dans Chrome 156, Edge 157, Firefox 159.
+- Taille de morceau : 32 Mio est le meilleur compromis (26 requêtes, 170 à 220 Mio de mémoire) ; `fetch` d'un seul tenant avec `integrity` coûte 2,4 Gio de mémoire sans reprise.
+- SHA-256 : `SubtleCrypto` 1,1 à 1,25 Go/s ; .NET 10 interprété sous Blazor 35 Mo/s (24 s pour 800 Mio) ; AOT non mesuré (installation du workload refusée faute d'élévation).
+- Cache HTTP : les trois navigateurs ne gardent jamais une réponse de 64 Mio ou plus, d'où v86 qui redemande ses `.zst` à chaque boot (E1) ; l'OPFS doit être le cache et v86 lire l'image depuis l'OPFS.
+- Hébergeurs mesurés : GitHub Pages et raw font CORS, 206 et ETag mais plafonnent à 100 Mio par fichier et 1 Go par site ; GitHub Releases sans CORS ; jsDelivr 20 Mo et Range incohérent ; R2 non mesuré (aucun bucket public), documentation seulement.
+- Propositions, à valider (série 13) : R2 derrière un domaine Kazo ou serveur Kazo avec CORS, Range, `Expose-Headers` et `immutable` ; morceaux de 32 Mio avec manifeste SHA-256 par morceau ; téléchargement et hachage dans un Web Worker JS, jamais en C# ; `cache: 'no-store'`, l'OPFS comme seul cache ; état de reprise dans l'OPFS. À remesurer : R2 réel, vrai réseau mobile, appareil de 4 Go.
+
 ## 3. Questions nouvelles à trancher
 
 Même protocole : une lettre, ou rien pour la recommandation ✨, ou « Autre ». Les numéros suivent la série 9 (140 à 149).
@@ -111,7 +120,7 @@ Les autres propositions issues de E1 (512 Mio de mémoire par VM à essayer, ne 
 
 ## 4. Ce qui n'est pas fait ou pas vérifié
 
-- E1, E2, E4, E5, E6, E8 (essais) et E10, E12, E13 (lecture) sont faits ; E3, E7 et E9 restent à lancer (C: ≈ 18,7 Go libres), puis E11, E14, E15.
+- E1, E2, E3, E4, E5, E6, E8 (essais) et E10, E12, E13 (lecture) sont faits ; l'essai Wine dédié (170) est en cours ; restent E7, E9, E11, E14, E15, E16, E2 bis, E12 bis et la faisabilité Windows (171).
 - Safari non mesuré (pas de Mac) ; Firefox et Edge mesurés pour E2 seulement ; E1 sur Chrome seul, deux runs, sans Mono ni Gecko, v86 dans le fil principal (pas encore en Web Worker).
 - **Disque C:** : descendu à 3,8 Go libres après E5. Sur ton accord (« Oui, libère C: ») j'ai supprimé les trois images Docker des essais (`e1-wine-v86`, `e4-fenetres`, `e5-son`, 2,7 Go), le cache de construction Docker (11,5 Go) et, sur disque, l'export tar de E1 et les deux états sauvegardés (`state.bin` de E1, `state-snd.bin` de E5, 1,2 Go en tout ; `build.ps1` et un run les recréent). Résultat : 5,0 Go libres. L'espace rendu à Docker n'est pas rendu à Windows : son disque virtuel (`docker_data.vhdx`, 69 Go) ne rétrécit qu'en le compactant, ce qui arrête tous les conteneurs, dont les huit de tes autres projets qui tournent ; je ne l'ai pas fait. Sur ton second accord (« Oui, compacte ») : l'arrêt de Docker Desktop et de WSL a libéré 10 Go à lui seul (fichiers temporaires), mais le compactage du disque virtuel exige une élévation que je ne peux pas obtenir ; Docker Desktop est relancé, les huit conteneurs valoria tournent de nouveau. Script prêt pour toi, à lancer en administrateur : [../../essais/compacter-disque-docker.ps1](../../essais/compacter-disque-docker.ps1) (trim, arrêt, compactage, relance). Première exécution sans effet (69,2 Go avant et après) : ext4 ne remet pas à zéro les blocs libérés, il fallait un `fstrim` avant ; fait depuis, le script l'inclut maintenant. Seconde exécution : disque Docker 69,2 → 58,7 Go, mais C: est retombé à 5 Go libres : le fichier d'échange de Windows (`pagefile.sys`, géré automatiquement, 39,4 Go) a grossi dans l'intervalle et une sauvegarde ValorIA de 2,9 Go s'est écrite. Ce sont des réglages système et tes autres projets : je n'y touche pas. Options durables, à ton choix : déplacer le disque virtuel de Docker vers un autre lecteur (P: a 510 Go libres ; Docker Desktop → Settings → Resources → Disk image location), fixer la taille du fichier d'échange ou le mettre sur un autre lecteur, désactiver la veille prolongée (`hiberfil.sys`, 25,6 Go). Tant que C: reste sous 10 Go, je ne lance pas E3, E6 à E9 ; les études de lecture E10, E12 et E13 sont lancées (aucun disque). Les essais restants (E3, E6 à E9) restent lourds en disque.
 - Poussé sur `conception-os-x86` à ta demande du 2026-11-10 (adfb4df) et du 2026-11-11 (79819ff : réponses 102 à 159, rapport E8) ; le rapport E6 suit dans un commit à part.

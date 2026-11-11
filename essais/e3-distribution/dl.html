@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Essai E3 — distribution des images</title>
+<style>body{font-family:system-ui,sans-serif;margin:1rem} pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<h1>Essai E3 — distribution des images</h1>
+<p>Pilotée par Playwright : <code>window.__run({ mode, ... })</code> renvoie les résultats. Modes du worker : chunked, verify, whole, range-demand, hash-bench, cleanup ; modes de la page : cache, cors-range, info.</p>
+<pre id="log"></pre>
+<script>
+const logEl = document.getElementById('log');
+const log = (m) => { logEl.textContent += m + '\n'; };
+const MiB = 1024 * 1024;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Échantillonne la mémoire pendant une tâche : performance.memory (Chrome, tas JS de la page) toutes les 200 ms,
+// performance.measureUserAgentSpecificMemory() (isolation d'origine croisée requise) toutes les secondes.
+function memorySampler() {
+  const s = { jsHeapPeak_MiB: null, uaMemoryPeak_MiB: null, uaMemorySamples: 0, stopped: false };
+  const tick = async () => {
+    while (!s.stopped) {
+      if (performance.memory) s.jsHeapPeak_MiB = Math.max(s.jsHeapPeak_MiB ?? 0, performance.memory.usedJSHeapSize / MiB);
+      await sleep(200);
+    }
+  };
+  const tickUa = async () => {
+    while (!s.stopped && performance.measureUserAgentSpecificMemory && window.crossOriginIsolated) {
+      try { const m = await performance.measureUserAgentSpecificMemory(); s.uaMemoryPeak_MiB = Math.max(s.uaMemoryPeak_MiB ?? 0, m.bytes / MiB); s.uaMemorySamples++; } catch (e) { s.uaMemoryError = e.message; break; }
+      await sleep(1000);
+    }
+  };
+  tick(); tickUa();
+  return { stop: () => { s.stopped = true; return { ...s, stopped: undefined }; } };
+}
+
+function runWorker(params) {
+  return new Promise((resolve) => {
+    const worker = new Worker('dl-worker.js');
+    worker.onmessage = (ev) => {
+      if (ev.data.type === 'log') { log(ev.data.msg); return; }
+      if (ev.data.type === 'done') { worker.terminate(); resolve(ev.data.results); }
+    };
+    worker.onerror = (e) => { worker.terminate(); resolve({ mode: params.mode, error: 'worker : ' + e.message }); };
+    worker.postMessage(params);
+  });
+}
+
+async function serverStats() { return (await fetch('/stats', { cache: 'no-store' })).json(); }
+async function ctl(q) { return (await fetch('/ctl?' + q, { cache: 'no-store' })).json(); }
+
+// Cache HTTP : deux fetch du même fichier, puis Cache API ; on compte les requêtes vues par le serveur.
+async function cacheTest({ url, cacheControl = 'public, max-age=3600' }) {
+  const r = { mode: 'cache', url, cacheControl, steps: [] };
+  await ctl('reset=1&cc=' + encodeURIComponent(cacheControl));
+  const step = async (label, fn) => {
+    const before = (await serverStats()).log.length;
+    const t = performance.now();
+    const extra = (await fn()) ?? {};
+    const after = (await serverStats()).log;
+    const newReqs = after.slice(before);
+    r.steps.push({ label, ms: performance.now() - t, serverRequests: newReqs.length, statuses: newReqs.map((e) => e.status), bytesSent_MiB: newReqs.reduce((a, e) => a + e.sent, 0) / MiB, ...extra });
+  };
+  const fetchAll = async (opts) => { const res = await fetch(url, opts); const ab = await res.arrayBuffer(); return { status: res.status, size_MiB: ab.byteLength / MiB }; };
+  await step('fetch 1 (défaut)', () => fetchAll());
+  await step('fetch 2 (défaut, juste après)', () => fetchAll());
+  await step('fetch 3 (cache: force-cache)', () => fetchAll({ cache: 'force-cache' }));
+  await step('fetch 4 (cache: no-cache = revalidation)', () => fetchAll({ cache: 'no-cache' }));
+  let cacheApi = null;
+  await step('Cache API : cache.add(url)', async () => {
+    try { const c = await caches.open('e3'); await c.add(new Request(url, { cache: 'no-store' })); cacheApi = c; return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+  });
+  await step('Cache API : cache.match(url) + arrayBuffer', async () => {
+    if (!cacheApi) return { skipped: true };
+    const res = await cacheApi.match(url); if (!res) return { found: false };
+    const ab = await res.arrayBuffer(); return { found: true, size_MiB: ab.byteLength / MiB };
+  });
+  await step('Cache API : cache.match une 2e fois', async () => {
+    if (!cacheApi) return { skipped: true };
+    const res = await cacheApi.match(url); if (!res) return { found: false };
+    const ab = await res.arrayBuffer(); return { found: true, size_MiB: ab.byteLength / MiB };
+  });
+  try { r.estimateWithCache = await navigator.storage.estimate(); } catch {}
+  await caches.delete('e3').catch(() => {});
+  try { r.estimateAfterDelete = await navigator.storage.estimate(); } catch {}
+  return r;
+}
+
+// Range inter-origine depuis le navigateur vers des hébergeurs publics (lecture seule, 1 Kio par hôte).
+async function corsRange({ hosts }) {
+  const r = { mode: 'cors-range', crossOriginIsolated: window.crossOriginIsolated, results: [] };
+  for (const h of hosts) {
+    const one = { url: h.url, label: h.label };
+    const t = performance.now();
+    try {
+      const res = await fetch(h.url, { headers: h.range === false ? {} : { Range: 'bytes=0-1023' }, cache: 'no-store', mode: 'cors' });
+      const ab = await res.arrayBuffer();
+      Object.assign(one, { status: res.status, ok: res.ok, bytes: ab.byteLength, type: res.type,
+        contentRange: res.headers.get('content-range'), acceptRanges: res.headers.get('accept-ranges'), etag: res.headers.get('etag'), contentLength: res.headers.get('content-length'), acao: res.headers.get('access-control-allow-origin') });
+    } catch (e) { one.error = String(e.message || e); }
+    one.ms = performance.now() - t;
+    r.results.push(one);
+  }
+  return r;
+}
+
+async function info() {
+  const r = { mode: 'info', userAgent: navigator.userAgent, crossOriginIsolated: window.crossOriginIsolated, hardwareConcurrency: navigator.hardwareConcurrency,
+    sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined', measureUAMemory: !!performance.measureUserAgentSpecificMemory, performanceMemory: !!performance.memory, cacheApi: !!window.caches };
+  try { r.estimate = await navigator.storage.estimate(); } catch (e) { r.estimateError = e.message; }
+  return r;
+}
+
+const PAGE_MODES = { cache: cacheTest, 'cors-range': corsRange, info };
+window.__run = async (params) => {
+  log('→ ' + JSON.stringify(params));
+  const mem = memorySampler();
+  const t0 = performance.now();
+  let results;
+  try { results = PAGE_MODES[params.mode] ? await PAGE_MODES[params.mode](params) : await runWorker(params); }
+  catch (e) { results = { mode: params.mode, error: String(e.message || e) }; }
+  results.memory = mem.stop();
+  results.wall_ms = performance.now() - t0;
+  results.crossOriginIsolated = window.crossOriginIsolated;
+  log('← ' + JSON.stringify(results).slice(0, 2000));
+  return results;
+};
+</script>
+</body>
+</html>

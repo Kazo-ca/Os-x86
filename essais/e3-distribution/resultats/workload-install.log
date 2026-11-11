@@ -1,0 +1,7 @@
+
+Vérification de la version mise à jour de la charge de travail.
+Installation de la charge de travail 10.0.404.
+Downloading microsoft.net.workloads.10.0.400.msi.x64 (10.404.0)
+Échec de l’installation de la charge de travail, restauration des packs installés...
+Échec de l’installation de la charge de travail : An error occurred trying to start process '"C:\Program Files\dotnet\dotnet.exe"' with working directory '<depot>\essais\e3-distribution'. L’opération a été annulée par l’utilisateur.
+exit 1

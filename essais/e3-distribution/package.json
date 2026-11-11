@@ -1,0 +1,8 @@
+{
+  "name": "e3-distribution",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "1.65.0"
+  }
+}

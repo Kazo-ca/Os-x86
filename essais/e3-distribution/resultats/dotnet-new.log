@@ -1,0 +1,11 @@
+Le modèle « Application Blazor WebAssembly autonome » a bien été créé.
+Ce modèle contient des technologies provenant d’autres parties que Microsoft, consultez https://aka.ms/aspnetcore/10.0-third-party-notices si vous souhaitez en savoir plus.
+
+Traitement des actions postérieures à la création en cours... Merci de patienter.
+Restauration de <depot>\essais\e3-distribution\dotnet\E3Sha.csproj :
+  Identification des projets à restaurer...
+  Restauration effectuée de <depot>\essais\e3-distribution\dotnet\E3Sha.csproj (en 1,24 sec).
+Restauration réussie.
+
+
+exit 0

@@ -6,6 +6,7 @@ Prototypes jetables prévus par [docs/conception/etudes-prevues.md](../docs/conc
 |---|---|---|
 | `e1-wine-v86/` | E1 : maquette Wine dans v86 (démarrage, état, mémoire) | `docs/essais/e1-wine-v86.md` |
 | `e2-stockage/` | E2 : stockage des disques (OPFS contre IndexedDB) | `docs/essais/e2-stockage.md` |
+| `e3-distribution/` | E3 : distribution des images (hébergeurs CORS/Range, téléchargement reprenable par morceaux vers l'OPFS, SHA-256 .NET contre `SubtleCrypto`, COOP/COEP, cache HTTP) | `docs/essais/e3-distribution.md` |
 | `e5-son/` | E5 : son SB16 dans v86 (pont worker → AudioWorklet, saccades #1660/#1661, latence, CPU, PipeWire) | `docs/essais/e5-son.md` |
 | `e4-fenetres/` | E4 : fenêtre par fenêtre (agent XComposite dans l'invité contre découpage du canvas) | `docs/essais/e4-fenetres.md` |
 | `e6-reseau/` | E6 : réseau et permissions par bouteille (netns par bouteille, relais WebSocket local avec limites 4 flux/300 s/80-443, confinement, 1 VM contre VM séparées) | `docs/essais/e6-reseau.md` |

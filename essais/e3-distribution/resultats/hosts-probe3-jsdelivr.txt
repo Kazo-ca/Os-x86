@@ -1,0 +1,18 @@
+### https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/editor/editor.main.js
+HTTP/1.1 206 Partial Content
+content-range: bytes 0-1023/920981
+octets-recus=0
+--- sans Accept-Encoding, Range 1000-2023
+HTTP/1.1 206 Partial Content
+Content-Length: 1024
+content-range: bytes 1000-2023/920981
+octets-recus=1024
+### https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js
+HTTP/1.1 206 Partial Content
+content-range: bytes 0-1023/27445
+octets-recus=1381
+--- sans Accept-Encoding, Range 1000-2023
+HTTP/1.1 206 Partial Content
+Content-Length: 1024
+content-range: bytes 1000-2023/27445
+octets-recus=1024

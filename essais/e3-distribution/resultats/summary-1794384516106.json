@@ -1,0 +1,2144 @@
+[
+ {
+  "browser": "chrome",
+  "version": "156.0.8078.80",
+  "scenario": "cache",
+  "params": {},
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 20.473,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "m200_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-200.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 435.4299998283386,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 437.22500014305115,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 407.9800000190735,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 484.9850001335144,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 831.3099999427795,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 249.36999988555908,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 305.3949999809265,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 800.782808303833,
+     "uaMemoryPeak_MiB": 400.5290536880493,
+     "uaMemorySamples": 3
+    },
+    "wall_ms": 3178.5400002002716,
+    "crossOriginIsolated": true
+   },
+   "m200_nostore": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-200.bin?v=2",
+    "cacheControl": "no-store",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 310.15499997138977,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 313.68499994277954,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 345.0899999141693,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 433.5199999809265,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 868.295000076294,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 272.1800000667572,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 276.0699999332428,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 1000.8354406356812,
+     "uaMemoryPeak_MiB": 200.60705852508545,
+     "uaMemorySamples": 1
+    },
+    "wall_ms": 2841.6200001239777,
+    "crossOriginIsolated": true
+   },
+   "m800_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-800.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 1748.1999998092651,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 1538.465000152588,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 1655.9449999332428,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 1965.914999961853,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 3995.234999895096,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 1241.0500001907349,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 800
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 1425.369999885559,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 800
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 11576280064,
+     "usage": 838861824,
+     "usageDetails": {
+      "caches": 838861824
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 11576280064,
+     "usage": 838861824,
+     "usageDetails": {
+      "caches": 838861824
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 2400.8413667678833,
+     "uaMemoryPeak_MiB": 800.6087083816528,
+     "uaMemorySamples": 4
+    },
+    "wall_ms": 13596.519999980927,
+    "crossOriginIsolated": true
+   }
+  }
+ },
+ {
+  "browser": "msedge",
+  "version": "157.0.4341.42",
+  "scenario": "cache",
+  "params": {},
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 18.552,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "m200_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-200.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 481.4649999141693,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 487.63499999046326,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 385.4649999141693,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 387.04499983787537,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 882.539999961853,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 256.99000000953674,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 313.42000007629395,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 600.7854175567627,
+     "uaMemoryPeak_MiB": 400.536358833313,
+     "uaMemorySamples": 3
+    },
+    "wall_ms": 3220.4700000286102,
+    "crossOriginIsolated": true
+   },
+   "m200_nostore": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-200.bin?v=2",
+    "cacheControl": "no-store",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 298.38499999046326,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 304.95499992370605,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 289.210000038147,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 383.1300001144409,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 856.545000076294,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 258.9850001335144,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 257.0499999523163,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10947134464,
+     "usage": 209716224,
+     "usageDetails": {
+      "caches": 209716224
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 1000.8376760482788,
+     "uaMemoryPeak_MiB": 200.60449314117432,
+     "uaMemorySamples": 1
+    },
+    "wall_ms": 2670.4800000190735,
+    "crossOriginIsolated": true
+   },
+   "m800_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-800.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 1501.4000000953674,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 1385.9749999046326,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 1251.1900000572205,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 1437.7799999713898,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 3665.755000114441,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 1205.289999961853,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 800
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 1110.9249999523163,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 800
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 11576280064,
+     "usage": 838861824,
+     "usageDetails": {
+      "caches": 838861824
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 11576280064,
+     "usage": 838861824,
+     "usageDetails": {
+      "caches": 838861824
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 2400.8428564071655,
+     "uaMemoryPeak_MiB": 800.6131143569946,
+     "uaMemorySamples": 3
+    },
+    "wall_ms": 11582.174999952316,
+    "crossOriginIsolated": true
+   }
+  }
+ },
+ {
+  "browser": "firefox",
+  "version": "159.0",
+  "scenario": "cache",
+  "params": {},
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 40.028,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "m200_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-200.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 1048.04,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 867.48,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 1031.1600000000003,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 892.6000000000004,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 1111.3599999999997,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 653.5600000000004,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 692.2600000000002,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 209875387
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 209883627
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 6349.34,
+    "crossOriginIsolated": true
+   },
+   "m200_nostore": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-200.bin?v=2",
+    "cacheControl": "no-store",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 914.8599999999997,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 799.4599999999991,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 823.8600000000006,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 771.0200000000004,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "status": 200,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 966.7800000000007,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 200,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 665.2199999999993,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 637.8600000000006,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 200
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 209875027
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 209883267
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 5614.759999999999,
+    "crossOriginIsolated": true
+   },
+   "m800_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-800.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 3720.379999999999,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 4513.16,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 3500.3199999999997,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 3507.220000000001,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "status": 200,
+      "size_MiB": 800
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 4176.119999999999,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 800,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 2605.9400000000023,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 800
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 2688.6800000000003,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 800
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 839155027
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 839163267
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 24749,
+    "crossOriginIsolated": true
+   }
+  }
+ },
+ {
+  "browser": "chrome",
+  "version": "156.0.8078.80",
+  "scenario": "cache",
+  "params": {
+   "sizes": "8,32,64,128"
+  },
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 5.015,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "m8_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-8.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 52.68999981880188,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 8,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 45.5550000667572,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 34.424999952316284,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 24.78500008583069,
+      "serverRequests": 1,
+      "statuses": [
+       304
+      ],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 67.26500010490417,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 8,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 15.484999895095825,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 8
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 13.900000095367432,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 8
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10745807872,
+     "usage": 8389632,
+     "usageDetails": {
+      "caches": 8389632
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10745807872,
+     "usage": 8389632,
+     "usageDetails": {
+      "caches": 8389632
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 32.93162441253662,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 277.4500000476837,
+    "crossOriginIsolated": true
+   },
+   "m32_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-32.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 124.10000014305115,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 32,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 69.21000003814697,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 65.28499984741211,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 61.28999996185303,
+      "serverRequests": 1,
+      "statuses": [
+       304
+      ],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 168.6599998474121,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 32,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 50.27999997138977,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 32
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 43.32000017166138,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 32
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10770973696,
+     "usage": 33555456,
+     "usageDetails": {
+      "caches": 33555456
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10770973696,
+     "usage": 33555456,
+     "usageDetails": {
+      "caches": 33555456
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 112.81551933288574,
+     "uaMemoryPeak_MiB": 32.59800148010254,
+     "uaMemorySamples": 1
+    },
+    "wall_ms": 603.3650000095367,
+    "crossOriginIsolated": true
+   },
+   "m64_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-64.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 188.61999988555908,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 232.70000004768372,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 154.93499994277954,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 196.01500010490417,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 280.27999997138977,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 73.63000011444092,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 64
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 73.89499998092651,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 64
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10804528128,
+     "usage": 67109888,
+     "usageDetails": {
+      "caches": 67109888
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10804528128,
+     "usage": 67109888,
+     "usageDetails": {
+      "caches": 67109888
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 256.82390308380127,
+     "uaMemoryPeak_MiB": 64.60603427886963,
+     "uaMemorySamples": 1
+    },
+    "wall_ms": 1217.664999961853,
+    "crossOriginIsolated": true
+   },
+   "m128_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-128.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 267.5150001049042,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 240.09500002861023,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 301.6850001811981,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 269.75,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 625.3650000095367,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 163.125,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 128
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 209.78999996185303,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 128
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10871636992,
+     "usage": 134218752,
+     "usageDetails": {
+      "caches": 134218752
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10871636992,
+     "usage": 134218752,
+     "usageDetails": {
+      "caches": 134218752
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 512.8642272949219,
+     "uaMemoryPeak_MiB": 128.6149501800537,
+     "uaMemorySamples": 2
+    },
+    "wall_ms": 2096,
+    "crossOriginIsolated": true
+   }
+  }
+ },
+ {
+  "browser": "msedge",
+  "version": "157.0.4341.42",
+  "scenario": "cache",
+  "params": {
+   "sizes": "8,32,64,128"
+  },
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 5.631,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "m8_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-8.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 72.87000012397766,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 8,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 42.5550000667572,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 39.12999987602234,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 35.55999994277954,
+      "serverRequests": 1,
+      "statuses": [
+       304
+      ],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 77.25,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 8,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 13.53499984741211,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 8
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 16.555000066757202,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 8
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10745807872,
+     "usage": 8389632,
+     "usageDetails": {
+      "caches": 8389632
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10745807872,
+     "usage": 8389632,
+     "usageDetails": {
+      "caches": 8389632
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 32.923147201538086,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 327.460000038147,
+    "crossOriginIsolated": true
+   },
+   "m32_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-32.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 146.75999999046326,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 32,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 86.84000015258789,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 58.06500005722046,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 62.329999923706055,
+      "serverRequests": 1,
+      "statuses": [
+       304
+      ],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 194.3399999141693,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 32,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 50.63000011444092,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 32
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 56.950000047683716,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 32
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10770973696,
+     "usage": 33555456,
+     "usageDetails": {
+      "caches": 33555456
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10770973696,
+     "usage": 33555456,
+     "usageDetails": {
+      "caches": 33555456
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 128.8565797805786,
+     "uaMemoryPeak_MiB": 32.60884475708008,
+     "uaMemorySamples": 1
+    },
+    "wall_ms": 679.0150001049042,
+    "crossOriginIsolated": true
+   },
+   "m64_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-64.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 219.93499994277954,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 197.6599998474121,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 177.96000003814697,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 206.95000004768372,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 291.0600001811981,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 84.03999996185303,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 64
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 87.85000014305115,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 64
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10804528128,
+     "usage": 67109888,
+     "usageDetails": {
+      "caches": 67109888
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10804528128,
+     "usage": 67109888,
+     "usageDetails": {
+      "caches": 67109888
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 192.8261079788208,
+     "uaMemoryPeak_MiB": 64.61097812652588,
+     "uaMemorySamples": 1
+    },
+    "wall_ms": 1286.1799998283386,
+    "crossOriginIsolated": true
+   },
+   "m128_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-128.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 286.125,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 311.5499999523163,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 305.56500005722046,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 308.9800000190735,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 551.1900000572205,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 170.08000016212463,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 128
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 216.99000000953674,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 128
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10871636992,
+     "usage": 134218752,
+     "usageDetails": {
+      "caches": 134218752
+     }
+    },
+    "estimateAfterDelete": {
+     "quota": 10871636992,
+     "usage": 134218752,
+     "usageDetails": {
+      "caches": 134218752
+     }
+    },
+    "memory": {
+     "jsHeapPeak_MiB": 384.86325454711914,
+     "uaMemoryPeak_MiB": 128.61886024475098,
+     "uaMemorySamples": 2
+    },
+    "wall_ms": 2172.204999923706,
+    "crossOriginIsolated": true
+   }
+  }
+ },
+ {
+  "browser": "firefox",
+  "version": "159.0",
+  "scenario": "cache",
+  "params": {
+   "sizes": "8,32,64,128"
+  },
+  "run": 1,
+  "available": true,
+  "headless": true,
+  "wallClock_s": 10.778,
+  "consoleErrors": [],
+  "profileDeleted": true,
+  "cpu": "AMD Ryzen 7 3700X 8-Core Processor",
+  "ramGiB": 64,
+  "os": "Windows_NT 10.0.26200",
+  "result": {
+   "m8_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-8.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 80.22,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 8,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 35.15999999999997,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 30.28000000000003,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 31.69999999999999,
+      "serverRequests": 1,
+      "statuses": [
+       304
+      ],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 8
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 121.01999999999998,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 8,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 37.639999999999986,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 8
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 28.980000000000018,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 8
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 8505787
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 8514027
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 415.97999999999996,
+    "crossOriginIsolated": true
+   },
+   "m32_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-32.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 246,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 32,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 99.90000000000009,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 101.22000000000003,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 88.20000000000005,
+      "serverRequests": 1,
+      "statuses": [
+       304
+      ],
+      "bytesSent_MiB": 0,
+      "status": 200,
+      "size_MiB": 32
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 189.51999999999998,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 32,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 97.51999999999998,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 32
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 102.7800000000002,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 32
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 33676627
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 33684867
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 975.14,
+    "crossOriginIsolated": true
+   },
+   "m64_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-64.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 283.32000000000016,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 339.3600000000001,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 337.82000000000016,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 247.32000000000016,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "status": 200,
+      "size_MiB": 64
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 352.48,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 64,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 203.48000000000002,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 64
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 196.75999999999976,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 64
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 100853406
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 100861646
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 1997.54,
+    "crossOriginIsolated": true
+   },
+   "m128_maxage": {
+    "mode": "cache",
+    "url": "http://127.0.0.1:8098/images/data-128.bin",
+    "cacheControl": "public, max-age=3600",
+    "steps": [
+     {
+      "label": "fetch 1 (défaut)",
+      "ms": 633.1399999999999,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 2 (défaut, juste après)",
+      "ms": 812.7400000000007,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 3 (cache: force-cache)",
+      "ms": 737.9799999999996,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "fetch 4 (cache: no-cache = revalidation)",
+      "ms": 669.0799999999999,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "status": 200,
+      "size_MiB": 128
+     },
+     {
+      "label": "Cache API : cache.add(url)",
+      "ms": 644.7600000000002,
+      "serverRequests": 1,
+      "statuses": [
+       200
+      ],
+      "bytesSent_MiB": 128,
+      "ok": true
+     },
+     {
+      "label": "Cache API : cache.match(url) + arrayBuffer",
+      "ms": 398.5600000000004,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 128
+     },
+     {
+      "label": "Cache API : cache.match une 2e fois",
+      "ms": 406.3599999999997,
+      "serverRequests": 0,
+      "statuses": [],
+      "bytesSent_MiB": 0,
+      "found": true,
+      "size_MiB": 128
+     }
+    ],
+    "estimateWithCache": {
+     "quota": 10737418240,
+     "usage": 134361427
+    },
+    "estimateAfterDelete": {
+     "quota": 10737418240,
+     "usage": 134369667
+    },
+    "memory": {
+     "jsHeapPeak_MiB": null,
+     "uaMemoryPeak_MiB": null,
+     "uaMemorySamples": 0
+    },
+    "wall_ms": 4331.72,
+    "crossOriginIsolated": true
+   }
+  }
+ }
+]
