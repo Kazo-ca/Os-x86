@@ -44,3 +44,5 @@ Ce qui est déjà réglé par les règles que tu as validées, sans question : l
 ---
 
 On retient quoi pour 201 à 204? Réponds par numéro ; une ligne vide n'accepte rien.
+
+Réponse du 2026-11-11 : « Je suis d'accord avec tes recommendations » (201 à 204 : A).
