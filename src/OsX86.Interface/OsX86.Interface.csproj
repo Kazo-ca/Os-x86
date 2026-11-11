@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTrimmable>true</IsTrimmable>
+    <RootNamespace>OsX86.Interface</RootNamespace>
+    <!-- The contracts package every client app embeds (plan §1.1, decisions 158 A, 172 A). -->
+    <PackageId>Os-x86.Interface</PackageId>
+    <Version>0.1.0-alpha</Version>
+    <Authors>Kazo</Authors>
+    <Description>Contracts of Os-x86, the x86 emulation feature of Kazo OS: Ix86 and its types. Null when the feature is not installed.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Kazo-ca/Os-x86</RepositoryUrl>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Public API tracked per PR (plan §12): PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt. -->
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="4.14.0" PrivateAssets="all" />
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

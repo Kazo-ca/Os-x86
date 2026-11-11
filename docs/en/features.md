@@ -1,0 +1,33 @@
+> [Version française](../fr/features.md)
+
+# Os-x86 features
+
+Kept up to date by every PR (plan, section 12). Numbers in parentheses refer to the decisions of the [register](../conception/registre-reconcilie.md) (French); work items, to [`jalon-0-execution.md`](../conception/jalon-0-execution.md) (French).
+
+## Available
+
+| Feature | Since | Note |
+| --- | --- | --- |
+| `x86` command: `--version`, `vm list` | 0.1.0 | Packaged as a terminal command until Kazo OS ships the "Feature" app kind (ADR 0243) |
+| Contracts package `Os-x86.Interface`: `Ix86` (version, VM list) | 0.1.0 | Generic, no Wine type (29 C); public API tracked in `PublicAPI.Unshipped.txt` |
+
+## In progress (milestone 0, console programs)
+
+| Feature | Work item | Decisions |
+| --- | --- | --- |
+| v86 engine in a Web Worker, serial console and virtio-console | 2 | D3, 187 A |
+| OPFS storage, image manifest, verified download with resume | 3 | 149, 177 A, 203 A |
+| Images: base Linux (Debian i386 + Alpine kernel + agent), test Alpine, FreeDOS; sources and licenses | 4 | 201 A, 210 A |
+| Guest agent (JSON lines, one cgroup per launch, console through a pty) | 5 | 205 A, 206 A, 213 A |
+| VM registry, lifecycle, `x86 vm`, `x86 shell`, profiles | 6 | 165, 166, 183, 190, 212 A |
+| Admin pages, role, personal journal | 7 | 137, 140 B, 156, 160 |
+| "Feature" app kind, declared permissions, `GetServiceAsync<Ix86>()` | 8 | D33, D10, 176 A |
+| Wine image and template prefix | 9 | 152 A, 187 A, 204 A |
+| Prefixes, header detection, `./hello.exe` console in the terminal | 10 | 162 A, 193, 200 B |
+| DOS text program in the terminal | 11 | 111, 214 A, 215 A, 217 A |
+| Private network, relay, permission window, rules page | 12 | 161, 174 A, 176 A |
+| Minimal BoxedWine (separate repository) | 13 | 51 D, 62 B |
+
+## Planned
+
+Milestones 1 to 4 of the [plan](../conception/plan-2026-11-11.md), section 8: full BoxedWine and administration, graphical Linux and DOS, sound, inputs, graphical Windows (J3), end of V1.

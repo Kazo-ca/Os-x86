@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/Kazo-ca/Os-x86",
+  "project": "src/OsX86.Feature/OsX86.Feature.csproj",
+  "category": "development",
+  "tags": ["x86", "emulation", "virtual-machine", "wine", "dos"],
+  "license": "MIT"
+}

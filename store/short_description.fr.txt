@@ -1,0 +1,1 @@
+Fait tourner des machines virtuelles x86 (Linux, FreeDOS, programmes Windows par Wine) dans Kazo OS.

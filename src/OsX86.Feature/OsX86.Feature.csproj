@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- ADR 0106 §4 of Kazo OS: the host trims this app when it publishes. -->
+    <IsTrimmable>true</IsTrimmable>
+    <!-- A Kazo OS app; read by the Debug profile of the kazoos-solution layout (ADR 0207). -->
+    <KazoOsAppProject>true</KazoOsAppProject>
+    <RootNamespace>OsX86.Feature</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      The Kazo package of Os-x86 (plan §1.1). Until Kazo OS ships the "Feature" app kind (ADR 0243 of
+      the lot 1), it is packaged as the terminal command `x86`; work item 8 of the milestone moves it
+      to the Feature kind without changing the command.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Kazo.Os.AppSdk" Version="$(KazoOsVersion)" />
+    <!-- Generates manifest.json after the build and checks the SDK boundary (KOSAPP0030). -->
+    <PackageReference Include="Kazo.Os.App.Build" Version="$(KazoOsVersion)" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\OsX86\OsX86.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="OsX86.Tests" />
+  </ItemGroup>
+</Project>

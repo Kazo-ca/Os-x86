@@ -1,0 +1,31 @@
+#nullable enable
+OsX86.Interface.Ix86
+OsX86.Interface.Ix86.Version.get -> string!
+OsX86.Interface.Ix86.GetVmsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<OsX86.Interface.VmSummary!>!>
+OsX86.Interface.VmSummary
+OsX86.Interface.VmSummary.VmSummary(System.Guid Id, string! Name, OsX86.Interface.VmKind Kind, OsX86.Interface.VmState State) -> void
+OsX86.Interface.VmSummary.Id.get -> System.Guid
+OsX86.Interface.VmSummary.Id.init -> void
+OsX86.Interface.VmSummary.Name.get -> string!
+OsX86.Interface.VmSummary.Name.init -> void
+OsX86.Interface.VmSummary.Kind.get -> OsX86.Interface.VmKind
+OsX86.Interface.VmSummary.Kind.init -> void
+OsX86.Interface.VmSummary.State.get -> OsX86.Interface.VmState
+OsX86.Interface.VmSummary.State.init -> void
+OsX86.Interface.VmSummary.<Clone>$() -> OsX86.Interface.VmSummary!
+OsX86.Interface.VmSummary.Deconstruct(out System.Guid Id, out string! Name, out OsX86.Interface.VmKind Kind, out OsX86.Interface.VmState State) -> void
+OsX86.Interface.VmSummary.Equals(OsX86.Interface.VmSummary? other) -> bool
+override OsX86.Interface.VmSummary.Equals(object? obj) -> bool
+override OsX86.Interface.VmSummary.GetHashCode() -> int
+override OsX86.Interface.VmSummary.ToString() -> string!
+static OsX86.Interface.VmSummary.operator !=(OsX86.Interface.VmSummary? left, OsX86.Interface.VmSummary? right) -> bool
+static OsX86.Interface.VmSummary.operator ==(OsX86.Interface.VmSummary? left, OsX86.Interface.VmSummary? right) -> bool
+OsX86.Interface.VmKind
+OsX86.Interface.VmKind.Linux = 0 -> OsX86.Interface.VmKind
+OsX86.Interface.VmKind.Dos = 1 -> OsX86.Interface.VmKind
+OsX86.Interface.VmKind.WindowsPrograms = 2 -> OsX86.Interface.VmKind
+OsX86.Interface.VmState
+OsX86.Interface.VmState.Stopped = 0 -> OsX86.Interface.VmState
+OsX86.Interface.VmState.Starting = 1 -> OsX86.Interface.VmState
+OsX86.Interface.VmState.Running = 2 -> OsX86.Interface.VmState
+OsX86.Interface.VmState.Stopping = 3 -> OsX86.Interface.VmState
