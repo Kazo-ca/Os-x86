@@ -131,7 +131,7 @@ OPFS (`createSyncAccessHandle` dans un worker) contre IndexedDB par blocs de 4 K
 
 ## 3. Questions nouvelles à trancher
 
-Les propositions d'E7 et d'E14 sont posées en [série 14](serie-14-envoyee.md) (205 à 218).
+Les propositions d'E7 et d'E14 sont posées en [série 14](serie-14-envoyee.md) (205 à 218), répondues A partout. Le jalon 0 est commencé : [jalon-0-execution.md](jalon-0-execution.md).
 
 Même protocole : une lettre, ou rien pour la recommandation ✨, ou « Autre ». Les numéros suivent la série 9 (140 à 149).
 

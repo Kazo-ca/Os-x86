@@ -478,6 +478,8 @@ Série 14 (205 à 218), posée le 2026-11-11 dans [serie-14-envoyee.md](serie-14
 | 217 | DOS graphique en session Terminal | **A** : signal = `screen-set-size` avec `bpp ≠ 0` ; BoxedWine reprend la VM DOS déjà lancée (même VM, canvas dans une fenêtre BoxedWine) et la rend au Terminal au retour en texte ; sans BoxedWine : message et arrêt (164 A). | 164 ; E14 |
 | 218 | Dépendances à v86 | **A** : `virtio_console` plutôt que `uart1` pour l'agent et les consoles Linux ; pour DOS, curseur et attributs lus par les champs internes isolés dans un seul adaptateur ; API publique et réveil sur IRQ clavier proposés en amont ; pas de fork tant que ces champs existent. | C6, D3 ; E14 |
 
+**Jalon 0 commencé le 2026-11-11** (« Commence le jalon 0 ») : ordre des chantiers, branches et numéros d'ADR Kazo (0243 à 0255) dans [jalon-0-execution.md](jalon-0-execution.md). Questions d'exécution 219 à 221 posées dans le chat (série d'ADR dans Kazo, tag de Kazo, branche de départ).
+
 Sujets ajoutés pendant l'appel, sans numéro (à garder tels quels) : conteneurs toujours actifs gérés par l'admin, partagés en V1, attribution personnelle en V2 ; **traduction automatique des chemins Kazo** des dossiers partagés vers leur point de montage dans l'invité (ex. `/home/<usager>` → `D:`), sans nouveau droit ; **architecture des bibliothèques** : BoxedWine (app, BW), Os-x86 (Feature, x86), Boxed-WineLib (BwLib, réutilisable), x86-Lib (réutilisable), contrats IBwLib et Ix86, « Os-X86.Interface implémente Ix86 », BwLib dépend de Ix86 seulement (précision demandée en série 10) ; **périphériques** : admins seuls pour les VM partagées, l'usager pour la VM qu'il a créée.
 
 ## Reste à débattre après la série 6 (réponses 62, 63 et 64)
