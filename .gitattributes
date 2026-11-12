@@ -1,0 +1,5 @@
+# Vendored v86 and its patches are byte-exact (tools/v86/vendor-v86.py --check compares them).
+src/OsX86/wwwroot/v86/** -text
+tools/v86/patches/*.patch -text
+# Guest scripts run inside Linux: LF only.
+images/**/*.sh text eol=lf
