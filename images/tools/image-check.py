@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import posixpath
 import re
 import stat
 import sys
@@ -35,6 +36,9 @@ INIT_PATH = "sbin/init"
 AGENT_PATH = "usr/lib/osx86/agent"
 PROBES = ("usr/lib/osx86/osx86-rawsock", "usr/lib/osx86/osx86-ptrace")
 MAX_INIT_BYTES = 256 * 1024
+MAX_LINK_DEPTH = 16
+# A trailing " # comment" outside quotes (a '#' inside a quoted string, as in a prompt, stays).
+TRAILING_COMMENT = re.compile(r"""\s+#(?![^'"]*['"])[^'"]*$""")
 # World-writable paths that are expected, all sticky (checked), everything else is a leak.
 ALLOWED_WORLD_WRITABLE = {"tmp", "var/tmp"}
 # Directories expected to be world-writable only through a mount the init makes (they must be
@@ -76,14 +80,38 @@ class Tree:
 
     def read(self, path: str, limit: int) -> bytes:
         assert self._read is not None
-        return self._read(path, limit)
+        return self._read(self.resolve(path), limit)
+
+    def exists(self, path: str) -> bool:
+        return self.resolve(path) in self.entries
+
+    def resolve(self, path: str, depth: int = 0) -> str:
+        """Follows the symbolic links of the tree (Debian: /sbin -> usr/sbin, /lib -> usr/lib)
+        component by component, inside the tree only; an unknown component is returned as is."""
+        if depth > MAX_LINK_DEPTH:
+            raise SystemExit(f"{path}: too many symbolic links")
+        parts = normalise(path).split("/") if normalise(path) else []
+        walked: list[str] = []
+        for index, part in enumerate(parts):
+            walked.append(part)
+            entry = self.entries.get("/".join(walked))
+            if entry is None:
+                return "/".join(walked + parts[index + 1:])
+            if entry.is_link and entry.linkname is not None:
+                base = "" if entry.linkname.startswith("/") else "/".join(walked[:-1])
+                target = normalise(posixpath.normpath(posixpath.join(base, entry.linkname)))
+                if ".." in target.split("/"):
+                    raise SystemExit(f"{path}: a symbolic link leaves the tree")
+                return self.resolve("/".join([target] + parts[index + 1:]) if target else "/".join(parts[index + 1:]), depth + 1)
+        return "/".join(walked)
 
 
 def normalise(name: str) -> str:
     name = name.replace("\\", "/")
     while name.startswith("./"):
         name = name[2:]
-    return name.strip("/")
+    name = name.strip("/")
+    return "" if name == "." else name
 
 
 def load_tar(path: Path) -> Tree:
@@ -184,6 +212,17 @@ class Report:
         return [control for control in self.controls if control["status"] == "LEAK"]
 
 
+def strip_comments(init: str) -> str:
+    """The init without its comment lines and trailing comments: a commented-out command is no
+    evidence (a '#' inside a quoted string, as in a prompt, is left alone)."""
+    kept = []
+    for line in init.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        kept.append(TRAILING_COMMENT.sub("", line))
+    return "\n".join(kept)
+
+
 def mount_options(init: str, target: str) -> set[str] | None:
     """Options of the `mount ... <target>` line of the init (None when there is no such line)."""
     for line in init.splitlines():
@@ -211,6 +250,7 @@ def run_checks(tree: Tree, init_path: str, allow_tar_root_mode: bool) -> Report:
     init = tree.read(init_path, MAX_INIT_BYTES).decode("utf-8", "replace")
     if not init:
         raise SystemExit(f"{init_path} not found in the tree or empty")
+    init = strip_comments(init)
     options = sysctls(init)
     lines = init.splitlines()
 
@@ -307,7 +347,7 @@ def run_checks(tree: Tree, init_path: str, allow_tar_root_mode: bool) -> Report:
                  "the cgroup2 mount in the init (the agent creates per-launch cgroups as root, 206 A)")
 
     # Things the image must carry for the runtime version of these checks.
-    missing = [path for path in PROBES + ("usr/lib/osx86/verify-console.sh",) if path not in entries]
+    missing = [path for path in PROBES + ("usr/lib/osx86/verify-console.sh",) if not tree.exists(path)]
     report.check("runtime_probes_present", not missing, "present" if not missing else "missing: " + " ".join(missing),
                  "verify-console.sh and its two probes under /usr/lib/osx86")
     mountpoint_modes = {path: f"{entries[path].mode & 0o7777:04o}" for path in sorted(MOUNT_POINTS) if path in entries}

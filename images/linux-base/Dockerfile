@@ -85,13 +85,6 @@ RUN set -eux; \
     echo "${IMAGE_VERSION}" > /etc/osx86-release; \
     # The agent of work item 5 goes to /usr/lib/osx86/agent; the init starts it when present.
     mkdir -p /usr/lib/osx86 /home; \
-    # Package inventory and licenses (plan section 12), written before the slimming removes dpkg.
-    dpkg-query -W -f '${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n' | sort > /usr/lib/osx86/packages.tsv; \
-    for copyright in /usr/share/doc/*/copyright; do \
-      package="$(basename "$(dirname "$copyright")")"; \
-      licenses="$(grep -E '^License:' "$copyright" | sed 's/^License: *//' | sort -u | tr '\n' ';' | sed 's/;$//')"; \
-      printf '%s\t%s\n' "$package" "${licenses:-see copyright file}"; \
-    done > /usr/lib/osx86/licenses.tsv; \
     # Hardening (210 A and trial E7): / is 0755, no setuid or setgid program (the VM is driven by
     # the agent as root; a guest user never needs su, mount or passwd), home directories 0700.
     chmod 755 /; \
@@ -107,6 +100,16 @@ FROM base AS slim
 RUN set -eux; \
     # Packages that are only useful to install more packages, or that nothing in the VM runs.
     dpkg --purge --force-depends --force-remove-essential apt libapt-pkg7.0 debian-archive-keyring sqv perl-base 2>/dev/null || true; \
+    # Package inventory and licenses of what is really in the image (plan section 12), written
+    # after the purge and before the dpkg database is trimmed.
+    dpkg-query -W -f '${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n' | sort > /usr/lib/osx86/packages.tsv; \
+    for copyright in /usr/share/doc/*/copyright; do \
+      package="$(basename "$(dirname "$copyright")")"; \
+      grep -q "^$package" /usr/lib/osx86/packages.tsv || continue; \
+      licenses="$(grep -E '^License:' "$copyright" | sed 's/^License: *//' | sort -u | tr '\n' ';' | sed 's/;$//')"; \
+      printf '%s\t%s\n' "$package" "${licenses:-see copyright file}"; \
+    done > /usr/lib/osx86/licenses.tsv; \
+    for doc in /usr/share/doc/*; do grep -q "^$(basename "$doc")" /usr/lib/osx86/packages.tsv || rm -rf "$doc"; done; \
     rm -rf /var/lib/apt /var/cache/apt /var/cache/debconf/*-old /var/log/* /var/lib/dpkg/info /var/lib/dpkg/*-old; \
     rm -rf /usr/share/man /usr/share/info /usr/share/locale /usr/share/lintian /usr/share/bug /usr/share/perl /usr/share/perl5 /usr/lib/i386-linux-gnu/perl* /usr/lib/i386-linux-gnu/perl-base /usr/bin/perl*; \
     # /usr/share/doc: the copyright files stay (they are the license texts of the image), the rest goes.

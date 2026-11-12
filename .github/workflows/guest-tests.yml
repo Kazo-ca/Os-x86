@@ -41,6 +41,10 @@ jobs:
         with:
           global-json-file: global.json
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14" # compression.zstd for images/tools/pack-image.py (work item 4)
+
       - name: Build the Alpine test image (official release, verified)
         run: python3 -I images/alpine-test/build-alpine-test.py
 

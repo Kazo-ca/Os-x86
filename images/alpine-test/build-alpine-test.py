@@ -297,9 +297,6 @@ def kernel_version(image: bytes) -> str:
 
 
 def build(download_dir: Path, output: Path) -> dict:
-    download_dir.mkdir(parents=True, exist_ok=True)
-    if any(download_dir.iterdir()):
-        raise SystemExit(f"{download_dir} is not empty: the download directory must be an empty directory of its own")
     output.mkdir(parents=True, exist_ok=True)
 
     print(f"Alpine {ALPINE_VERSION} {ARCHITECTURE} (official release)")
@@ -383,6 +380,11 @@ def main() -> int:
     parser.add_argument("--keep-download", action="store_true", help="keep the download directory afterwards")
     args = parser.parse_args()
     download_dir = args.download_dir.resolve()
+    # The download directory is an empty directory of its own: checked before anything is written
+    # there, and only then is it deleted at the end (a directory that was not empty is never touched).
+    download_dir.mkdir(parents=True, exist_ok=True)
+    if any(download_dir.iterdir()):
+        raise SystemExit(f"{download_dir} is not empty: the download directory must be an empty directory of its own")
     try:
         manifest = build(download_dir, args.output_dir.resolve())
         print(f"Built {manifest['image']} (Alpine {manifest['alpine']}, kernel {manifest['kernel']['version']}) in {args.output_dir}")

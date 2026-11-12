@@ -404,7 +404,8 @@ def command_check(args: argparse.Namespace) -> int:
     manifest = load_manifest(directory)
     text = (directory / MANIFEST_NAME).read_text(encoding="utf-8")
     sha_file = directory / MANIFEST_SHA256_NAME
-    expected = sha_file.read_text(encoding="utf-8").split()[0] if sha_file.is_file() else None
+    words = sha_file.read_text(encoding="utf-8").split() if sha_file.is_file() else []
+    expected = words[0] if words else None
     actual = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if expected != actual:
         raise SystemExit(f"{MANIFEST_SHA256_NAME}: {expected} does not match the manifest ({actual})")

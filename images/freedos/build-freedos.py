@@ -129,7 +129,7 @@ def mtools_command(image: Path, offset: int, work: Path) -> list[str]:
     if not shutil.which("docker"):
         raise SystemExit("neither mtools (mcopy) nor docker is available")
     subprocess.run(["docker", "build", "-q", "-t", TOOLS_IMAGE, str(REPO_ROOT / "images" / "tools")], check=True, capture_output=True)
-    return ["docker", "run", "--rm", "-v", f"{str(work.resolve()).replace(chr(92), '/')}:/work", "-w", "/work", TOOLS_IMAGE]
+    return ["docker", "run", "--rm", "-e", "MTOOLS_SKIP_CHECK=1", "-v", f"{str(work.resolve()).replace(chr(92), '/')}:/work", "-w", "/work", TOOLS_IMAGE]
 
 
 def customise(disk: bytes, output: Path) -> Path:
@@ -180,9 +180,6 @@ def pack(output: Path, image: Path, disk_sha256: str) -> dict:
 
 
 def build(download_dir: Path, output: Path) -> dict:
-    download_dir.mkdir(parents=True, exist_ok=True)
-    if any(download_dir.iterdir()):
-        raise SystemExit(f"{download_dir} is not empty: the download directory must be an empty directory of its own")
     output.mkdir(parents=True, exist_ok=True)
     print(f"FreeDOS {FREEDOS_VERSION} LiteUSB (official release)")
     archive = download_dir / ARCHIVE_NAME
@@ -203,6 +200,11 @@ def main() -> int:
     parser.add_argument("--keep-download", action="store_true", help="keep the download directory afterwards")
     args = parser.parse_args()
     download_dir = args.download_dir.resolve()
+    # The download directory is an empty directory of its own: checked before anything is written
+    # there, and only then is it deleted at the end (a directory that was not empty is never touched).
+    download_dir.mkdir(parents=True, exist_ok=True)
+    if any(download_dir.iterdir()):
+        raise SystemExit(f"{download_dir} is not empty: the download directory must be an empty directory of its own")
     try:
         manifest = build(download_dir, args.output_dir.resolve())
         print(f"Built {manifest['image']} {manifest['version']}: pack {manifest['size']} bytes in {len(manifest['chunks'])} chunks")

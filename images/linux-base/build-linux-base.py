@@ -186,7 +186,7 @@ def parse_apkbuild(text: str) -> dict:
             value = value[1:-1]
         variables[match.group(1)] = value
 
-    pattern = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(%%\.\*)?\}|([A-Za-z_][A-Za-z0-9_]*))")
+    pattern = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(%%?\.\*)?\}|([A-Za-z_][A-Za-z0-9_]*))")
 
     def expand(value: str, depth: int = 0) -> str:
         if depth > 5:
@@ -197,6 +197,8 @@ def parse_apkbuild(text: str) -> dict:
             inner = variables.get(name, "")
             if match.group(2) == "%%.*":
                 inner = inner.split(".")[0]
+            elif match.group(2) == "%.*":
+                inner = inner.rsplit(".", 1)[0]
             return expand(inner, depth + 1)
 
         return pattern.sub(replace, value)
@@ -252,7 +254,8 @@ def alpine_sources(output: Path) -> list[dict]:
             apk_versions[match.group(1)] = {"version": match.group(2), "apkSha256": digest}
     components = []
     for package, aports_path in ALPINE_SOURCE_PACKAGES.items():
-        url = f"https://gitlab.alpinelinux.org/alpine/aports/-/raw/{ALPINE_BRANCH}/{aports_path}/APKBUILD"
+        # The GitHub mirror of aports: gitlab.alpinelinux.org answers 418 to a plain HTTP client.
+        url = f"https://raw.githubusercontent.com/alpinelinux/aports/{ALPINE_BRANCH}/{aports_path}/APKBUILD"
         print(f"  APKBUILD {url}")
         parsed = parse_apkbuild(fetch_text(url, MAX_APKBUILD_BYTES))
         installed = apk_versions.get(package, {})
@@ -277,7 +280,10 @@ def fetch_source_archives(components: list[dict], directory: Path) -> list[dict]
         if not component["copyleft"]:
             continue
         for source in component["sources"]:
-            target = directory / Path(source["name"]).name
+            name = Path(source["name"]).name
+            if not name or name in (".", "..") or not source.get("sha512"):
+                raise SystemExit(f"{source['url']}: no usable file name or no SHA-512 in the APKBUILD; refused")
+            target = directory / name
             print(f"  download {source['url']}")
             request = urllib.request.Request(source["url"], headers={"User-Agent": USER_AGENT})
             digest = hashlib.sha512()
@@ -289,7 +295,7 @@ def fetch_source_archives(components: list[dict], directory: Path) -> list[dict]
                         raise SystemExit(f"{source['url']}: more than {MAX_SOURCE_ARCHIVE_BYTES} bytes")
                     digest.update(chunk)
                     out.write(chunk)
-            if source.get("sha512") and digest.hexdigest() != source["sha512"]:
+            if digest.hexdigest() != source["sha512"]:
                 target.unlink()
                 raise SystemExit(f"{source['url']}: SHA-512 differs from the APKBUILD")
             fetched.append({"file": target.name, "bytes": received, "sha512": digest.hexdigest(), "from": source["url"]})

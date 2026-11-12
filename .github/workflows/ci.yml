@@ -25,6 +25,10 @@ jobs:
         with:
           global-json-file: global.json
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14" # compression.zstd for images/tools/pack-image.py (work item 4)
+
       - name: Check the Kazo OS submodule
         run: bash .github/scripts/check-kazoos-submodule.sh
 

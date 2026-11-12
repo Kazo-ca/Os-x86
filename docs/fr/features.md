@@ -10,6 +10,7 @@ Tenu à chaque PR (plan, section 12). Les numéros entre parenthèses renvoient 
 | --- | --- | --- |
 | Commande `x86` : `--version`, `vm list` | 0.1.0 | Empaquetée comme commande de terminal en attendant le type d'app « Feature » de Kazo OS (ADR 0243) |
 | Paquet de contrats `Os-x86.Interface` : `Ix86` (version, liste des VM) | 0.1.0 | Générique, aucun type Wine (29 C) ; API publique suivie dans `PublicAPI.Unshipped.txt` |
+| Images invitées : outil de paquetage (`pack-image.py`, zstd par trames, morceaux de 32 Mio, manifeste format 1), recettes linux-base (Debian trixie i386, noyau `linux-virt` d'Alpine, init, durcissement 210 A), Alpine de test et FreeDOS, test d'image (22 contrôles R134.5), sources et licences, workflow `images.yml` (Pages et R2 préparés) | 0.1.0 | Chantier 4, [`images.md`](images.md) ; 201 A, 202 A, 210 A ; racine en disque ext4 (`hda`), 9p réservé au dossier partagé ; démarrage de linux-base au chantier 6 |
 | Moteur v86 dans un Web Worker : `IEngine` (démarrage, arrêt, pause, états), console série et virtio-console (flux brut et par lignes), pont OffscreenCanvas, v86 0.5.473 vendorisé avec le correctif #1661, image Alpine de test, tests `unit` et `guest` | 0.1.0 | Chantier 2, [`moteur.md`](moteur.md) ; D3, 187 A ; interne à x86-Lib, pas encore exposé par `Ix86` |
 
 ## En cours (jalon 0, programmes console)
@@ -17,7 +18,6 @@ Tenu à chaque PR (plan, section 12). Les numéros entre parenthèses renvoient 
 | Fonctionnalité | Chantier | Décisions |
 | --- | --- | --- |
 | Stockage OPFS, manifeste d'images, téléchargement vérifié et reprise | 3 | 149, 177 A, 203 A |
-| Images : Linux de base (Debian i386 + noyau Alpine + agent), Alpine de test, FreeDOS ; sources et licences | 4 | 201 A, 210 A |
 | Agent invité (JSON par ligne, cgroup par lancement, console par pty) | 5 | 205 A, 206 A, 213 A |
 | Registre des VM, cycle de vie, `x86 vm`, `x86 shell`, profils | 6 | 165, 166, 183, 190, 212 A |
 | Pages admin, rôle, journal personnel | 7 | 137, 140 B, 156, 160 |
