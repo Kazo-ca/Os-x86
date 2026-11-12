@@ -89,8 +89,15 @@ jobs:
         # musl is not affected. The build therefore uses a BuildKit builder in a container below.
         continue-on-error: true
         run: |
-          docker run --rm --platform linux/386 debian:trixie-slim getent hosts deb.debian.org; echo "default seccomp: rc=$?"
-          docker run --rm --security-opt seccomp=unconfined --platform linux/386 debian:trixie-slim getent hosts deb.debian.org; echo "seccomp unconfined: rc=$?"
+          set +e
+          probe() { echo "== $1"; shift; docker run --rm "$@" sh -c 'getent ahostsv4 deb.debian.org | head -1; echo "getent rc=$?"; apt-get update 2>&1 | grep -E "^(Err|W|E|Hit|Get):" | head -3'; }
+          probe "debian amd64, default seccomp" debian:trixie-slim
+          probe "debian amd64, seccomp unconfined" --security-opt seccomp=unconfined debian:trixie-slim
+          probe "debian i386, default seccomp" --platform linux/386 debian:trixie-slim
+          probe "debian i386, seccomp unconfined" --security-opt seccomp=unconfined --platform linux/386 debian:trixie-slim
+          probe "debian i386, host network" --network host --platform linux/386 debian:trixie-slim
+          echo "== alpine i386"; docker run --rm --platform linux/386 alpine:3.24 sh -c 'getent ahostsv4 deb.debian.org | head -1; echo "getent rc=$?"'
+          true
       - name: Use a BuildKit builder in a container (its own sandbox; images loaded into the daemon)
         run: |
           docker buildx create --name osx86-builder --driver docker-container --use
