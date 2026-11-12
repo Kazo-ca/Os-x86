@@ -4,6 +4,7 @@ using OsX86.Feature;
 namespace OsX86.Tests;
 
 /// <summary>The manifest class of the feature, the source of the generated manifest.json.</summary>
+[Trait("Category", "unit")]
 public sealed class ManifestTests
 {
     private readonly X86FeatureApp _app = new();

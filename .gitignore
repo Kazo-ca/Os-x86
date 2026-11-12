@@ -12,3 +12,8 @@ artifacts/
 
 # Local tooling of the Claude desktop app (launch configurations).
 .claude/
+
+# Coverage output of dotnet test (coverlet).
+coverage.json
+coverage.*.json
+coverage.cobertura.xml

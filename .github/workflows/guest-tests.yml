@@ -1,0 +1,54 @@
+# The `guest` tests (plan section 11): a headless Chromium boots the Alpine test image in the
+# engine worker from the OPFS and talks on its consoles. Run when the engine, its assets, the
+# image recipe or the guest tests change, every night, and on demand. The image is built from the
+# official Alpine release (verified SHA-256), never committed.
+name: Guest tests
+
+on:
+  pull_request:
+    paths:
+      - "src/OsX86/Engine/**"
+      - "src/OsX86/wwwroot/**"
+      - "tools/v86/**"
+      - "images/**"
+      - "tests/OsX86.Tests/Guest/**"
+      - ".github/workflows/guest-tests.yml"
+  push:
+    branches: [j0/base]
+    paths:
+      - "src/OsX86/Engine/**"
+      - "src/OsX86/wwwroot/**"
+      - "tools/v86/**"
+      - "images/**"
+      - "tests/OsX86.Tests/Guest/**"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build the Alpine test image (official release, verified)
+        run: python3 -I images/alpine-test/build-alpine-test.py
+
+      - name: Build (Release, packages)
+        run: dotnet build OsX86.sln -c Release
+
+      - name: Install the Playwright browser
+        run: pwsh tests/OsX86.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Guest tests
+        run: dotnet test OsX86.sln -c Release --no-build --filter "Category=guest" --logger "console;verbosity=normal"
