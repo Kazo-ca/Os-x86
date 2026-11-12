@@ -285,8 +285,13 @@ pid_t spawn_as(struct passwd *pw, const launch *l, const char *program, jn *args
         dup2(fd_out >= 0 ? fd_out : null_fd, 1);
         dup2(fd_err >= 0 ? fd_err : null_fd, 2);
         for (int fd = 3; fd < 1024; fd++) if (fd != report[1]) close(fd);
-        signal(SIGPIPE, SIG_DFL);
-        signal(SIGHUP, SIG_DFL);
+        /* Every signal back to its default, none blocked: the agent ignores some itself, and it
+         * inherits SIGINT and SIGQUIT ignored when the init starts it in the background (POSIX
+         * rule for asynchronous lists), which would make Ctrl+C dead in every console. */
+        for (int number = 1; number < NSIG; number++) signal(number, SIG_DFL);
+        sigset_t none;
+        sigemptyset(&none);
+        sigprocmask(SIG_SETMASK, &none, NULL);
         execvp(program, argv);
         int e = errno;
         if (write(report[1], &e, sizeof e) < 0) { }
@@ -440,18 +445,24 @@ double launch_next_deadline(void)
 }
 
 /* Starts the end of a launch: sig to every process of its cgroup (to its process group without
- * cgroups), cgroup.kill after grace_ms. reply_id, when not NULL, is answered once the launch is
- * gone. */
+ * cgroups), cgroup.kill after grace_ms; no signal and cgroup.kill at once when grace_ms is zero.
+ * reply_id, when not NULL, is answered once the launch is gone. */
 void launch_terminate(launch *l, int sig, int grace_ms, const char *reply_id)
 {
     char path[300];
+    const char *cgroup = launch_cgroup(l, path, sizeof path);
     double now = now_s();
-    if (launch_cgroup(l, path, sizeof path)) cgroup_signal_all(path, sig);
-    else if (l->pid > 0) kill(-l->pid, sig);
     if (reply_id) snprintf(l->kill_id, sizeof l->kill_id, "%s", reply_id);
     l->kill_t0 = now;
-    l->kill_forced = 0;
-    l->kill_deadline = grace_ms <= 0 ? now : now + grace_ms / 1000.0;
+    l->kill_forced = grace_ms <= 0;
+    l->kill_deadline = grace_ms <= 0 ? 0 : now + grace_ms / 1000.0;
+    if (grace_ms <= 0) {
+        if (cgroup) cgroup_kill(cgroup);
+        else if (l->pid > 0) kill(-l->pid, SIGKILL);
+    } else {
+        if (cgroup) cgroup_signal_all(cgroup, sig);
+        else if (l->pid > 0) kill(-l->pid, sig);
+    }
     if (l->events_fd >= 0) l->populated = cgroup_read_populated(l->events_fd);
     launch_settle(l);
 }

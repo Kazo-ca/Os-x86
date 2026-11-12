@@ -24,7 +24,7 @@ WORKDIR /src
 RUN set -eux; \
     flags="-Os -static -no-pie -s -std=gnu11 -Wall -Wextra -Werror -fno-asynchronous-unwind-tables"; \
     mkdir /out; \
-    gcc $flags -o /out/agent agent.c launch.c jobs.c console.c json.c; \
+    gcc $flags -o /out/agent agent.c launch.c jobs.c console.c url.c json.c; \
     gcc $flags -o /out/osx86-open-url open-url.c; \
     apk info -v gcc musl-dev musl > /out/toolchain.txt; \
     ls -l /out

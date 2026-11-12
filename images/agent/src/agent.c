@@ -1,5 +1,5 @@
 /* Os-x86 guest agent: the event loop, the protocol port (hvc0), replies and events, the SIGCHLD
- * pipe, the open-url socket and the timers. See agent.h for the whole picture.
+ * pipe and the timers. See agent.h for the whole picture.
  *
  * Request  {"id":N,"op":"...", ...}\n      N: number or string, echoed back as is.
  * Reply    {"id":N,"ok":true, ...}\n        or {"id":N,"ok":false,"error":"<code>","message":"..."}\n
@@ -22,10 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/prctl.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
-#include <sys/un.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <time.h>
@@ -33,7 +31,6 @@
 
 static int port_in = -1, port_out = -1;
 static int sigchld_pipe[2] = { -1, -1 };
-static int url_socket = -1;
 static FILE *log_file;
 static const char *port_name = AGENT_PORT;
 
@@ -170,7 +167,7 @@ static void op_ping(const char *id, jn *req)
     char line[256];
     while (f && fgets(line, sizeof line, f)) if (!strncmp(line, "VmRSS:", 6)) rss = atol(line + 6);
     if (f) fclose(f);
-    reply_ok(id, ",\"version\":%d,\"uptime\":%ld,\"rssKb\":%ld,\"launches\":%d,\"consoles\":%d,\"cgroup\":%s",
+    reply_ok(id, ",\"version\":%d,\"uptime\":%ld,\"rssKb\":%ld,\"launches\":%d,\"consoles\":%d,\"cgroups\":%s",
              AGENT_PROTOCOL_VERSION, si.uptime, rss, launch_count(), console_count(), cgroup_available ? "true" : "false");
 }
 
@@ -260,56 +257,6 @@ static void reap_children(void)
     }
 }
 
-/* ---------------------------------------------------------------- open-url (decision 139, trial E7) */
-
-static int url_socket_open(const char *path)
-{
-    unlink(path);
-    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-    if (fd < 0) return -1;
-    struct sockaddr_un address;
-    memset(&address, 0, sizeof address);
-    address.sun_family = AF_UNIX;
-    snprintf(address.sun_path, sizeof address.sun_path, "%s", path);
-    if (bind(fd, (struct sockaddr *)&address, sizeof address) || listen(fd, 8)) {
-        logmsg("open-url socket %s: %s", path, strerror(errno));
-        close(fd);
-        return -1;
-    }
-    chmod(path, 0666);
-    return fd;
-}
-
-void url_socket_on_readable(int sock_fd)
-{
-    int client = accept4(sock_fd, NULL, NULL, SOCK_CLOEXEC);
-    if (client < 0) return;
-    struct ucred credentials;
-    socklen_t length = sizeof credentials;
-    memset(&credentials, 0, sizeof credentials);
-    getsockopt(client, SOL_SOCKET, SO_PEERCRED, &credentials, &length);
-    char buf[2048];
-    int n = 0;
-    struct pollfd p = { client, POLLIN, 0 };
-    if (poll(&p, 1, 500) > 0) n = (int)read(client, buf, sizeof buf - 1);
-    if (n < 0) n = 0;
-    buf[n] = 0;
-    char *newline = strchr(buf, '\n');
-    if (newline) *newline = 0;
-    close(client);
-    char prefix[AGENT_MAX_PREFIX + 1];
-    const char *owner = uid_prefix(credentials.uid, prefix, sizeof prefix);
-    sb b = { 0 };
-    event_begin(&b, "open-url");
-    sb_fmt(&b, ",\"uid\":%d,\"pid\":%d,\"prefix\":", (int)credentials.uid, (int)credentials.pid);
-    if (owner) sb_jstrz(&b, owner); else sb_puts(&b, "null");
-    sb_puts(&b, ",\"url\":");
-    sb_jstrz(&b, buf);
-    sb_puts(&b, "}");
-    send_line(&b);
-    /* The agent does nothing else with the URL: the host decides (139). */
-}
-
 /* ---------------------------------------------------------------- main loop */
 
 static int open_port_raw(const char *device)
@@ -328,7 +275,7 @@ static void send_ready(const char *console_port)
 {
     sb b = { 0 };
     event_begin(&b, "ready");
-    sb_fmt(&b, ",\"version\":%d,\"pid\":%d,\"cgroup\":%s,\"port\":", AGENT_PROTOCOL_VERSION, (int)getpid(), cgroup_available ? "true" : "false");
+    sb_fmt(&b, ",\"version\":%d,\"pid\":%d,\"cgroups\":%s,\"port\":", AGENT_PROTOCOL_VERSION, (int)getpid(), cgroup_available ? "true" : "false");
     sb_jstrz(&b, port_name);
     sb_puts(&b, ",\"consolePort\":");
     if (console_port_fd >= 0) sb_jstrz(&b, console_port); else sb_puts(&b, "null");
@@ -381,27 +328,30 @@ int main(int argc, char **argv)
         if (port_in < 0) { fprintf(stderr, "agent: %s: %s\n", port_name, strerror(errno)); logmsg("port %s: %s", port_name, strerror(errno)); return 1; }
     }
     if (strcmp(console_port, "none")) console_port_open(console_port);
-    url_socket = url_socket_open(socket_path);
-    logmsg("ready port=%s console=%s cgroup=%d socket=%d", port_name, console_port, cgroup_available, url_socket >= 0);
+    url_socket_open(socket_path);
+    logmsg("ready port=%s console=%s cgroup=%d socket=%d", port_name, console_port, cgroup_available, url_socket_fd >= 0);
     send_ready(console_port);
 
     for (;;) {
-        struct pollfd p[8 + AGENT_MAX_LAUNCHES + AGENT_MAX_CONSOLES + AGENT_MAX_JOBS];
+        struct pollfd p[8 + URL_MAX_CLIENTS + AGENT_MAX_LAUNCHES + AGENT_MAX_CONSOLES + AGENT_MAX_JOBS];
         int n = 0;
         p[n++] = (struct pollfd){ port_in, POLLIN, 0 };
         p[n++] = (struct pollfd){ sigchld_pipe[0], POLLIN, 0 };
-        int i_socket = -1, i_console_port = -1, i_consoles = -1, i_jobs = -1, i_launches = -1;
-        if (url_socket >= 0) { i_socket = n; p[n++] = (struct pollfd){ url_socket, POLLIN, 0 }; }
+        int i_socket = -1, i_console_port = -1, i_consoles = -1, i_jobs = -1, i_launches = -1, i_urls = -1;
+        if (url_socket_fd >= 0) { i_socket = n; p[n++] = (struct pollfd){ url_socket_fd, POLLIN, 0 }; }
         if (console_port_fd >= 0 && console_count() > 0) { i_console_port = n; p[n++] = (struct pollfd){ console_port_fd, POLLIN, 0 }; }
         i_consoles = n;
         for (int i = 0; i < AGENT_MAX_CONSOLES; i++) p[n++] = (struct pollfd){ consoles[i].used ? consoles[i].pty : -1, POLLIN, 0 };
         i_jobs = n;
         for (int i = 0; i < AGENT_MAX_JOBS; i++) p[n++] = (struct pollfd){ jobs[i].used ? jobs[i].fd : -1, POLLIN, 0 };
+        i_urls = n;
+        for (int i = 0; i < URL_MAX_CLIENTS; i++) p[n++] = (struct pollfd){ url_clients[i].used ? url_clients[i].fd : -1, POLLIN, 0 };
         i_launches = n;
         for (int i = 0; i < AGENT_MAX_LAUNCHES; i++) p[n++] = (struct pollfd){ launches[i].used ? launches[i].events_fd : -1, POLLPRI, 0 };
 
-        double next = launch_next_deadline(), job_next = job_next_deadline();
-        if (job_next > 0 && (next <= 0 || job_next < next)) next = job_next;
+        double next = launch_next_deadline();
+        double others[2] = { job_next_deadline(), url_next_deadline() };
+        for (int i = 0; i < 2; i++) if (others[i] > 0 && (next <= 0 || others[i] < next)) next = others[i];
         int timeout = next > 0 ? (int)((next - now_s()) * 1000) + 1 : -1;
         if (timeout < 0 && next > 0) timeout = 0;
         if (poll(p, (nfds_t)n, timeout) < 0) {
@@ -416,7 +366,9 @@ int main(int argc, char **argv)
             while (read(sigchld_pipe[0], drain, sizeof drain) > 0) { }
             reap_children();
         }
-        if (i_socket >= 0 && (p[i_socket].revents & POLLIN)) url_socket_on_readable(url_socket);
+        if (i_socket >= 0 && (p[i_socket].revents & POLLIN)) url_on_accept();
+        for (int i = 0; i < URL_MAX_CLIENTS; i++)
+            if (url_clients[i].used && (p[i_urls + i].revents & (POLLIN | POLLHUP | POLLERR))) url_client_on_readable(&url_clients[i]);
         if (i_console_port >= 0 && (p[i_console_port].revents & (POLLIN | POLLHUP))) console_port_on_readable();
         for (int i = 0; i < AGENT_MAX_CONSOLES; i++)
             if (consoles[i].used && (p[i_consoles + i].revents & (POLLIN | POLLHUP | POLLERR))) console_on_pty_readable(&consoles[i]);
@@ -426,6 +378,7 @@ int main(int argc, char **argv)
             if (launches[i].used && (p[i_launches + i].revents & (POLLPRI | POLLERR))) launch_on_cgroup_event(&launches[i]);
         launch_on_timer(now);
         job_on_timer(now);
+        url_on_timer(now);
     }
     return 0;
 }

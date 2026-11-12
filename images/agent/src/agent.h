@@ -5,8 +5,8 @@
  * relays the user consoles (one pty each) through hvc1, multiplexed by frames that carry the
  * console number (see console.c). Static musl i386 binary, no library: the JSON reader and
  * writer are the ones of trial E7, cleaned up. One single-threaded, non-blocking event loop
- * (poll on the two ports, the ptys, the open-url socket, a SIGCHLD pipe, the pipes of the
- * running jobs and the cgroup.events of every launch): no operation blocks another.
+ * (poll on the two ports, the ptys, the open-url socket and its callers, a SIGCHLD pipe, the
+ * pipes of the running jobs and the cgroup.events of every launch): no operation blocks another.
  */
 #ifndef OSX86_AGENT_H
 #define OSX86_AGENT_H
@@ -167,7 +167,24 @@ void console_on_child_exit(console *c, int status);
 int console_count(void);
 console *console_by_seq(int seq);
 
-/* ---------------------------------------------------------------- open-url (agent.c) */
-void url_socket_on_readable(int sock_fd);
+/* ---------------------------------------------------------------- open-url (url.c) */
+#define URL_MAX_CLIENTS 8
+#define URL_MAX_LENGTH 2048
+typedef struct url_client {
+    int used;
+    int fd;
+    uid_t uid;
+    pid_t pid;
+    double deadline;
+    size_t length;
+    char text[URL_MAX_LENGTH];
+} url_client;
+extern int url_socket_fd;
+extern url_client url_clients[URL_MAX_CLIENTS];
+int url_socket_open(const char *path);
+void url_on_accept(void);
+void url_client_on_readable(url_client *c);
+void url_on_timer(double now);
+double url_next_deadline(void);
 
 #endif

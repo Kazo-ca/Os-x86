@@ -36,10 +36,19 @@ int main(int argc, char **argv)
         perror("osx86-open-url: the agent is not listening");
         return 1;
     }
-    if (write(fd, argv[1], length) != (ssize_t)length || write(fd, "\n", 1) != 1) {
-        perror("osx86-open-url: write");
+    /* One write for the URL and its line end: the agent closes as soon as it has the line, and a
+     * second write would then meet a closed socket. */
+    char line[MAX_URL + 2];
+    memcpy(line, argv[1], length);
+    line[length] = '\n';
+    if (send(fd, line, length + 1, MSG_NOSIGNAL) != (ssize_t)(length + 1)) {
+        perror("osx86-open-url: send");
         return 1;
     }
+    /* Wait until the agent has taken the line (it closes the connection) before exiting. */
+    shutdown(fd, SHUT_WR);
+    char end;
+    while (read(fd, &end, 1) > 0) { }
     close(fd);
     return 0;
 }
