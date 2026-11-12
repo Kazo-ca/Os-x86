@@ -83,15 +83,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Resolve the Debian mirror on the runner
-        # The glibc resolver of a Debian trixie container (i386 or amd64) gets "temporary failure"
-        # from the DNS of the GitHub runner while the runner itself resolves fine; the build
-        # containers get the address through /etc/hosts instead (docker build --add-host).
+      - name: Confirm why the daemon's builder cannot build Debian here (informational)
+        # In a Debian trixie container run by the daemon of the GitHub runner, socket(2) fails with
+        # ENOSYS (the seccomp profile of that daemon), so apt cannot reach any mirror; Alpine's
+        # musl is not affected. The build therefore uses a BuildKit builder in a container below.
+        continue-on-error: true
         run: |
-          ip="$(getent ahostsv4 deb.debian.org | awk 'NR == 1 { print $1 }')"
-          test -n "$ip"
-          echo "deb.debian.org -> $ip"
-          echo "OSX86_DOCKER_BUILD_ARGS=--add-host=deb.debian.org:$ip" >> "$GITHUB_ENV"
+          docker run --rm --platform linux/386 debian:trixie-slim getent hosts deb.debian.org; echo "default seccomp: rc=$?"
+          docker run --rm --security-opt seccomp=unconfined --platform linux/386 debian:trixie-slim getent hosts deb.debian.org; echo "seccomp unconfined: rc=$?"
+      - name: Use a BuildKit builder in a container (its own sandbox; images loaded into the daemon)
+        run: |
+          docker buildx create --name osx86-builder --driver docker-container --use
+          echo "OSX86_DOCKER_BUILD_ARGS=--load" >> "$GITHUB_ENV"
       - name: Build linux-base (Docker linux/386), image test of 210 A, ext4 root, sources, pack
         run: python3 -I images/linux-base/build-linux-base.py
       - name: Check the pack

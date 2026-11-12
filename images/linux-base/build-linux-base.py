@@ -105,11 +105,11 @@ def check_free_space(directory: Path) -> None:
 
 
 def docker_build(output: Path) -> None:
-    # OSX86_DOCKER_BUILD_ARGS: extra arguments for the two image builds (the CI passes
-    # --add-host=deb.debian.org:<ip>: the glibc resolver of the Debian containers gets a
-    # temporary failure from the DNS of the GitHub runners).
+    # OSX86_DOCKER_BUILD_ARGS: extra arguments for every docker build (the CI passes --load:
+    # it builds with a BuildKit builder in a container because the seccomp profile of the
+    # daemon of the GitHub runners breaks socket(2) in Debian containers).
     extra = os.environ.get("OSX86_DOCKER_BUILD_ARGS", "").split()
-    run(["docker", "build", "-t", TOOLS_IMAGE, str(TOOLS_DIR)])
+    run(["docker", "build", *extra, "-t", TOOLS_IMAGE, str(TOOLS_DIR)])
     for target, tag in (("base", DOCKER_IMAGE_FULL), ("slim", DOCKER_IMAGE)):
         run(["docker", "build", "--platform", "linux/386", *extra, "--target", target, "-t", tag,
              "--build-arg", f"IMAGE_VERSION={IMAGE_VERSION}", str(HERE)])
