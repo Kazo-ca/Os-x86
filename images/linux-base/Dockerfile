@@ -59,6 +59,11 @@ RUN set -eux; \
 
 # --- Stage 2: the probes of the R134.5 checks (two tiny static programs, no compiler in the image)
 FROM ${DEBIAN_IMAGE} AS probes
+# apt's own seccomp sandbox for its download methods, stacked on the seccomp profile of the
+# Docker daemon of the GitHub runners, makes socket(2) fail with ENOSYS in an i386 container
+# (measured: getent resolves, apt-get update cannot connect; amd64 and seccomp=unconfined work).
+# Off during the build only; the file is removed from the published root.
+COPY etc/apt-build.conf /etc/apt/apt.conf.d/90osx86-build
 RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 COPY probes/ /src/
 RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o /osx86-ptrace /src/osx86-ptrace.c && strip /osx86-rawsock /osx86-ptrace
@@ -67,6 +72,7 @@ RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o
 FROM ${DEBIAN_IMAGE} AS base
 ARG IMAGE_VERSION=0.1.0
 ENV DEBIAN_FRONTEND=noninteractive
+COPY etc/apt-build.conf /etc/apt/apt.conf.d/90osx86-build
 RUN set -eux; \
     apt-get -o Acquire::Retries=5 update; \
     # kmod: modprobe for the agent and the display of later work items; procps: sysctl, ps.
@@ -113,6 +119,7 @@ RUN set -eux; \
       printf '%s\t%s\n' "$package" "${licenses:-see copyright file}"; \
     done > /usr/lib/osx86/licenses.tsv; \
     for doc in /usr/share/doc/*; do grep -q "^$(basename "$doc")" /usr/lib/osx86/packages.tsv || rm -rf "$doc"; done; \
+    rm -f /etc/apt/apt.conf.d/90osx86-build; \
     rm -rf /var/lib/apt /var/cache/apt /var/cache/debconf/*-old /var/log/* /var/lib/dpkg/info /var/lib/dpkg/*-old; \
     rm -rf /usr/share/man /usr/share/info /usr/share/locale /usr/share/lintian /usr/share/bug /usr/share/perl /usr/share/perl5 /usr/lib/i386-linux-gnu/perl* /usr/lib/i386-linux-gnu/perl-base /usr/bin/perl*; \
     # /usr/share/doc: the copyright files stay (they are the license texts of the image), the rest goes.
