@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace OsX86.Agent;
@@ -20,6 +21,27 @@ public sealed record AgentClientOptions
 
     /// <summary>How long after a <c>console-closed</c> event a console whose last frame never came is completed anyway.</summary>
     public TimeSpan ConsoleCloseFallback { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>The longest delay the client accepts anywhere (what a timer takes).</summary>
+    public static TimeSpan MaximumDelay { get; } = TimeSpan.FromMilliseconds(int.MaxValue);
+
+    /// <summary>Checks the delays; throws <see cref="ArgumentOutOfRangeException"/> naming the first invalid one.</summary>
+    public void Validate()
+    {
+        RequirePositive(RequestTimeout, nameof(RequestTimeout));
+        RequirePositive(ConnectTimeout, nameof(ConnectTimeout));
+        RequirePositive(ConnectProbeInterval, nameof(ConnectProbeInterval));
+        ArgumentOutOfRangeException.ThrowIfLessThan(LongOperationMargin, TimeSpan.Zero, nameof(LongOperationMargin));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(LongOperationMargin, MaximumDelay, nameof(LongOperationMargin));
+        ArgumentOutOfRangeException.ThrowIfLessThan(ConsoleCloseFallback, TimeSpan.Zero, nameof(ConsoleCloseFallback));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ConsoleCloseFallback, MaximumDelay, nameof(ConsoleCloseFallback));
+    }
+
+    private static void RequirePositive(TimeSpan value, string name)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero, name);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaximumDelay, name);
+    }
 }
 
 /// <summary>
@@ -36,6 +58,7 @@ public sealed partial class AgentClient : IAsyncDisposable
     public const int EventQueueCapacity = 1024;
 
     private const int MaxOrphanConsoles = 32;
+    private const int MaxAbandonedRequests = 64;
     private const int MaxOrphanBytesPerConsole = 256 * 1024;
 
     private readonly IAgentChannel _channel;
@@ -51,6 +74,8 @@ public sealed partial class AgentClient : IAsyncDisposable
     private Task? _lineLoop;
     private Task? _consoleLoop;
     private long _nextId;
+    private int _abandoned;
+    private int _consolesOpening;
     private bool _closed;
     private AgentStatus? _status;
 
@@ -60,6 +85,7 @@ public sealed partial class AgentClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(channel);
         _channel = channel;
         _options = options ?? new AgentClientOptions();
+        _options.Validate();
     }
 
     /// <summary>Whether the agent answered <see cref="ConnectAsync"/> and the client is not closed.</summary>
@@ -90,7 +116,7 @@ public sealed partial class AgentClient : IAsyncDisposable
     /// Starts reading both ports and waits until the agent answers: a <c>ping</c> is sent every
     /// <see cref="AgentClientOptions.ConnectProbeInterval"/> until a reply comes (the agent's own
     /// <c>ready</c> event may have been written before anyone listened). Call it once, as soon as
-    /// the engine starts.
+    /// the engine starts. After a failure (the guest was not up yet) it may be called again.
     /// </summary>
     /// <exception cref="AgentTimeoutException">No reply within <see cref="AgentClientOptions.ConnectTimeout"/> (<see cref="AgentErrorCodes.NotReady"/>): the image has no agent, or the guest did not boot.</exception>
     /// <exception cref="AgentProtocolException">The agent speaks another version of the protocol.</exception>
@@ -99,14 +125,15 @@ public sealed partial class AgentClient : IAsyncDisposable
         lock (_lock)
         {
             ThrowIfClosedUnsafe();
-            if (_lineLoop is not null)
+            if (_status is not null)
             {
-                throw new InvalidOperationException("ConnectAsync was already called on this client.");
+                throw new InvalidOperationException("This client is already connected.");
             }
 
-            // The readers are registered here, before the first request leaves.
-            _lineLoop = ReadLinesAsync(_channel.ReadLinesAsync(_stop.Token));
-            _consoleLoop = ReadConsoleAsync(_channel.ReadConsoleBytesAsync(_stop.Token));
+            // The readers are registered here, before the first request leaves (once: a second
+            // attempt after a failed one reuses them).
+            _lineLoop ??= ReadLinesAsync(_channel.ReadLinesAsync(_stop.Token));
+            _consoleLoop ??= ReadConsoleAsync(_channel.ReadConsoleBytesAsync(_stop.Token));
         }
 
         long deadline = Environment.TickCount64 + (long)_options.ConnectTimeout.TotalMilliseconds;
@@ -121,7 +148,7 @@ public sealed partial class AgentClient : IAsyncDisposable
             TimeSpan probe = TimeSpan.FromMilliseconds(Math.Min(remaining, Math.Max(1, _options.ConnectProbeInterval.TotalMilliseconds)));
             try
             {
-                AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.Ping }, probe, null, cancellationToken).ConfigureAwait(false);
+                AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.Ping }, probe, null, null, cancellationToken).ConfigureAwait(false);
                 return Accept(AgentProtocol.ToStatus(reply));
             }
             catch (AgentTimeoutException)
@@ -175,12 +202,13 @@ public sealed partial class AgentClient : IAsyncDisposable
         {
             if (loop is not null)
             {
-                await loop.ConfigureAwait(false);
+                await loop.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             }
         }
 
+        // _consoleWrite is not disposed: a write in flight still has to release it, and it holds
+        // nothing that needs disposal.
         _stop.Dispose();
-        _consoleWrite.Dispose();
     }
 
     private void ThrowIfClosedUnsafe()
@@ -210,11 +238,16 @@ public sealed partial class AgentClient : IAsyncDisposable
     /// <summary>
     /// Sends a request and waits for its reply. <paramref name="onReply"/> runs in the reader, before
     /// any later line is looked at: that is where a launch or a console is registered, so that its
-    /// exit, which may be the very next line, finds it.
+    /// exit, which may be the very next line, finds it. <paramref name="onAbandoned"/> is for the
+    /// requests that create something in the guest: when the caller gave up (timeout, cancellation)
+    /// and the agent's ok arrives anyway, it undoes what the reply announces, so that nothing runs
+    /// in the guest that the host cannot name.
     /// </summary>
-    private async Task<AgentMessage> SendAsync(AgentRequest request, TimeSpan timeout, Action<AgentMessage>? onReply, CancellationToken cancellationToken)
+    private async Task<AgentMessage> SendAsync(AgentRequest request, TimeSpan timeout, Action<AgentMessage>? onReply, Action<AgentMessage>? onAbandoned, CancellationToken cancellationToken)
     {
-        var pending = new PendingRequest(request.Op, onReply);
+        var pending = new PendingRequest(request.Op, onReply, onAbandoned);
+        bool sent = false;
+        bool answered = false;
         lock (_lock)
         {
             ThrowIfClosedUnsafe();
@@ -230,7 +263,9 @@ public sealed partial class AgentClient : IAsyncDisposable
         try
         {
             await _channel.WriteLineAsync(AgentProtocol.Serialize(request), cancellationToken).ConfigureAwait(false);
+            sent = true;
             AgentMessage reply = await pending.Completion.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+            answered = true;
             return reply.Ok == true ? reply : throw AgentProtocol.ToException(reply);
         }
         catch (TimeoutException)
@@ -239,10 +274,62 @@ public sealed partial class AgentClient : IAsyncDisposable
         }
         finally
         {
-            lock (_lock)
+            if (!answered)
             {
-                _pending.Remove(request.Id);
+                Abandon(request.Id, pending, sent);
             }
+        }
+    }
+
+    /// <summary>The caller of a request gave up before its reply.</summary>
+    private void Abandon(long id, PendingRequest pending, bool sent)
+    {
+        bool replyAlreadyTaken;
+        lock (_lock)
+        {
+            replyAlreadyTaken = !_pending.ContainsKey(id);
+            if (!replyAlreadyTaken && sent && pending.OnAbandoned is not null && !_closed && _abandoned < MaxAbandonedRequests)
+            {
+                // Kept as a tombstone: the reply may still come and announce a launch or a console.
+                pending.Abandoned = true;
+                _abandoned++;
+            }
+            else
+            {
+                _pending.Remove(id);
+            }
+        }
+
+        if (replyAlreadyTaken && pending.OnAbandoned is { } undo)
+        {
+            // The reader took the reply while the caller was giving up: undo once it has registered.
+            _ = pending.Completion.Task.ContinueWith(
+                task =>
+                {
+                    if (task.IsCompletedSuccessfully && task.Result.Ok == true)
+                    {
+                        undo(task.Result);
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+
+        _ = pending.Completion.Task.Exception; // nobody awaits it any more
+    }
+
+    /// <summary>Sends a request whose outcome nobody waits for (the undoing of an abandoned launch or console).</summary>
+    private async Task SendAndForgetAsync(AgentRequest request)
+    {
+        try
+        {
+            await SendAsync(request, _options.RequestTimeout, null, null, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Publish(new AgentFaultEvent(exception is AgentException agent ? agent.Code : AgentErrorCodes.Closed,
+                $"Could not undo an abandoned '{request.Op}': {exception.Message}"));
         }
     }
 
@@ -284,8 +371,52 @@ public sealed partial class AgentClient : IAsyncDisposable
         }
         catch (AgentException exception)
         {
+            FailRequestOf(line, exception);
             Publish(new AgentFaultEvent(exception.Code, exception.Message));
         }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // Nothing a line contains may end the reader: the client would go deaf.
+            Publish(new AgentFaultEvent(AgentErrorCodes.Protocol, $"A line of the agent could not be handled: {exception.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// A line that could not be read as a message may still say which request it answers: that
+    /// request fails now instead of waiting for its timeout.
+    /// </summary>
+    private void FailRequestOf(string line, AgentException exception)
+    {
+        long id;
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(line);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("id", out JsonElement value)
+                || !value.TryGetInt64(out id))
+            {
+                return;
+            }
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+
+        PendingRequest? pending;
+        lock (_lock)
+        {
+            if (_pending.Remove(id, out pending) && pending.Abandoned)
+            {
+                _abandoned--;
+            }
+        }
+
+        pending?.Completion.TrySetException(exception);
     }
 
     private void HandleReply(AgentMessage reply)
@@ -300,12 +431,25 @@ public sealed partial class AgentClient : IAsyncDisposable
         PendingRequest? pending;
         lock (_lock)
         {
-            _pending.Remove(id, out pending);
+            if (_pending.Remove(id, out pending) && pending.Abandoned)
+            {
+                _abandoned--;
+            }
         }
 
         if (pending is null)
         {
             return; // a reply that outlived its timeout
+        }
+
+        if (pending.Abandoned)
+        {
+            if (reply.Ok == true)
+            {
+                pending.OnAbandoned?.Invoke(reply);
+            }
+
+            return;
         }
 
         if (reply.Ok == true && pending.OnReply is not null)
@@ -328,6 +472,9 @@ public sealed partial class AgentClient : IAsyncDisposable
     {
         switch (agentEvent)
         {
+            case AgentReadyEvent when Status is not null:
+                ForgetGuestObjects("The agent restarted: it no longer knows this launch or console.");
+                break;
             case LaunchExitedEvent exited:
                 TaskCompletionSource<ProcessExit>? launch;
                 lock (_lock)
@@ -386,6 +533,11 @@ public sealed partial class AgentClient : IAsyncDisposable
         {
             // Disposed.
         }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The console port is lost; the protocol port still works and says so.
+            Publish(new AgentFaultEvent(AgentErrorCodes.Protocol, $"The console port can no longer be read: {exception.Message}"));
+        }
     }
 
     private void HandleFrame(ConsoleFrame frame)
@@ -403,8 +555,10 @@ public sealed partial class AgentClient : IAsyncDisposable
             {
                 DeliverUnsafe(console, frame);
             }
-            else if (!_closed)
+            else if (!_closed && _consolesOpening > 0)
             {
+                // Only while a console is being opened can a frame be ahead of its reply; any other
+                // frame for a console nobody holds is late output of one that is over, and is dropped.
                 KeepOrphanUnsafe(frame);
             }
         }
@@ -436,7 +590,8 @@ public sealed partial class AgentClient : IAsyncDisposable
             _orphans.Add(frame.Console, orphan);
         }
 
-        if (orphan.Bytes + frame.Payload.Length <= MaxOrphanBytesPerConsole)
+        // The CLOSED frame is always kept: without it the console would never end.
+        if (frame.Type == ConsoleFrameType.Closed || orphan.Bytes + frame.Payload.Length <= MaxOrphanBytesPerConsole)
         {
             orphan.Frames.Add(frame);
             orphan.Bytes += frame.Payload.Length;
@@ -446,8 +601,17 @@ public sealed partial class AgentClient : IAsyncDisposable
     /// <summary>Registers a console (called in the reader, on the reply to <c>open-console</c>) and gives it the frames that came first.</summary>
     private void RegisterConsole(ConsoleHandle console)
     {
+        ConsoleHandle? replaced = null;
         lock (_lock)
         {
+            if (_closed)
+            {
+                console.Fail(new AgentClosedException("The agent client is closed."));
+                return;
+            }
+
+            // A number seen twice means the agent restarted and counts again: the old console is gone.
+            _consoles.Remove(console.Number, out replaced);
             _consoles.Add(console.Number, console);
             if (_orphans.Remove(console.Number, out OrphanFrames? orphan))
             {
@@ -457,6 +621,8 @@ public sealed partial class AgentClient : IAsyncDisposable
                 }
             }
         }
+
+        replaced?.Fail(new AgentClosedException("The agent reused the number of this console: it is gone."));
     }
 
     private Task<ProcessExit> RegisterLaunch(LaunchId id)
@@ -464,10 +630,43 @@ public sealed partial class AgentClient : IAsyncDisposable
         var exited = new TaskCompletionSource<ProcessExit>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_lock)
         {
-            _launches[id] = exited;
+            if (!_closed)
+            {
+                _launches[id] = exited;
+                return exited.Task;
+            }
         }
 
+        exited.TrySetException(new AgentClosedException("The agent client is closed."));
+        _ = exited.Task.Exception;
         return exited.Task;
+    }
+
+    /// <summary>Fails every tracked launch and console: what they name no longer exists for the agent.</summary>
+    private void ForgetGuestObjects(string reason)
+    {
+        TaskCompletionSource<ProcessExit>[] launches;
+        ConsoleHandle[] consoles;
+        lock (_lock)
+        {
+            launches = [.. _launches.Values];
+            consoles = [.. _consoles.Values];
+            _launches.Clear();
+            _consoles.Clear();
+            _orphans.Clear();
+        }
+
+        var gone = new AgentClosedException(reason);
+        foreach (TaskCompletionSource<ProcessExit> launch in launches)
+        {
+            launch.TrySetException(gone);
+            _ = launch.Task.Exception;
+        }
+
+        foreach (ConsoleHandle console in consoles)
+        {
+            console.Fail(gone);
+        }
     }
 
     private void Publish(AgentEvent agentEvent)
@@ -518,6 +717,7 @@ public sealed partial class AgentClient : IAsyncDisposable
             consoles = [.. _consoles.Values];
             readers = [.. _eventReaders];
             _pending.Clear();
+            _abandoned = 0;
             _launches.Clear();
             _consoles.Clear();
             _orphans.Clear();
@@ -529,11 +729,13 @@ public sealed partial class AgentClient : IAsyncDisposable
         foreach (PendingRequest request in pending)
         {
             request.Completion.TrySetException(closed);
+            _ = request.Completion.Task.Exception;
         }
 
         foreach (TaskCompletionSource<ProcessExit> launch in launches)
         {
             launch.TrySetException(closed);
+            _ = launch.Task.Exception; // a caller that never looks at Exited must not raise UnobservedTaskException
         }
 
         foreach (ConsoleHandle console in consoles)
@@ -547,11 +749,16 @@ public sealed partial class AgentClient : IAsyncDisposable
         }
     }
 
-    private sealed class PendingRequest(string operation, Action<AgentMessage>? onReply)
+    private sealed class PendingRequest(string operation, Action<AgentMessage>? onReply, Action<AgentMessage>? onAbandoned)
     {
         public string Operation { get; } = operation;
 
         public Action<AgentMessage>? OnReply { get; } = onReply;
+
+        public Action<AgentMessage>? OnAbandoned { get; } = onAbandoned;
+
+        /// <summary>The caller gave up; the entry waits for a reply that may still announce something to undo.</summary>
+        public bool Abandoned { get; set; }
 
         public TaskCompletionSource<AgentMessage> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }

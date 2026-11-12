@@ -150,9 +150,13 @@ static jn *parse_value(int depth)
     if (!strncmp(cursor, "true", 4)) { cursor += 4; jn *n = node(J_BOOL); if (n) n->b = 1; return n; }
     if (!strncmp(cursor, "false", 5)) { cursor += 5; return node(J_BOOL); }
     if (!strncmp(cursor, "null", 4)) { cursor += 4; return node(J_NULL); }
+    /* A JSON number and nothing else: strtod alone would also take nan, inf and hexadecimal. */
+    const char *digits = cursor + (*cursor == '-');
+    if (!isdigit((unsigned char)*digits)) return NULL;
     char *end;
     double d = strtod(cursor, &end);
-    if (end == cursor) return NULL;
+    if (end == cursor || !__builtin_isfinite(d)) return NULL;  /* not <math.h>: its jn() is a Bessel function */
+    for (const char *c = cursor; c < end; c++) if (!isdigit((unsigned char)*c) && !strchr("+-.eE", *c)) return NULL;
     cursor = end;
     jn *n = node(J_NUM);
     if (n) n->num = d;
@@ -193,6 +197,19 @@ int json_bool(jn *object, const char *key, int fallback)
 {
     jn *v = json_get(object, key);
     return v && v->type == J_BOOL ? v->b : fallback;
+}
+
+int jn_int(const jn *value, int fallback, int min, int max)
+{
+    if (!value || value->type != J_NUM) return fallback;
+    if (value->num < (double)min) return min;
+    if (value->num > (double)max) return max;
+    return (int)value->num;
+}
+
+int json_int(jn *object, const char *key, int fallback, int min, int max)
+{
+    return jn_int(json_get(object, key), fallback, min, max);
 }
 
 /* ---------------------------------------------------------------- writer */

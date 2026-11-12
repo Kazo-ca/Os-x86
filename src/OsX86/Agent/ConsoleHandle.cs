@@ -131,6 +131,7 @@ public sealed class ConsoleHandle
     {
         _output.Writer.TryComplete();
         _exited.TrySetException(exception);
+        _ = _exited.Task.Exception; // observed here: a caller that never looks at Exited must not raise UnobservedTaskException
     }
 
     private void ThrowIfClosed()

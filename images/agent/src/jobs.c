@@ -113,7 +113,11 @@ int job_on_child_exit(pid_t pid, int status)
         j->pid = 0;
         char buf[4096];
         ssize_t n;
-        while (j->fd >= 0 && (n = read(j->fd, buf, sizeof buf)) > 0) job_append(j, buf, (size_t)n);
+        size_t drained = 0;  /* bounded: a grandchild may still be writing flat out */
+        while (j->fd >= 0 && drained < 256 * 1024 && (n = read(j->fd, buf, sizeof buf)) > 0) {
+            job_append(j, buf, (size_t)n);
+            drained += (size_t)n;
+        }
         job_finish(j, status);
         return 1;
     }
@@ -160,10 +164,8 @@ void op_exec_in_prefix(const char *id, jn *req)
     struct passwd *pw = prefix_user(prefix);
     if (!pw) return reply_error(id, "unknown-prefix", "no guest user " AGENT_USER_PREFIX "%s", prefix);
     if (!program || !*program) return reply_error(id, "invalid-request", "program missing");
-    double timeout_ms = json_num(req, "timeoutMs", AGENT_DEFAULT_EXEC_TIMEOUT_MS);
-    double max_out = json_num(req, "maxOutput", AGENT_DEFAULT_EXEC_MAX_OUTPUT);
-    if (timeout_ms <= 0) timeout_ms = AGENT_DEFAULT_EXEC_TIMEOUT_MS;
-    if (max_out < 0 || max_out > AGENT_MAX_EXEC_OUTPUT) max_out = AGENT_MAX_EXEC_OUTPUT;
+    int timeout_ms = json_int(req, "timeoutMs", AGENT_DEFAULT_EXEC_TIMEOUT_MS, 1, AGENT_MAX_TIMEOUT_MS);
+    int max_out = json_int(req, "maxOutput", AGENT_DEFAULT_EXEC_MAX_OUTPUT, 0, AGENT_MAX_EXEC_OUTPUT);
     job *j = job_new(JOB_EXEC, id, timeout_ms, (size_t)max_out);
     if (!j) return reply_error(id, "too-many-jobs", "the agent runs at most %d commands at a time", AGENT_MAX_JOBS);
     launch *l = launch_new(prefix, 0);
@@ -176,7 +178,7 @@ void op_exec_in_prefix(const char *id, jn *req)
     pid_t pid = -1;
     if (!code) {
         pid = spawn_as(pw, l, program, json_get(req, "args"), json_get(req, "env"), json_str(req, "cwd", NULL),
-                       (int)json_num(req, "nproc", AGENT_DEFAULT_NPROC), -1, pipe_fds[1], pipe_fds[1], -1, &failure);
+                       json_int(req, "nproc", AGENT_DEFAULT_NPROC, 1, AGENT_MAX_NPROC), -1, pipe_fds[1], pipe_fds[1], -1, &failure);
         if (pid < 0) code = failure == ENOENT ? "program-not-found" : "exec-failed";
     }
     if (pipe_fds[1] >= 0) close(pipe_fds[1]);
@@ -251,8 +253,7 @@ static void mounts_child(int out_fd)
 
 void op_mounts(const char *id, jn *req)
 {
-    double timeout_ms = json_num(req, "timeoutMs", AGENT_DEFAULT_MOUNTS_TIMEOUT_MS);
-    if (timeout_ms <= 0) timeout_ms = AGENT_DEFAULT_MOUNTS_TIMEOUT_MS;
+    int timeout_ms = json_int(req, "timeoutMs", AGENT_DEFAULT_MOUNTS_TIMEOUT_MS, 1, AGENT_MAX_TIMEOUT_MS);
     job *j = job_new(JOB_MOUNTS, id, timeout_ms, 256 * 1024);
     if (!j) return reply_error(id, "too-many-jobs", "the agent runs at most %d commands at a time", AGENT_MAX_JOBS);
     int pipe_fds[2];
@@ -267,7 +268,8 @@ void op_mounts(const char *id, jn *req)
     }
     if (pid == 0) {
         setsid();
-        close(pipe_fds[0]);
+        /* Only its pipe: a child stuck on a dead share must not hold the ptys and sockets of the agent. */
+        for (int fd = 3; fd < 1024; fd++) if (fd != pipe_fds[1]) close(fd);
         mounts_child(pipe_fds[1]);
     }
     close(pipe_fds[1]);

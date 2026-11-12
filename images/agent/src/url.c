@@ -6,7 +6,8 @@
  *
  * The socket is open to every guest user, so nothing here may block: a connection is read by
  * the loop like any other descriptor, has URL_CLIENT_TIMEOUT_MS to send its line, and at most
- * URL_MAX_CLIENTS are served at a time (the others are closed at once). */
+ * URL_MAX_CLIENTS are served at a time, URL_MAX_CLIENTS_PER_USER for one user (the others are
+ * closed at once). */
 #define _GNU_SOURCE
 #include "agent.h"
 
@@ -19,6 +20,7 @@
 #include <unistd.h>
 
 #define URL_CLIENT_TIMEOUT_MS 500
+#define URL_MAX_CLIENTS_PER_USER 2
 
 int url_socket_fd = -1;
 url_client url_clients[URL_MAX_CLIENTS];
@@ -50,8 +52,11 @@ void url_on_accept(void)
     struct ucred credentials;
     socklen_t length = sizeof credentials;
     memset(&credentials, 0, sizeof credentials);
-    if (!c || getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &credentials, &length)) {
-        close(fd);  /* too many callers at once, or a caller the kernel does not name */
+    int unknown = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &credentials, &length);
+    int same_user = 0;
+    for (int i = 0; i < URL_MAX_CLIENTS; i++) same_user += url_clients[i].used && url_clients[i].uid == credentials.uid;
+    if (!c || unknown || same_user >= URL_MAX_CLIENTS_PER_USER) {
+        close(fd);  /* too many callers at once (one user cannot take every place), or a caller the kernel does not name */
         return;
     }
     memset(c, 0, sizeof *c);

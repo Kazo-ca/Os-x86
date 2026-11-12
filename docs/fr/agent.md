@@ -45,11 +45,14 @@ L'agent est un seul fil et une seule boucle `poll` : les deux ports, les pty, le
 `open-url` et ses appelants, un tube pour `SIGCHLD`, les tubes des commandes en cours et le
 fichier `cgroup.events` de chaque lancement. **Aucune opération n'en bloque une autre**
 (correction 1 de 205 A) : `exec-in-prefix` et `mounts` tournent dans un enfant et répondent
-quand il a fini ; `kill` répond quand le lancement a disparu.
+quand il a fini ; `kill` répond quand le lancement a disparu. Ce qui part vers l'hôte passe par
+une file d'attente par port : l'agent n'attend jamais qu'un port se vide, et une ligne ou une
+trame est mise en file entière ou pas du tout, jamais écrite en partie.
 
 ## Le protocole (version 1)
 
-Requête : `{"id":N,"op":"…", …}` suivie de LF, 64 Kio au plus. Réponse :
+Requête : `{"id":N,"op":"…", …}` suivie de LF, 64 Kio au plus ; les nombres hors bornes sont
+ramenés à leur borne, `nan` et `inf` ne sont pas du JSON et font refuser la ligne. Réponse :
 `{"id":N,"ok":true, …}` ou `{"id":N,"ok":false,"error":"<code>","message":"…"}`. Événement :
 `{"event":"…", …}`. Les champs inconnus sont ignorés des deux côtés ; les chaînes sont de l'UTF-8
 valide (un octet invalide d'une sortie de programme devient U+FFFD).
@@ -61,10 +64,10 @@ valide (un octet invalide d'une sortie de programme devient U+FFFD).
 | `ping` | — | `version`, `uptime` (s), `rssKb`, `launches`, `consoles`, `cgroups` |
 | `list-processes` | — | `processes[]` : `pid`, `ppid`, `pgid`, `uid`, `state`, `prefix`, `launch`, `comm`, `cmd`, `cgroup` |
 | `launch` | `prefix`, `program`, `args[]`, `env{}`, `cwd`, `nproc`, `log` | `launch` (identifiant), `pid`, `uid`, `cgroup`, `ms` |
-| `kill` par lancement | `launch`, `graceMs` (défaut 2000), `signal` (défaut 15) | `forced`, `ms` ; arrive quand le lancement a disparu |
+| `kill` par lancement | `launch`, `graceMs` (défaut 2000, au plus 10 min), `signal` (défaut 15 ; 0 refusé) | `forced`, `ms` ; arrive quand le lancement a disparu |
 | `kill` d'administration | `scope` = `pid` \| `group` \| `prefix` \| `cgroup`, puis `pid`, `prefix`, `seq`, `signal`, `allowRoot` | `count`, `signal`, `target`, `ms` |
-| `mounts` | `timeoutMs` (défaut 8000) | `mounts[]` : `path`, `type`, `device`, `state` (`ok`, `error`, `hung`), `entries`, `blocks`, `blockSize`, `freeBlocks`, `statfsErrno`, `readdirErrno`, `error` ; `timedOut` |
-| `exec-in-prefix` | `prefix`, `program`, `args[]`, `env{}`, `cwd`, `timeoutMs` (défaut 30000), `maxOutput` (défaut 65536, au plus 1 Mio) | `code`, `signal`, `timedOut`, `truncated`, `output`, `ms` |
+| `mounts` | `timeoutMs` (défaut 8000, au plus 1 h) | `mounts[]` : `path`, `type`, `device`, `state` (`ok`, `error`, `hung`), `entries`, `blocks`, `blockSize`, `freeBlocks`, `statfsErrno`, `readdirErrno`, `error` ; `timedOut` |
+| `exec-in-prefix` | `prefix`, `program`, `args[]`, `env{}`, `cwd`, `timeoutMs` (défaut 30000, au plus 1 h), `maxOutput` (défaut 65536, au plus 1 Mio) | `code`, `signal`, `timedOut`, `truncated`, `output`, `ms` |
 | `open-console` | `prefix`, `program` (défaut : le shell de l'usager, interactif), `args[]`, `env{}`, `cwd`, `cols`, `rows` | `launch`, `console` (numéro), `pid`, `uid`, `cols`, `rows` |
 | `close-console` | `console` ou `launch`, `graceMs`, `keep[]` (pid à garder) | `keptCount`, `kept` (lancement des processus gardés) ; immédiate |
 | `console-resize` | `console`, `cols`, `rows` | `console`, `cols`, `rows` |
@@ -108,8 +111,10 @@ valide (un octet invalide d'une sortie de programme devient U+FFFD).
    `setsid`, entrée dans le cgroup, `RLIMIT_NPROC` (256 par défaut), `initgroups`/`setgid`/`setuid`
    vers l'usager, `chdir` (le home par défaut), environnement refait (`HOME`, `USER`, `LOGNAME`,
    `SHELL`, `PATH`, `TERM`, plus `env` sauf `LD_*`), tous les signaux remis par défaut, `execvp`.
-   **Jamais une ligne de shell** : un programme et ses arguments. Un `exec` qui échoue revient par
-   un tube : la réponse est une erreur (`program-not-found`, `exec-failed`), pas un pid mort.
+   **Jamais une ligne de shell** : un programme et ses arguments. Un `exec` ou une étape qui
+   échoue (cgroup, limite, identité, dossier) revient par un tube : la réponse est une erreur
+   (`program-not-found`, `exec-failed`), pas un pid mort, et rien ne tourne hors de son cgroup.
+   Un enfant qui n'atteint pas l'`exec` en 5 s (dossier de travail sur un partage mort) est tué.
 3. **Identifiant.** `<prefix>/<seq>` nomme le lancement ; c'est ce qu'Os-x86 expose, jamais le pid
    (sous Wine le pid rendu est celui d'un lanceur, E7).
 4. **Fin naturelle.** À la mort du processus principal : événement `exit` avec son code. Le
@@ -136,7 +141,7 @@ une console par port en donnerait trois au plus, alors que 213 A veut un pty par
 console. Trame, dans les deux sens :
 
 ```
-0xAE  type  console (2 octets, gros-boutiste)  longueur (2 octets)  charge utile
+0xAE  type  console (4 octets, gros-boutiste)  longueur (2 octets)  charge utile
 ```
 
 | Type | Sens | Charge utile |
@@ -150,7 +155,11 @@ console. Trame, dans les deux sens :
 - **Le code de sortie voyage sur le canal des octets**, après eux (`CLOSED`) : le terminal sait
   que tout est arrivé quand il reçoit le code. L'événement `console-closed` de `hvc0` le redit
   pour le registre.
-- Un lecteur qui ne trouve pas `0xAE` en tête de trame saute des octets jusqu'au suivant.
+- Une trame n'est jamais écrite en partie : le flux ne se désynchronise pas. Un lecteur qui
+  arrive en cours de route et ne trouve pas `0xAE` en tête de trame saute jusqu'au suivant.
+- **Contrôle de flux** : tant que l'hôte n'a pas pris 256 Kio de sortie en attente, l'agent ne
+  lit plus les pty ; un programme qui inonde son terminal attend, comme sur un terminal lent,
+  sans gêner les autres consoles ni le protocole.
 
 Mesuré dans l'image Alpine de test (v86 dans Chrome, cette machine, par le pont du test) :
 
@@ -159,7 +168,7 @@ Mesuré dans l'image Alpine de test (v86 dans Chrome, cette machine, par le pont
 | `open-console` → première invite | 86 à 109 ms | 154 à 170 ms |
 | Ctrl+C → invite suivante | 62 à 64 ms | — |
 | Deux consoles en même temps | aucune fuite d'une console vers l'autre | une seule console possible |
-| Surcoût | 6 octets par trame (0,15 % à trame pleine ; une frappe coûte 7 octets) | 0 |
+| Surcoût | 8 octets par trame (0,2 % à trame pleine ; une frappe coûte 9 octets) | 0 |
 
 **Fermeture (208 A).** `close-console` déplace d'abord les processus de `keep` (ceux qui ont une
 fenêtre ; l'hôte les nommera quand l'image aura X) dans un cgroup frère, qui devient un
@@ -173,7 +182,8 @@ l'autre meurt avec la console.
 `osx86-open-url URL` écrit l'URL sur le socket unix `/run/osx86/open-url.sock`. L'agent lit
 l'uid de l'appelant sur le socket (`SO_PEERCRED`), en déduit le préfixe et émet l'événement ;
 il ne fait rien d'autre de l'URL. Le socket est ouvert à tout usager invité : la lecture ne
-bloque jamais la boucle (500 ms par appelant, 8 appelants à la fois, 2 048 octets).
+bloque jamais la boucle (500 ms par appelant, 8 appelants à la fois dont 2 au plus pour un même
+usager, 2 048 octets).
 
 ## Le client C#
 
@@ -198,15 +208,20 @@ ProcessExit shellExit = await console.Exited;
   `Ix86` ne changent pas.
 - **Connexion.** `ConnectAsync` envoie un `ping` toutes les secondes jusqu'à une réponse :
   l'événement `ready` de l'agent a pu être écrit avant que quiconque écoute. Une autre version
-  du protocole est refusée (`unsupported-version`).
+  du protocole est refusée (`unsupported-version`). Après un échec (`not-ready`), on peut
+  rappeler `ConnectAsync` sur le même client.
 - **Appariement.** Chaque requête a un `id` croissant ; la réponse est rendue à qui l'attend,
-  dans n'importe quel ordre ; une réponse qui arrive après son délai est ignorée.
+  dans n'importe quel ordre ; une réponse qui arrive après son délai est ignorée, sauf celle
+  d'un `launch` ou d'un `open-console` : personne n'en tient plus l'identifiant, le client tue
+  le lancement ou ferme la console aussitôt pour que rien ne tourne sans nom dans l'invité. Une
+  réponse illisible qui porte un `id` fait échouer sa requête tout de suite (`protocol`).
 - **Types.** `LaunchId` (`<prefix>/<seq>`), `LaunchResult` (avec `Exited`), `ProcessInfo`,
   `MountInfo` et `MountState`, `ExecResult`, `KillResult`, `SignalResult`, `ConsoleHandle`
   (`ReadOutputAsync`, `WriteAsync`, `SendInterruptAsync`, `ResizeAsync`, `CloseAsync`, `Exited`).
 - **Événements.** `ReadEventsAsync` : `AgentReadyEvent`, `LaunchExitedEvent`,
   `ConsoleClosedEvent`, `OpenUrlEvent`, et `AgentFaultEvent` pour ce qui ne suit pas le protocole
-  (signalé, sans arrêter le client).
+  (signalé, sans arrêter le client). Un `ready` reçu après la connexion veut dire que l'agent a
+  redémarré : les lancements et consoles suivis échouent avec `closed`.
 - **Erreurs.** `AgentException` (code de l'agent), `AgentTimeoutException`,
   `AgentClosedException`, `AgentProtocolException`. Les arguments qui ne peuvent pas arriver
   intacts dans l'invité (caractère NUL, nom de variable avec `=`, préfixe mal formé) sont refusés
@@ -223,7 +238,8 @@ ProcessExit shellExit = await console.Exited;
 | `kill` : grâce puis marge (`LongOperationMargin`) | 2 s + 10 s | la grâce est celle de l'agent ; le client attend la grâce demandée plus la marge |
 | `exec-in-prefix`, `mounts` | 30 s et 8 s + marge | l'agent tue la commande à son délai ; un montage muet revient `hung` |
 | Repli de fin de console (`ConsoleCloseFallback`) | 2 s | si la trame `CLOSED` n'arrive jamais, l'événement `console-closed` termine la console |
-| Agent : écriture sur un port plein | 2 s puis abandon | un hôte qui ne lit plus ne gèle pas l'agent |
+| Agent : port plein | file d'attente (8 Mio pour le protocole, 4 Mio pour les consoles) | l'agent n'attend jamais un port ; au-delà de 256 Kio de sortie en attente, les pty ne sont plus lus |
+| Agent : enfant qui n'atteint pas l'`exec` | 5 s puis tué | un dossier de travail sur un partage mort ne gèle pas l'agent |
 | Agent : écriture vers un pty plein | 200 ms puis abandon | un programme qui ne lit pas son clavier ne gèle pas l'agent |
 
 ## Mesures
@@ -233,10 +249,10 @@ Ryzen 7 3700X ; aller-retour mesuré dans le test `guest`, donc à travers Playw
 
 | Mesure | Valeur | E7 |
 | --- | --- | --- |
-| Binaire `agent` / `osx86-open-url` | 111 624 / 29 668 octets | 108 Kio / 18 Kio |
-| Mémoire résidente de l'agent | 172 Kio | 160 à 184 Kio |
+| Binaire `agent` / `osx86-open-url` | 111 656 / 29 668 octets | 108 Kio / 18 Kio |
+| Mémoire résidente de l'agent | 172 à 176 Kio | 160 à 184 Kio |
 | Agent prêt après le démarrage de l'invité | ≈ 5 s (image Alpine) | 47 à 52 s (image Wine) |
-| `ping`, aller-retour (10 fois) | médiane 4,5 à 6,8 ms | 3,2 à 3,6 ms |
+| `ping`, aller-retour (10 fois) | médiane 4,5 à 7,4 ms | 3,2 à 3,6 ms |
 | `kill` par lancement, aller-retour | 14 à 34 ms (3 à 25 ms dans l'invité) | 18 à 20 ms |
 | `launch`, dans l'agent | 15 à 70 ms | 1,5 à 4 ms (hors attente de l'`exec`) |
 | `list-processes` (≈ 60 processus), dans l'agent | 95 à 330 ms | 380 à 475 ms (55 processus) |
@@ -245,10 +261,11 @@ Ryzen 7 3700X ; aller-retour mesuré dans le test `guest`, donc à travers Playw
 ## Tests
 
 - **`unit`** (`AgentProtocolTests`, `ConsoleFrameTests`, `AgentClientTests`, `AgentConsoleTests`,
-  79 tests) : encodage et décodage, appariement dans le désordre, délais, annulation,
-  événements, fautes de protocole, consoles (trames coupées n'importe où, trames arrivées avant
-  la réponse, fin sans trame `CLOSED`), fermeture du client. Le canal simulé
-  (`SimulatedAgentChannel`) joue l'agent. Couverture du dossier `Agent` : 99,6 % des lignes.
+  90 tests) : encodage et décodage, appariement dans le désordre, délais, annulation,
+  événements, fautes de protocole, réponse tardive d'un lancement abandonné, redémarrage de
+  l'agent, consoles (trames coupées n'importe où, trames arrivées avant la réponse, fin sans
+  trame `CLOSED`, numéro réutilisé), fermeture du client. Le canal simulé
+  (`SimulatedAgentChannel`) joue l'agent. Couverture du dossier `Agent` : 96,9 % des lignes.
 - **`guest`** (`AgentGuestTests`) : l'image Alpine de test avec l'agent démarre dans le worker
   d'un vrai navigateur et le client C# la pilote ; ce sont les contrôles d'E7 qui ne demandent ni
   X ni Wine : `ping`, `launch` (binaires de l'image, jamais `sh -c`), `list-processes` avec
@@ -289,9 +306,11 @@ Limites connues :
   `open-url`.
 - L'événement `exit` ne concerne que le processus principal ; un lanceur qui laisse des enfants
   rend `remaining` > 0 et le lancement reste tuable par son identifiant.
-- Si l'hôte cesse de lire un port plus de 2 s, des octets sont abandonnés (une trame peut être
-  tronquée ; le lecteur se resynchronise sur `0xAE`). Si un programme ne lit pas son terminal,
-  la frappe en trop est abandonnée après 200 ms.
+- Si l'hôte cesse de lire, les consoles attendent (contrôle de flux) ; une ligne du protocole
+  n'est abandonnée, entière, qu'au-delà de 8 Mio en attente. Si un programme ne lit pas son
+  terminal, la frappe en trop est abandonnée après 200 ms, et la boucle attend jusque-là.
+- Un lancement d'un `exec` qui traîne (jusqu'à 5 s) et un `kill` par préfixe (jusqu'à 0,5 s)
+  retiennent la boucle pendant ce temps.
 - Aucune limite de CPU ni de mémoire par lancement (207 A) : seule `RLIMIT_NPROC` existe.
 
 ## Ce qui attend le chantier 6

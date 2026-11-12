@@ -34,7 +34,13 @@
 #define AGENT_DEFAULT_EXEC_MAX_OUTPUT 65536
 #define AGENT_MAX_EXEC_OUTPUT (1024 * 1024)
 #define AGENT_DEFAULT_MOUNTS_TIMEOUT_MS 8000
-#define AGENT_PORT_WRITE_TIMEOUT_MS 2000
+#define AGENT_MAX_GRACE_MS 600000            /* a kill waits at most ten minutes before cgroup.kill */
+#define AGENT_MAX_TIMEOUT_MS 3600000         /* a command or a mounts probe lasts at most an hour */
+#define AGENT_MAX_NPROC 65536
+#define AGENT_SPAWN_TIMEOUT_MS 5000          /* a child that does not reach exec (a dead share as cwd) is killed */
+#define AGENT_PORT_QUEUE_MAX (8 * 1024 * 1024)      /* protocol lines waiting for the host */
+#define AGENT_CONSOLE_QUEUE_MAX (4 * 1024 * 1024)   /* console frames waiting for the host */
+#define AGENT_CONSOLE_QUEUE_HIGH (256 * 1024)       /* above this, the ptys are not read: their programs wait */
 
 /* ---------------------------------------------------------------- JSON (json.c) */
 enum { J_NULL, J_BOOL, J_NUM, J_STR, J_ARR, J_OBJ };
@@ -45,6 +51,8 @@ jn *json_get(jn *object, const char *key);
 const char *json_str(jn *object, const char *key, const char *fallback);
 double json_num(jn *object, const char *key, double fallback);
 int json_bool(jn *object, const char *key, int fallback);
+int jn_int(const jn *value, int fallback, int min, int max);   /* a number clamped to [min, max] */
+int json_int(jn *object, const char *key, int fallback, int min, int max);
 
 typedef struct { char *buf; size_t len, cap; } sb;
 void sb_put(sb *b, const char *s, size_t n);
@@ -57,7 +65,13 @@ void sb_free(sb *b);
 /* ---------------------------------------------------------------- port and replies (agent.c) */
 double now_s(void);
 void logmsg(const char *fmt, ...);
-void port_write_all(int fd, const char *s, size_t n);  /* waits for a full port, bounded */
+/* What waits to be written on a port. Nothing ever blocks on a port and nothing is written in
+ * part: a line or a frame is queued whole or dropped whole, and the loop writes when the port
+ * accepts bytes. */
+typedef struct outq { int fd; char *buf; size_t len, cap, limit; unsigned long dropped; } outq;
+extern outq port_queue, console_queue;
+int outq_put(outq *q, const char *data, size_t n, int force);   /* 0 queued, -1 dropped (queue full) */
+void outq_flush(outq *q);
 void send_line(sb *b);                            /* appends LF, writes on hvc0, frees the buffer */
 void reply_begin(sb *b, const char *id_json);     /* {"id":<id> */
 void reply_ok(const char *id_json, const char *body_fmt, ...);  /* {"id":..,"ok":true<body>} */
@@ -108,7 +122,7 @@ int cgroup_signal_all(const char *path, int sig);
 int cgroup_count(const char *path);
 int cgroup_read_populated(int fd);
 void launch_forget(launch *l);
-void child_setup(struct passwd *pw, const launch *l, jn *env, const char *cwd, int nproc);
+int child_setup(struct passwd *pw, const launch *l, jn *env, const char *cwd, int nproc);   /* 0 or an errno */
 char **build_argv(const char *program, jn *args);
 pid_t spawn_as(struct passwd *pw, const launch *l, const char *program, jn *args, jn *env, const char *cwd, int nproc,
                int fd_in, int fd_out, int fd_err, int tty_fd, int *exec_errno);

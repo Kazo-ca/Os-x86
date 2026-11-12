@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <limits.h>
+#include <poll.h>
 #include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
@@ -230,14 +232,16 @@ void launch_watch_cgroup(launch *l)
 
 /* ---------------------------------------------------------------- the child side of a launch */
 
-void child_setup(struct passwd *pw, const launch *l, jn *env, const char *cwd, int nproc)
+/* What the child does before exec. Returns 0, or the errno of the step that failed: the launch
+ * is then refused rather than run outside its cgroup, without its limit or as the wrong user. */
+int child_setup(struct passwd *pw, const launch *l, jn *env, const char *cwd, int nproc)
 {
     char path[300];
-    if (launch_cgroup(l, path, sizeof path)) cgroup_enter(path);
+    if (launch_cgroup(l, path, sizeof path) && cgroup_enter(path)) return errno ? errno : EIO;
     struct rlimit rl = { (rlim_t)nproc, (rlim_t)nproc };
-    setrlimit(RLIMIT_NPROC, &rl);
-    if (initgroups(pw->pw_name, pw->pw_gid) || setgid(pw->pw_gid) || setuid(pw->pw_uid)) _exit(126);
-    if (chdir(cwd && *cwd ? cwd : pw->pw_dir)) { if (chdir("/")) _exit(126); }
+    if (setrlimit(RLIMIT_NPROC, &rl)) return errno;
+    if (initgroups(pw->pw_name, pw->pw_gid) || setgid(pw->pw_gid) || setuid(pw->pw_uid)) return errno ? errno : EPERM;
+    if (chdir(cwd && *cwd ? cwd : pw->pw_dir) && chdir("/")) return errno;
     clearenv();
     setenv("HOME", pw->pw_dir, 1);
     setenv("USER", pw->pw_name, 1);
@@ -248,6 +252,7 @@ void child_setup(struct passwd *pw, const launch *l, jn *env, const char *cwd, i
     if (env && env->type == J_OBJ)
         for (jn *e = env->child; e; e = e->next)
             if (e->type == J_STR && *e->key && strncmp(e->key, "LD_", 3) && !strchr(e->key, '=')) setenv(e->key, e->str, 1);
+    return 0;
 }
 
 char **build_argv(const char *program, jn *args)
@@ -279,7 +284,11 @@ pid_t spawn_as(struct passwd *pw, const launch *l, const char *program, jn *args
         close(report[0]);
         setsid();
         if (tty_fd >= 0) { ioctl(tty_fd, TIOCSCTTY, 0); fd_in = fd_out = fd_err = tty_fd; }
-        child_setup(pw, l, env, cwd, nproc);
+        int failed = child_setup(pw, l, env, cwd, nproc);
+        if (failed) {
+            if (write(report[1], &failed, sizeof failed) < 0) { }
+            _exit(126);
+        }
         int null_fd = open("/dev/null", O_RDWR);
         dup2(fd_in >= 0 ? fd_in : null_fd, 0);
         dup2(fd_out >= 0 ? fd_out : null_fd, 1);
@@ -299,10 +308,26 @@ pid_t spawn_as(struct passwd *pw, const launch *l, const char *program, jn *args
     }
     free(argv);
     close(report[1]);
+    /* The child reaches exec within milliseconds, unless something it touches hangs (a dead
+     * share as working directory): it is then killed rather than freezing the agent. */
     int e = 0;
-    ssize_t r;
-    do r = read(report[0], &e, sizeof e); while (r < 0 && errno == EINTR);
+    ssize_t r = -1;
+    struct pollfd wait_exec = { report[0], POLLIN, 0 };
+    double limit = now_s() + AGENT_SPAWN_TIMEOUT_MS / 1000.0;
+    for (;;) {
+        int left = (int)((limit - now_s()) * 1000);
+        if (left <= 0) break;
+        int ready = poll(&wait_exec, 1, left);
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready > 0) do r = read(report[0], &e, sizeof e); while (r < 0 && errno == EINTR);
+        break;
+    }
     close(report[0]);
+    if (r < 0) {
+        kill(pid, SIGKILL);  /* reaped by the loop like any child the agent does not track */
+        *exec_errno = ETIMEDOUT;
+        return -1;
+    }
     if (r == (ssize_t)sizeof e) {
         int status;
         waitpid(pid, &status, 0);
@@ -335,7 +360,7 @@ void op_launch(const char *id, jn *req)
     double t0 = now_s();
     int exec_errno;
     pid_t pid = spawn_as(pw, l, program, json_get(req, "args"), json_get(req, "env"), json_str(req, "cwd", NULL),
-                         (int)json_num(req, "nproc", AGENT_DEFAULT_NPROC), -1, log_fd, log_fd, -1, &exec_errno);
+                         json_int(req, "nproc", AGENT_DEFAULT_NPROC, 1, AGENT_MAX_NPROC), -1, log_fd, log_fd, -1, &exec_errno);
     if (log_fd >= 0) close(log_fd);
     if (pid < 0) {
         launch_forget(l);
@@ -490,20 +515,22 @@ void op_kill(const char *id, jn *req)
 {
     const char *launch_name = json_str(req, "launch", NULL);
     const char *scope = json_str(req, "scope", launch_name ? "launch" : "pid");
-    int sig = (int)json_num(req, "signal", SIGTERM);
+    double requested = json_num(req, "signal", SIGTERM);
     double t0 = now_s();
-    if (sig < 0 || sig > 64) return reply_error(id, "invalid-request", "signal %d out of range", sig);
+    if (!(requested >= 0 && requested <= 64)) return reply_error(id, "invalid-request", "signal out of range (0 to 64)");
+    int sig = (int)requested;
     if (!strcmp(scope, "launch")) {
         launch *l = launch_find(launch_name);
         if (!l) return reply_error(id, "unknown-launch", "no launch '%s'", launch_name ? launch_name : "");
         if (l->kill_id[0]) return reply_error(id, "kill-pending", "a kill of %s is already under way", launch_name);
-        launch_terminate(l, sig, (int)json_num(req, "graceMs", AGENT_DEFAULT_GRACE_MS), id);
+        if (sig == 0) return reply_error(id, "invalid-request", "signal 0 only probes: it cannot end a launch");
+        launch_terminate(l, sig, json_int(req, "graceMs", AGENT_DEFAULT_GRACE_MS, 0, AGENT_MAX_GRACE_MS), id);
         return;
     }
     int n = 0;
     char what[320] = "";
     if (!strcmp(scope, "pid") || !strcmp(scope, "group")) {
-        int pid = (int)json_num(req, "pid", 0);
+        int pid = json_int(req, "pid", 0, 0, INT_MAX);
         if (pid <= 1) return reply_error(id, "invalid-request", "pid missing");
         int uid = pid_uid(pid);
         if (uid < 0) return reply_error(id, "unknown-pid", "no process %d", pid);
@@ -524,7 +551,7 @@ void op_kill(const char *id, jn *req)
         snprintf(what, sizeof what, "uid %d", (int)pw->pw_uid);
     } else if (!strcmp(scope, "cgroup")) {
         const char *prefix = json_str(req, "prefix", NULL);
-        int seq = (int)json_num(req, "seq", 0);
+        int seq = json_int(req, "seq", 0, 0, INT_MAX);
         if (!valid_prefix(prefix)) return reply_error(id, "invalid-prefix", "prefix missing or invalid");
         if (!cgroup_available) return reply_error(id, "no-cgroup", "cgroup v2 is not available in this guest");
         if (seq) snprintf(what, sizeof what, "%s/%s/%d", cgroup_root_path, prefix, seq);
@@ -588,9 +615,14 @@ static void append_process(sb *b, int pid)
         else if (!strncmp(line, "Uid:", 4)) uid = atoi(line + 4);
     }
     fclose(f);
+    /* The name of a process is its own to choose and may hold ")" and line ends: the fields are
+     * read after the last ")" of the whole file, not of its first line. */
     snprintf(path, sizeof path, "/proc/%d/stat", pid);
-    read_first_line(path, line, sizeof line);
-    char *paren = strrchr(line, ')');
+    int stat_fd = open(path, O_RDONLY | O_CLOEXEC);
+    ssize_t stat_length = stat_fd >= 0 ? read(stat_fd, line, sizeof line - 1) : 0;
+    if (stat_fd >= 0) close(stat_fd);
+    line[stat_length > 0 ? stat_length : 0] = 0;
+    char *paren = stat_length > 0 ? memrchr(line, ')', (size_t)stat_length) : NULL;
     if (paren) sscanf(paren + 1, " %*c %*d %d", &pgid);
     char cmd[512] = "";
     snprintf(path, sizeof path, "/proc/%d/cmdline", pid);

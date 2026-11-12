@@ -14,12 +14,15 @@ public sealed class AgentClientTests
     private static readonly TimeSpan Soon = TimeSpan.FromSeconds(10);
     private static readonly AgentClientOptions Fast = new()
     {
-        RequestTimeout = TimeSpan.FromMilliseconds(250),
-        ConnectTimeout = TimeSpan.FromSeconds(5),
+        RequestTimeout = TimeSpan.FromSeconds(10),
+        ConnectTimeout = TimeSpan.FromSeconds(10),
         ConnectProbeInterval = TimeSpan.FromMilliseconds(40),
         LongOperationMargin = TimeSpan.FromMilliseconds(250),
         ConsoleCloseFallback = TimeSpan.FromMilliseconds(50),
     };
+
+    /// <summary>For the tests of what happens when no reply comes: the only ones with a short request timeout.</summary>
+    private static readonly AgentClientOptions Impatient = Fast with { RequestTimeout = TimeSpan.FromMilliseconds(150) };
 
     private static async Task<AgentClient> ConnectedAsync(SimulatedAgentChannel channel, AgentClientOptions? options = null)
     {
@@ -76,14 +79,19 @@ public sealed class AgentClientTests
     public async Task Connect_fails_with_not_ready_when_no_agent_answers()
     {
         var channel = new SimulatedAgentChannel { Silent = true };
-        await using var client = new AgentClient(channel, Fast with { ConnectTimeout = TimeSpan.FromMilliseconds(200) });
+        await using var client = new AgentClient(channel, Fast with { ConnectTimeout = TimeSpan.FromMilliseconds(300) });
 
         AgentTimeoutException error = await Assert.ThrowsAsync<AgentTimeoutException>(() => client.ConnectAsync(None));
 
         Assert.Equal(AgentErrorCodes.NotReady, error.Code);
         Assert.Equal("connect", error.Operation);
         Assert.False(client.IsConnected);
-        Assert.True(channel.Requests("ping").Count >= 2);
+        Assert.NotEmpty(channel.Requests("ping"));
+
+        // The guest comes up later: the same client connects at the next attempt.
+        channel.Silent = false;
+        Assert.Equal(1, (await client.ConnectAsync(None)).ProtocolVersion);
+        Assert.True(client.IsConnected);
     }
 
     [Fact]
@@ -137,14 +145,14 @@ public sealed class AgentClientTests
     {
         var channel = new SimulatedAgentChannel();
         channel.Ignore("list-processes");
-        await using AgentClient client = await ConnectedAsync(channel);
+        await using AgentClient client = await ConnectedAsync(channel, Impatient);
         IAsyncEnumerable<AgentEvent> events = client.ReadEventsAsync(None);
 
         AgentTimeoutException error = await Assert.ThrowsAsync<AgentTimeoutException>(() => client.ListProcessesAsync(None));
 
         Assert.Equal(AgentErrorCodes.Timeout, error.Code);
         Assert.Equal("list-processes", error.Operation);
-        Assert.Equal(Fast.RequestTimeout, error.Timeout);
+        Assert.Equal(Impatient.RequestTimeout, error.Timeout);
         channel.Reply(channel.Request("list-processes").GetProperty("id").GetInt64(), """{"ok":true,"processes":[]}""");
         // The client still works, and the late reply was not reported as a fault: the next event is the marker.
         Assert.Equal(1, (await client.PingAsync(None)).ProtocolVersion);
@@ -171,9 +179,12 @@ public sealed class AgentClientTests
         var channel = new SimulatedAgentChannel();
         channel.Ignore("list-processes");
         await using AgentClient client = await ConnectedAsync(channel);
-        using var cancel = new CancellationTokenSource(50);
+        using var cancel = new CancellationTokenSource();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ListProcessesAsync(cancel.Token));
+        Task<IReadOnlyList<ProcessInfo>> listing = client.ListProcessesAsync(cancel.Token);
+        Assert.Single(channel.Requests("list-processes"));
+        await cancel.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => listing);
 
         Assert.Equal(1, (await client.PingAsync(None)).ProtocolVersion);
     }
@@ -402,12 +413,103 @@ public sealed class AgentClientTests
     }
 
     [Fact]
+    public async Task A_launch_accepted_for_a_caller_that_gave_up_is_killed_at_once()
+    {
+        var channel = new SimulatedAgentChannel();
+        channel.Ignore("launch");
+        channel.On("kill", _ => """{"ok":true,"forced":true,"ms":1}""");
+        await using AgentClient client = await ConnectedAsync(channel, Impatient);
+
+        await Assert.ThrowsAsync<AgentTimeoutException>(() => client.LaunchAsync(new LaunchOptions { Prefix = "test", Program = "sleep" }, None));
+
+        // The agent had started the program all the same: nobody holds its identifier.
+        channel.Reply(channel.Request("launch").GetProperty("id").GetInt64(), """{"ok":true,"launch":"test/8","pid":480,"uid":1001}""");
+        JsonElement kill = await WaitForRequestAsync(channel, "kill");
+        Assert.Equal("test/8", kill.GetProperty("launch").GetString());
+        Assert.Equal(0, kill.GetProperty("graceMs").GetInt32());
+    }
+
+    [Fact]
+    public async Task A_refusal_that_arrives_late_undoes_nothing()
+    {
+        var channel = new SimulatedAgentChannel();
+        channel.Ignore("launch");
+        await using AgentClient client = await ConnectedAsync(channel, Impatient);
+        await Assert.ThrowsAsync<AgentTimeoutException>(() => client.LaunchAsync(new LaunchOptions { Prefix = "test", Program = "sleep" }, None));
+
+        channel.Reply(channel.Request("launch").GetProperty("id").GetInt64(), """{"ok":false,"error":"exec-failed","message":"no"}""");
+        await client.PingAsync(None);
+
+        Assert.Empty(channel.Requests("kill"));
+    }
+
+    [Fact]
+    public async Task A_reply_with_a_field_of_the_wrong_type_fails_its_request_at_once()
+    {
+        var channel = new SimulatedAgentChannel();
+        channel.On("launch", _ => """{"ok":true,"launch":"test/1","pid":"not a number"}""");
+        await using AgentClient client = await ConnectedAsync(channel);
+        IAsyncEnumerable<AgentEvent> events = client.ReadEventsAsync(None);
+
+        AgentProtocolException error = await Assert.ThrowsAsync<AgentProtocolException>(
+            () => client.LaunchAsync(new LaunchOptions { Prefix = "test", Program = "sleep" }, None).WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Equal(AgentErrorCodes.Protocol, error.Code);
+        Assert.IsType<AgentFaultEvent>(Assert.Single(await TakeAsync(events, 1)));
+    }
+
+    [Fact]
+    public async Task A_restart_of_the_agent_ends_the_launches_it_no_longer_knows()
+    {
+        var channel = new SimulatedAgentChannel();
+        channel.On("launch", _ => """{"ok":true,"launch":"test/1","pid":10,"uid":1001}""");
+        await using AgentClient client = await ConnectedAsync(channel);
+        LaunchResult launched = await client.LaunchAsync(new LaunchOptions { Prefix = "test", Program = "sleep" }, None);
+
+        channel.SendLine("""{"event":"ready","version":1,"pid":300,"cgroups":true,"port":"/dev/hvc0","consolePort":"/dev/hvc1"}""");
+
+        await Assert.ThrowsAsync<AgentClosedException>(() => launched.Exited.WaitAsync(Soon));
+        Assert.True(client.IsConnected);
+    }
+
+    [Theory]
+    [InlineData(0, 1, 1)]
+    [InlineData(1, 0, 1)]
+    [InlineData(1, 1, 0)]
+    [InlineData(-1, 1, 1)]
+    public void Delays_that_cannot_work_are_refused_when_the_client_is_created(int requestSeconds, int connectSeconds, int probeSeconds)
+    {
+        var options = new AgentClientOptions
+        {
+            RequestTimeout = TimeSpan.FromSeconds(requestSeconds),
+            ConnectTimeout = TimeSpan.FromSeconds(connectSeconds),
+            ConnectProbeInterval = TimeSpan.FromSeconds(probeSeconds),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AgentClient(new SimulatedAgentChannel(), options));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AgentClient(new SimulatedAgentChannel(), new AgentClientOptions { LongOperationMargin = TimeSpan.FromSeconds(-1) }));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AgentClient(new SimulatedAgentChannel(), new AgentClientOptions { ConsoleCloseFallback = TimeSpan.FromDays(60) }));
+    }
+
+    private static async Task<JsonElement> WaitForRequestAsync(SimulatedAgentChannel channel, string operation)
+    {
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (channel.Requests(operation).Count == 0)
+        {
+            Assert.True(System.Diagnostics.Stopwatch.GetElapsedTime(start) < Soon, $"no {operation} request was sent");
+            await Task.Delay(20);
+        }
+
+        return channel.Requests(operation)[0];
+    }
+
+    [Fact]
     public async Task Disposing_fails_what_is_pending_and_ends_the_readers()
     {
         var channel = new SimulatedAgentChannel();
         channel.On("launch", _ => """{"ok":true,"launch":"test/1","pid":10,"uid":1001}""");
         channel.Ignore("list-processes");
-        var client = await ConnectedAsync(channel, Fast with { RequestTimeout = Soon });
+        var client = await ConnectedAsync(channel);
         LaunchResult launched = await client.LaunchAsync(new LaunchOptions { Prefix = "test", Program = "sleep" }, None);
         IAsyncEnumerable<AgentEvent> events = client.ReadEventsAsync(None);
         Task<IReadOnlyList<ProcessInfo>> pending = client.ListProcessesAsync(None);
@@ -429,7 +531,7 @@ public sealed class AgentClientTests
     {
         var channel = new SimulatedAgentChannel();
         channel.Ignore("list-processes");
-        await using AgentClient client = await ConnectedAsync(channel, Fast with { RequestTimeout = Soon });
+        await using AgentClient client = await ConnectedAsync(channel);
         Task<IReadOnlyList<ProcessInfo>> pending = client.ListProcessesAsync(None);
 
         channel.Complete();

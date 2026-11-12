@@ -2,14 +2,17 @@
  * or program running as the prefix user in a cgroup of its own; the bytes of every console
  * travel on one virtio-console port (hvc1), multiplexed by frames (correction 3 of 205 A):
  *
- *   0xAE  type  console(2, big endian)  length(2, big endian)  payload(length)
+ *   0xAE  type  console(4, big endian)  length(2, big endian)  payload(length)
  *
  *   type 1 DATA   host -> guest: input for the pty; guest -> host: output of the pty
  *   type 2 CLOSED guest -> host only, after the last DATA of a console: payload = exit code and
  *                 signal of its main process (two int32, big endian; code -1 when signalled)
  *
- * The console number is the sequence number of its launch. A reader that finds anything else
- * than 0xAE where a frame should start skips bytes until the next 0xAE (resynchronisation).
+ * The console number is the sequence number of its launch. A frame is queued whole for the port
+ * or not at all (agent.c, outq), so the stream never holds a cut frame; a reader that joins in
+ * the middle and finds anything else than 0xAE where a frame should start skips bytes until the
+ * next 0xAE. While the host has not taken AGENT_CONSOLE_QUEUE_HIGH bytes of output, the ptys are
+ * not read: a program that floods its terminal waits, as it would on a slow terminal.
  * Ctrl+C is the byte 0x03 in a DATA frame: the line discipline of the pty turns it into SIGINT
  * (trial E14), nothing else is needed. */
 #define _GNU_SOURCE
@@ -17,6 +20,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
 #include <pty.h>
 #include <pwd.h>
@@ -33,7 +37,7 @@
 #define MUX_MAGIC 0xAE
 #define MUX_DATA 1
 #define MUX_CLOSED 2
-#define MUX_HEADER 6
+#define MUX_HEADER 8
 #define MUX_MAX_PAYLOAD 4096
 #define PTY_WRITE_TIMEOUT_MS 200
 
@@ -50,6 +54,7 @@ int console_port_open(const char *device)
         tcsetattr(fd, TCSANOW, &t);
     }
     console_port_fd = fd;
+    console_queue.fd = fd;
     return 0;
 }
 
@@ -70,24 +75,30 @@ static void send_frame(int type, int seq, const char *payload, size_t n)
 {
     if (console_port_fd < 0) return;
     unsigned char frame[MUX_HEADER + MUX_MAX_PAYLOAD];
+    unsigned number = (unsigned)seq;
     frame[0] = MUX_MAGIC;
     frame[1] = (unsigned char)type;
-    frame[2] = (unsigned char)(seq >> 8);
-    frame[3] = (unsigned char)seq;
-    frame[4] = (unsigned char)(n >> 8);
-    frame[5] = (unsigned char)n;
+    frame[2] = (unsigned char)(number >> 24);
+    frame[3] = (unsigned char)(number >> 16);
+    frame[4] = (unsigned char)(number >> 8);
+    frame[5] = (unsigned char)number;
+    frame[6] = (unsigned char)(n >> 8);
+    frame[7] = (unsigned char)n;
     memcpy(frame + MUX_HEADER, payload, n);
-    port_write_all(console_port_fd, (const char *)frame, MUX_HEADER + n);
+    /* The CLOSED frame always goes: the host must learn that the console is over. */
+    if (outq_put(&console_queue, (const char *)frame, MUX_HEADER + n, type == MUX_CLOSED))
+        logmsg("console %d: console port full, a frame of %zu bytes dropped", seq, n);
 }
 
 /* ---------------------------------------------------------------- pty -> host */
 
 /* Reads what the pty has (at most `rounds` buffers, so that a program that floods its terminal
- * cannot starve the loop) and sends it as DATA frames. Returns 0 when the pty is closed. */
-static int relay_output(console *c, int rounds)
+ * cannot starve the loop, and no more than the port queue takes unless `last`) and queues it as
+ * DATA frames. Returns 0 when the pty is closed. */
+static int relay_output(console *c, int rounds, int last)
 {
     char buf[MUX_MAX_PAYLOAD];
-    while (rounds-- > 0 && c->pty >= 0) {
+    while (rounds-- > 0 && c->pty >= 0 && (last || console_queue.len < AGENT_CONSOLE_QUEUE_HIGH)) {
         ssize_t n = read(c->pty, buf, sizeof buf);
         if (n > 0) { send_frame(MUX_DATA, c->seq, buf, (size_t)n); continue; }
         if (n < 0 && (errno == EAGAIN || errno == EINTR)) return 1;
@@ -101,14 +112,14 @@ static int relay_output(console *c, int rounds)
 
 void console_on_pty_readable(console *c)
 {
-    relay_output(c, 4);
+    relay_output(c, 4, 0);
 }
 
 /* The main process of the console was reaped: the rest of its output goes out, then the CLOSED
  * frame with the exit code (213 A: the code travels on the channel of the bytes, after them). */
 void console_on_child_exit(console *c, int status)
 {
-    relay_output(c, 64);
+    relay_output(c, 64, 1);
     int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
     int sig = WIFSIGNALED(status) ? WTERMSIG(status) : 0;
     unsigned char payload[8] = {
@@ -155,7 +166,11 @@ void console_port_on_readable(void)
 {
     unsigned char buf[4096];
     ssize_t r = read(console_port_fd, buf, sizeof buf);
-    if (r <= 0) return;
+    if (r <= 0) {
+        /* A port that reports an error or a hang-up on every poll must not spin the loop. */
+        if (r == 0 || (errno != EAGAIN && errno != EINTR)) usleep(20000);
+        return;
+    }
     size_t i = 0, n = (size_t)r;
     while (i < n) {
         if (parser.payload_left > 0) {
@@ -169,8 +184,9 @@ void console_port_on_readable(void)
         parser.header[parser.header_length++] = buf[i++];
         if (parser.header_length == MUX_HEADER) {
             parser.type = parser.header[1];
-            parser.seq = (parser.header[2] << 8) | parser.header[3];
-            parser.payload_left = ((size_t)parser.header[4] << 8) | parser.header[5];
+            parser.seq = (int)(((unsigned)parser.header[2] << 24) | ((unsigned)parser.header[3] << 16)
+                               | ((unsigned)parser.header[4] << 8) | parser.header[5]);
+            parser.payload_left = ((size_t)parser.header[6] << 8) | parser.header[7];
             parser.header_length = 0;
         }
     }
@@ -181,7 +197,7 @@ void console_port_on_readable(void)
 static console *console_of_request(jn *req)
 {
     jn *number = json_get(req, "console");
-    if (number && number->type == J_NUM) return console_by_seq((int)number->num);
+    if (number && number->type == J_NUM) return console_by_seq(jn_int(number, 0, 0, INT_MAX));
     launch *l = launch_find(json_str(req, "launch", NULL));
     return l ? console_by_seq(l->seq) : NULL;
 }
@@ -200,7 +216,7 @@ void op_open_console(const char *id, jn *req)
     for (int i = 0; i < AGENT_MAX_CONSOLES && !c; i++) if (!consoles[i].used) c = &consoles[i];
     if (!c) return reply_error(id, "too-many-consoles", "the agent keeps at most %d consoles open", AGENT_MAX_CONSOLES);
 
-    int cols = (int)json_num(req, "cols", 80), rows = (int)json_num(req, "rows", 25);
+    int cols = json_int(req, "cols", 80, 0, 100000), rows = json_int(req, "rows", 25, 0, 100000);
     if (cols < 1 || cols > 1000 || rows < 1 || rows > 1000) return reply_error(id, "invalid-request", "cols and rows must be between 1 and 1000");
     struct winsize size = { (unsigned short)rows, (unsigned short)cols, 0, 0 };
     int master, slave;
@@ -231,7 +247,7 @@ void op_open_console(const char *id, jn *req)
     pid_t pid = -1;
     if (!code) {
         pid = spawn_as(pw, l, program, args, json_get(req, "env"), json_str(req, "cwd", NULL),
-                       (int)json_num(req, "nproc", AGENT_DEFAULT_NPROC), -1, -1, -1, slave, &failure);
+                       json_int(req, "nproc", AGENT_DEFAULT_NPROC, 1, AGENT_MAX_NPROC), -1, -1, -1, slave, &failure);
         if (pid < 0) code = failure == ENOENT ? "program-not-found" : "exec-failed";
     }
     close(slave);
@@ -271,13 +287,14 @@ void op_close_console(const char *id, jn *req)
     if (!c || !l) return reply_error(id, "unknown-console", "no such console");
     int kept = 0;
     char kept_id[64] = "";
+    launch *kept_launch = NULL;
     jn *keep = json_get(req, "keep");
     if (keep && keep->type == J_ARR && keep->child && cgroup_available) {
         launch *sibling = launch_new(l->prefix, 0);
         char path[300];
         if (sibling && !cgroup_make(sibling) && launch_cgroup(sibling, path, sizeof path)) {
             for (jn *p = keep->child; p; p = p->next) {
-                pid_t pid = p->type == J_NUM ? (pid_t)p->num : 0;
+                pid_t pid = (pid_t)jn_int(p, 0, 0, INT_MAX);
                 if (pid > 1 && pid != c->pid && launch_of_pid(pid) == l && !cgroup_move(path, pid)) kept++;
             }
             sibling->detached = 1;
@@ -285,6 +302,7 @@ void op_close_console(const char *id, jn *req)
             launch_watch_cgroup(sibling);
             launch_id(sibling, kept_id, sizeof kept_id);
             if (kept == 0) { launch_forget(sibling); kept_id[0] = 0; }
+            else kept_launch = sibling;
         } else if (sibling) {
             launch_forget(sibling);
         }
@@ -295,14 +313,16 @@ void op_close_console(const char *id, jn *req)
     if (kept_id[0]) sb_jstrz(&b, kept_id); else sb_puts(&b, "null");
     sb_puts(&b, "}");
     send_line(&b);
-    launch_terminate(l, SIGHUP, (int)json_num(req, "graceMs", AGENT_DEFAULT_GRACE_MS), NULL);
+    /* The kept processes may already be gone: their launch then ends now (its exit event follows the reply). */
+    if (kept_launch) launch_on_cgroup_event(kept_launch);
+    launch_terminate(l, SIGHUP, json_int(req, "graceMs", AGENT_DEFAULT_GRACE_MS, 0, AGENT_MAX_GRACE_MS), NULL);
 }
 
 void op_console_resize(const char *id, jn *req)
 {
     console *c = console_of_request(req);
     if (!c || c->pty < 0) return reply_error(id, "unknown-console", "no such console");
-    int cols = (int)json_num(req, "cols", 0), rows = (int)json_num(req, "rows", 0);
+    int cols = json_int(req, "cols", 0, 0, 100000), rows = json_int(req, "rows", 0, 0, 100000);
     if (cols < 1 || cols > 1000 || rows < 1 || rows > 1000) return reply_error(id, "invalid-request", "cols and rows must be between 1 and 1000");
     struct winsize size = { (unsigned short)rows, (unsigned short)cols, 0, 0 };
     if (ioctl(c->pty, TIOCSWINSZ, &size)) return reply_error(id, "pty-failed", "TIOCSWINSZ: %s", strerror(errno));

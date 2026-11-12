@@ -17,14 +17,14 @@ public sealed partial class AgentClient
     /// <summary>Asks the agent whether it is there and what it tracks.</summary>
     public async Task<AgentStatus> PingAsync(CancellationToken cancellationToken)
     {
-        AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.Ping }, _options.RequestTimeout, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.Ping }, _options.RequestTimeout, null, null, cancellationToken).ConfigureAwait(false);
         return AgentProtocol.ToStatus(reply);
     }
 
     /// <summary>Every process of the guest, with its prefix and its launch when it has one.</summary>
     public async Task<IReadOnlyList<ProcessInfo>> ListProcessesAsync(CancellationToken cancellationToken)
     {
-        AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.ListProcesses }, _options.RequestTimeout, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.ListProcesses }, _options.RequestTimeout, null, null, cancellationToken).ConfigureAwait(false);
         return AgentProtocol.ToProcesses(reply);
     }
 
@@ -53,7 +53,7 @@ public sealed partial class AgentClient
         {
             LaunchId id = AgentProtocol.RequireLaunch(reply.Launch);
             result = new LaunchResult(id, reply.Pid, reply.Uid, RegisterLaunch(id));
-        }, cancellationToken).ConfigureAwait(false);
+        }, AbandonLaunch, cancellationToken).ConfigureAwait(false);
         return result!;
     }
 
@@ -65,19 +65,14 @@ public sealed partial class AgentClient
     /// <exception cref="AgentException"><see cref="AgentErrorCodes.UnknownLaunch"/> when the launch does not exist or is already over.</exception>
     public async Task<KillResult> KillAsync(LaunchId launch, TimeSpan? grace = null, int? signal = null, CancellationToken cancellationToken = default)
     {
-        if (grace is { } given)
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(given, TimeSpan.Zero, nameof(grace));
-        }
-
         var request = new AgentRequest
         {
             Op = AgentProtocol.Operations.Kill,
             Launch = launch.ToString(),
-            GraceMs = grace is null ? null : checked((int)grace.Value.TotalMilliseconds),
+            GraceMs = ToMilliseconds(grace, nameof(grace)),
             Signal = signal,
         };
-        AgentMessage reply = await SendAsync(request, (grace ?? DefaultKillGrace) + _options.LongOperationMargin, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(request, (grace ?? DefaultKillGrace) + _options.LongOperationMargin, null, null, cancellationToken).ConfigureAwait(false);
         return new KillResult(reply.Forced, TimeSpan.FromMilliseconds(reply.Ms));
     }
 
@@ -124,7 +119,7 @@ public sealed partial class AgentClient
     /// <exception cref="AgentException"><see cref="AgentErrorCodes.NoXServer"/> while the image has none.</exception>
     public async Task<IReadOnlyList<WindowInfo>> ListWindowsAsync(CancellationToken cancellationToken)
     {
-        AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.ListWindows }, _options.RequestTimeout, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.ListWindows }, _options.RequestTimeout, null, null, cancellationToken).ConfigureAwait(false);
         return AgentProtocol.ToWindows(reply);
     }
 
@@ -135,7 +130,7 @@ public sealed partial class AgentClient
     public async Task<IReadOnlyList<MountInfo>> MountsAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
         var request = new AgentRequest { Op = AgentProtocol.Operations.Mounts, TimeoutMs = ToMilliseconds(timeout, nameof(timeout)) };
-        AgentMessage reply = await SendAsync(request, (timeout ?? DefaultMountsTimeout) + _options.LongOperationMargin, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(request, (timeout ?? DefaultMountsTimeout) + _options.LongOperationMargin, null, null, cancellationToken).ConfigureAwait(false);
         return AgentProtocol.ToMounts(reply);
     }
 
@@ -158,7 +153,7 @@ public sealed partial class AgentClient
             TimeoutMs = ToMilliseconds(options.Timeout, nameof(options)),
             MaxOutput = options.MaxOutputBytes,
         };
-        AgentMessage reply = await SendAsync(request, (options.Timeout ?? DefaultExecTimeout) + _options.LongOperationMargin, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(request, (options.Timeout ?? DefaultExecTimeout) + _options.LongOperationMargin, null, null, cancellationToken).ConfigureAwait(false);
         return AgentProtocol.ToExecResult(reply);
     }
 
@@ -169,9 +164,13 @@ public sealed partial class AgentClient
     public async Task<ConsoleHandle> OpenConsoleAsync(ConsoleOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ValidatePrefix(options.Prefix);
         ValidateSize(options.Columns, options.Rows);
-        if (options.Program is not null)
+        if (options.Program is null)
+        {
+            ValidatePrefix(options.Prefix);
+            ValidateTexts([], options.Environment, options.WorkingDirectory);
+        }
+        else
         {
             ValidateProgram(options.Prefix, options.Program, options.Arguments, options.Environment, options.WorkingDirectory);
         }
@@ -188,16 +187,81 @@ public sealed partial class AgentClient
             Rows = options.Rows,
         };
         ConsoleHandle? console = null;
-        await SendAsync(request, _options.RequestTimeout, reply =>
+        lock (_lock)
         {
-            console = new ConsoleHandle(this, AgentProtocol.RequireLaunch(reply.Launch), reply.Console, reply.Pid, options.Columns, options.Rows);
-            RegisterConsole(console);
-        }, cancellationToken).ConfigureAwait(false);
+            _consolesOpening++;
+        }
+
+        try
+        {
+            await SendAsync(request, _options.RequestTimeout, reply =>
+            {
+                if (reply.Console <= 0)
+                {
+                    throw new AgentProtocolException(AgentErrorCodes.Protocol, $"The agent opened a console numbered {reply.Console}.");
+                }
+
+                console = new ConsoleHandle(this, AgentProtocol.RequireLaunch(reply.Launch), reply.Console, reply.Pid, options.Columns, options.Rows);
+                RegisterConsole(console);
+            }, AbandonConsole, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_lock)
+            {
+                if (--_consolesOpening == 0)
+                {
+                    _orphans.Clear(); // what is left belongs to no console that will ever be registered
+                }
+            }
+        }
+
         return console!;
+    }
+
+    /// <summary>
+    /// The agent accepted a launch whose caller had already given up (timeout, cancellation): nobody
+    /// holds its identifier, so it is ended at once rather than left running unnamed in the guest.
+    /// </summary>
+    private void AbandonLaunch(AgentMessage reply)
+    {
+        if (!LaunchId.TryParse(reply.Launch, out LaunchId id))
+        {
+            return;
+        }
+
+        TaskCompletionSource<ProcessExit>? exited;
+        lock (_lock)
+        {
+            _launches.Remove(id, out exited);
+        }
+
+        exited?.TrySetException(new AgentClosedException($"The launch {id} was abandoned by its caller."));
+        _ = exited?.Task.Exception;
+        _ = SendAndForgetAsync(new AgentRequest { Op = AgentProtocol.Operations.Kill, Launch = id.ToString(), GraceMs = 0 });
+    }
+
+    /// <summary>The same for a console whose caller gave up before the agent's reply.</summary>
+    private void AbandonConsole(AgentMessage reply)
+    {
+        ConsoleHandle? console;
+        lock (_lock)
+        {
+            _consoles.Remove(reply.Console, out console);
+            _orphans.Remove(reply.Console);
+        }
+
+        console?.Fail(new AgentClosedException($"The console {reply.Console} was abandoned by its caller."));
+        _ = SendAndForgetAsync(new AgentRequest { Op = AgentProtocol.Operations.CloseConsole, Console = reply.Console, GraceMs = 0 });
     }
 
     internal async ValueTask WriteConsoleAsync(int console, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
     {
+        lock (_lock)
+        {
+            ThrowIfClosedUnsafe();
+        }
+
         byte[] frames = ConsoleFrame.EncodeData(console, data.Span);
         // One writer at a time: the frames of two consoles must not interleave on the port.
         await _consoleWrite.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -215,7 +279,7 @@ public sealed partial class AgentClient
     {
         ValidateSize(columns, rows);
         var request = new AgentRequest { Op = AgentProtocol.Operations.ConsoleResize, Console = console, Cols = columns, Rows = rows };
-        await SendAsync(request, _options.RequestTimeout, null, cancellationToken).ConfigureAwait(false);
+        await SendAsync(request, _options.RequestTimeout, null, null, cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task<ConsoleCloseResult> CloseConsoleAsync(int console, TimeSpan? grace, IReadOnlyList<int>? keepProcessIds, CancellationToken cancellationToken)
@@ -227,13 +291,13 @@ public sealed partial class AgentClient
             GraceMs = ToMilliseconds(grace, nameof(grace)),
             Keep = keepProcessIds is { Count: > 0 } ? keepProcessIds : null,
         };
-        AgentMessage reply = await SendAsync(request, _options.RequestTimeout, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(request, _options.RequestTimeout, null, null, cancellationToken).ConfigureAwait(false);
         return new ConsoleCloseResult(reply.KeptCount, AgentProtocol.OptionalLaunch(reply.Kept));
     }
 
     private async Task<SignalResult> SignalAsync(AgentRequest request, CancellationToken cancellationToken)
     {
-        AgentMessage reply = await SendAsync(request, _options.RequestTimeout, null, cancellationToken).ConfigureAwait(false);
+        AgentMessage reply = await SendAsync(request, _options.RequestTimeout, null, null, cancellationToken).ConfigureAwait(false);
         return new SignalResult(reply.Count, reply.Signal, reply.Target ?? string.Empty);
     }
 
@@ -245,14 +309,15 @@ public sealed partial class AgentClient
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero, parameterName);
-        return checked((int)value.TotalMilliseconds);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(value, AgentClientOptions.MaximumDelay, parameterName);
+        return (int)value.TotalMilliseconds;
     }
 
     private static void ValidatePrefix(string prefix)
     {
         if (!LaunchId.IsValidPrefix(prefix))
         {
-            throw new ArgumentException($"'{prefix}' is not a prefix name (lowercase letters, digits and dashes, 1 to {LaunchId.MaxPrefixLength} characters).", nameof(prefix));
+            throw new ArgumentException($"'{prefix}' is not a prefix name (lowercase letters, digits and dashes, 1 to {LaunchId.MaxPrefixLength} characters).", "options");
         }
     }
 
@@ -264,21 +329,26 @@ public sealed partial class AgentClient
         ArgumentOutOfRangeException.ThrowIfGreaterThan(rows, 1000);
     }
 
+    private static void ValidateProgram(string prefix, string program, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment, string? workingDirectory)
+    {
+        ValidatePrefix(prefix);
+        ArgumentException.ThrowIfNullOrEmpty(program, "options");
+        ArgumentNullException.ThrowIfNull(arguments, "options");
+        ValidateTexts(arguments.Append(program), environment, workingDirectory);
+    }
+
     /// <summary>
     /// What the guest receives becomes C strings: a NUL would cut an argument short, so it is
     /// refused here rather than silently changing what runs.
     /// </summary>
-    private static void ValidateProgram(string prefix, string program, IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment, string? workingDirectory)
+    private static void ValidateTexts(IEnumerable<string> texts, IReadOnlyDictionary<string, string>? environment, string? workingDirectory)
     {
-        ValidatePrefix(prefix);
-        ArgumentException.ThrowIfNullOrEmpty(program);
-        ArgumentNullException.ThrowIfNull(arguments);
-        IEnumerable<string> texts = arguments.Append(program).Append(workingDirectory ?? string.Empty);
+        texts = texts.Append(workingDirectory ?? string.Empty);
         if (environment is not null)
         {
             if (environment.Keys.Any(key => key.Length == 0 || key.Contains('=', StringComparison.Ordinal)))
             {
-                throw new ArgumentException("An environment variable name is empty or contains '='.", nameof(environment));
+                throw new ArgumentException("An environment variable name is empty or contains '='.", "options");
             }
 
             texts = texts.Concat(environment.Keys).Concat(environment.Values);
@@ -286,7 +356,7 @@ public sealed partial class AgentClient
 
         if (texts.Any(text => text is null || text.Contains('\0', StringComparison.Ordinal)))
         {
-            throw new ArgumentException("The program, its arguments, its environment and its directory must not be null or contain a NUL character.", nameof(arguments));
+            throw new ArgumentException("The program, its arguments, its environment and its directory must not be null or contain a NUL character.", "options");
         }
     }
 }

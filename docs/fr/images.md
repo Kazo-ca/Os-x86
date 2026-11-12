@@ -18,14 +18,16 @@ est reconstruit depuis des sources officielles épinglées par leur SHA-256.
 | `images/tools/publish-layout.py` | la mise en forme de la publication (`images/<image>/<version>/`, `index.json`, refus au-dessus de 100 Mio pour Pages) |
 | `images/tools/Dockerfile` | le conteneur `osx86-tools` (e2fsprogs, mtools, python3) que les recettes utilisent |
 | `images/linux-base/` | la recette du Linux de base (201 A) : `Dockerfile`, `init.sh`, `verify-console.sh`, `modules.keep`, `osx86.modules`, `probes/`, `build-linux-base.py` |
-| `images/alpine-test/` | l'image Alpine de test du chantier 2, désormais paquetée |
+| `images/alpine-test/` | l'image Alpine de test du chantier 2, désormais paquetée ; elle embarque l'agent du chantier 5 |
+| `images/agent/` | l'agent invité (chantier 5) : sources C, `Dockerfile`, `build-agent.py` ; voir [`agent.md`](agent.md) |
 | `images/freedos/` | la recette FreeDOS : `build-freedos.py`, `FDAUTO.BAT` |
 | `images/build/<image>/` | la sortie (ignorée par git) ; `pack/` est la forme publiée |
 | `tests/OsX86.Tests/Images/` | tests `unit` des outils et test `guest` du pack Alpine |
 | `.github/workflows/images.yml` | construction par la CI, artefacts, publication Pages et R2 |
 
 ```bash
-python -I images/alpine-test/build-alpine-test.py     # ISO officiel, pas de Docker
+python -I images/agent/build-agent.py                 # l'agent invité (Docker linux/386), voir agent.md
+python -I images/alpine-test/build-alpine-test.py     # ISO officiel ; embarque l'agent s'il est construit
 python -I images/freedos/build-freedos.py             # archive officielle, mtools ou osx86-tools
 python -I images/linux-base/build-linux-base.py       # Docker (linux/386), 5 Go libres exigés
 python -I images/tools/pack-image.py check images/build/linux-base/pack
@@ -91,7 +93,7 @@ pas besoin de zstd.
   },
   "boot":  {"kind": "linux", "cmdline": "root=/dev/sda rootfstype=ext4 ro console=ttyS0 …", "console": "serial0",
             "disks": {"hda": "rootfs"}, "readyMarker": "OSX86-READY", "prompt": "osx86# ", "memoryMiB": 256,
-            "agent": {"path": "/usr/lib/osx86/agent", "port": "virtio0"}},
+            "agent": {"path": "/usr/lib/osx86/agent", "port": "virtio0", "consolePort": "virtio1", "protocol": 1}},
   "build": {"recipe": "…", "sizes": {…}}
 }
 ```
@@ -111,7 +113,8 @@ pas besoin de zstd.
 
 ### linux-base (201 A)
 
-Quatre étapes Docker, toutes en `linux/386` :
+Quatre étapes Docker, toutes en `linux/386`, plus l'image de l'agent (`images/agent`, construite
+d'abord par `build-linux-base.py`) dont l'étape `base` copie les deux binaires :
 
 1. **kernel** : `alpine:3.24`, `apk fetch linux-virt busybox musl` (noms de fichiers épinglés,
    SHA-256 conservés dans `/usr/lib/osx86/provenance`), le noyau `linux-virt` 6.18.63-r0 extrait
@@ -125,15 +128,16 @@ Quatre étapes Docker, toutes en `linux/386` :
 3. **base** : `debian:trixie-slim` i386 plus `kmod` et `procps` (installés par `docker run` puis
    `docker commit` dans le script, de même que `gcc` pour l'étape `probes` : aucun `apt-get` dans
    une étape de construction, voir « Publication »), le noyau, l'initramfs et les
-   modules, `init.sh` en `/sbin/init`, `verify-console.sh`, la place de l'agent
-   (`/usr/lib/osx86/agent`, lancé par l'init s'il existe), le durcissement. Le chantier 9 (Wine)
-   part de cette étape.
+   modules, `init.sh` en `/sbin/init`, `verify-console.sh`, l'agent du chantier 5
+   (`/usr/lib/osx86/agent`, root, 0755, lancé par l'init ; `/usr/bin/osx86-open-url`), le
+   durcissement. Le chantier 9 (Wine) part de cette étape.
 4. **slim** : `apt`, `perl-base` et leurs bibliothèques purgés, pages de manuel, locales,
    convertisseurs `gconv` (sauf Unicode, CP437, CP1252, Latin-1), fuseaux (sauf UTC) et base
    dpkg retirés ; les fichiers `copyright` restent. L'inventaire des paquets
    (`packages.tsv`, `licenses.tsv`) est écrit à cette étape, après la purge.
 
-`build-linux-base.py` exporte le conteneur (`docker export`), lance dans `osx86-tools`
+`build-linux-base.py` construit et vérifie l'agent, exporte le conteneur (`docker export`),
+vérifie que l'export porte exactement ce binaire (SHA-256, root, 0755), lance dans `osx86-tools`
 l'extraction avec propriétaires et modes, le test d'image, puis `mkfs.ext4 -d` (sans journal,
 UUID et graine fixes, `SOURCE_DATE_EPOCH`), écrit `sources.json`, paquette et mesure.
 
@@ -152,11 +156,19 @@ d'image l'avait trouvé en 1777).
 
 ### alpine-test
 
-Inchangée dans sa construction (ISO officiel 3.22.8, lecteurs ISO 9660 et cpio maison,
-`init.sh` en `/init`) ; `build-alpine-test.py` appelle maintenant `pack-image.py` et écrit
+ISO officiel 3.22.8, lecteurs ISO 9660 et cpio maison, `init.sh` en `/init` ;
+`build-alpine-test.py` appelle `pack-image.py` et écrit
 `images/build/alpine-test/pack/` (entrées `kernel` et `initramfs`, `boot.json`, `sources.json`).
 Le `manifest.json` de `images/build/alpine-test/` reste la description de construction que lit
 la page de test du chantier 2.
+
+Depuis le chantier 5, la recette ajoute à l'initramfs l'agent de `images/build/agent/` quand il
+est construit (le même binaire statique que dans linux-base ; `--require-agent` échoue s'il
+manque, sinon l'image est faite sans lui), `/usr/bin/osx86-open-url` et deux usagers de préfixe
+(`osx86-test`, `osx86-other`). L'init monte cgroup v2 et `/tmp`, passe `/` en 0755 (la racine de
+l'initramfs est en 0700), ferme `ttyS0` et `hvc0` à `hvc3` (0600), crée les homes en 0700 et
+lance l'agent sur `hvc0` ; `hvc2` et `hvc3` restent libres pour les tests du moteur. C'est
+l'image du test `guest` de l'agent, en attendant le démarrage de linux-base (chantier 6).
 
 ### freedos (214 A, E14)
 
@@ -182,11 +194,15 @@ l'écran), `SETUP.BAT` retiré. Entrée `disk`, `boot.kind` = `dos`, affichage t
   en 0700, `HOME_MODE`, `/tmp` collant), ports (`ttyS0`, `hvc0` à `hvc3` en 0600), socket brut,
   `chown`, `kill`, `nsenter` (aucun setuid, aucune capacité de fichier), `nosuid` sur `/home` et
   `/tmp`, `ptrace` (`yama` à 1), `/proc` avec `hidepid`, agent lancé en root, cgroup2 monté
-  `nosuid,nodev,noexec` et jamais `chown`.
+  `nosuid,nodev,noexec` et jamais `chown` ;
+- `agent_files_root_only` (chantier 5) : quand l'image porte l'agent, `/usr/lib/osx86/agent` et
+  `/usr/bin/osx86-open-url` sont des fichiers exécutables de root que personne d'autre ne peut
+  écrire ; une image sans agent ne casse rien (212 A). L'inventaire les liste (`inventory.agent`).
 
 Les tests `unit` d'`ImageCheckTests` construisent un tar synthétique avec le vrai `init.sh` et le
-cassent de cinq façons (setuid, `/run/lock` inscriptible, init sans sysctls ni options de
-montage, `/root` ouvert) pour vérifier que chaque fuite est vue.
+cassent de sept façons (setuid, `/run/lock` inscriptible, init sans sysctls ni options de
+montage, `/root` ouvert, agent inscriptible par tous, agent non exécutable) pour vérifier que
+chaque fuite est vue.
 
 ## Sources et licences (plan, section 12)
 
@@ -213,13 +229,14 @@ Chaque pack publie `sources.json` à côté de l'image :
 
 ## Publication (202 A)
 
-`images.yml` tourne sur tout changement de `images/**`, des tests d'images ou du workflow (le job
-linux-base répare d'abord la règle `socket` du profil seccomp du démon Docker du runner, qui refuse
+`images.yml` tourne sur tout changement de `images/**`, des tests d'images ou du workflow (les jobs
+qui construisent ou lancent des conteneurs 32 bits, agent, alpine-test et linux-base, réparent
+d'abord, par `.github/scripts/repair-i386-seccomp.sh`, la règle `socket` du profil seccomp du démon Docker du runner, qui refuse
 `socket(2)` à tout conteneur 32 bits, mesuré par `strace` : profil officiel épinglé, règle rendue
 inconditionnelle, rien d'autre ne change ; les étapes `RUN` de BuildKit gardent leur propre profil,
 d'où les installations apt par `docker run`) :
-quatre jobs construisent et vérifient alpine-test, freedos, linux-base (Docker sur le runner,
-i386 natif) et les tests des outils, et gardent chaque pack en artefact. Sur un push vers
+cinq jobs construisent et vérifient l'agent (compilation, `--check`, test de fumée), alpine-test,
+freedos, linux-base (Docker sur le runner, i386 natif) et les tests des outils, et gardent chaque pack en artefact. Sur un push vers
 `j0/base` ou `main` :
 
 - **GitHub Pages** reçoit les petites images de test (alpine-test, freedos) sous
@@ -237,9 +254,9 @@ i386 natif) et les tests des outils, et gardent chaque pack en artefact. Sur un 
 
 | Image | Décompressé | Pack zstd | Morceaux | Note |
 | --- | --- | --- | --- | --- |
-| alpine-test | noyau 7,70 Mo + initramfs 7,58 Mo | **15,14 Mo** | 1 | le bzImage est déjà compressé |
+| alpine-test | noyau 7,70 Mo + initramfs 7,66 Mo | **15,21 Mo** | 1 | le bzImage est déjà compressé ; avec l'agent (+73 Ko) |
 | freedos | disque 33,55 Mo | **17,25 Mo** | 1 | le disque contient 17 Mio de paquets zip |
-| linux-base | noyau 8,11 Mo + initramfs 5,06 Mo + ext4 138,41 Mo (export 102,35 Mo) | **73,05 Mo** | 3 | sans Wine ; 56 modules noyau ; dégraissage : voir `measurements.json` |
+| linux-base | noyau 8,11 Mo + initramfs 4,60 Mo + ext4 130,02 Mo (export 97,55 Mo) | **70,67 Mo** | 3 | sans Wine ; 56 modules noyau ; avec l'agent (141 Ko) ; remesuré au chantier 5 (chantier 4 : 73,05 Mo) ; dégraissage : voir `measurements.json` |
 
 L'objectif de 250 Mio de 201 A porte sur l'image Wine (chantier 9), qui part de l'étape `base` ;
 E17 avait mesuré 380 Mio avec Debian complet, 130 Mio de modules et `apt`. Les mesures sont dans
@@ -249,7 +266,7 @@ E17 avait mesuré 380 Mio avec Debian complet, 130 Mio de modules et `apt`. Les 
 
 - `dotnet test --filter "Category=unit"` : `PackImageTests` (morceaux, schéma, `check` qui
   détecte un octet changé et un manifeste modifié, `extract`, refus des mauvais arguments),
-  `ImageCheckTests` (tar synthétique, 22 contrôles, cinq cassures). Ils lancent Python avec `-I`
+  `ImageCheckTests` (tar synthétique, 22 contrôles, sept cassures). Ils lancent Python avec `-I`
   ; sans Python 3.14 ni `zstandard` ils sont ignorés en local et échouent dans la CI.
 - `dotnet test --filter "Category=guest"` : `PackedAlpineGuestTests` vérifie le pack Alpine,
   l'extrait et le démarre dans le worker jusqu'à l'invite série (9 s dans Chrome).
