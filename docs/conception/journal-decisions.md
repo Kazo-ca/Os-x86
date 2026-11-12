@@ -508,3 +508,13 @@ Détail des recherches vérifiées du 2026-11-09 : [../recherche-2026-11-09/](..
 - **Série 6 à revoir après 62 B :** les points « À trancher » des effets ci-dessus, puis les questions 65 à 76.
 - **Points ouverts par l'analyse** : un deuxième front end Windows (une autre app que BoxedWine qui lance des programmes Windows : voit-elle les bouteilles et la bibliothèque de BoxedWine? voir 52, 61.12 et 65) ; l'export d'une seule bouteille (aujourd'hui, 34 n'exporte que le disque entier d'une VM).
 - **Reste de la carte** : C6 (v86 officiel ou fork) ; C7 et C9 à confirmer seulement (4, 9, 17, 24 et 25 les couvrent) ; C13-C14 (images), C15 (ordre des ADR), C18 (Windows : ISO et licence), C19 (worker dans le modèle de processus) ; C21-C23 (stockage), avec deux points laissés ouverts : la copie-sur-écriture des bouteilles au niveau des fichiers ou des blocs (56, règle 3) et l'image avec Wine qui partage ou non la base de ton Linux (58, puce 5) ; C24 est couvert par 34 et 48 ; C25-C29 (fichiers), C30-C32 (réseau), C40-C41 (performance), C42-C44 (structure et tests), C45 (jalons). C10 (DOS) est tranchée par 28.
+
+Série 17 (259 à 262), posée le 2026-11-12 dans [serie-17-envoyee.md](serie-17-envoyee.md) (questions du code de l'ADR 0244, PR Kazo-ca/Os#450), répondue le même jour.
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 259 | Marque d'une bibliothèque partagée | **A, avec précision** : marque dans l'assemblage, posée par le projet de la bibliothèque ; une bibliothèque ou DLL ordinaire référencée par une app n'est gérée ni par Kazo OS ni par le Store, elle accompagne l'app. | 225, ADR 0244 §2 |
+| 260 | Deux majeures partagées sans Feature | **A** : installées toutes les deux, une seule par page, journal, « Redémarrer pour terminer ». | ADR 0244 §2 |
+| 261 | Bibliothèques non partagées de même nom | **A** : la première chargée sert les deux, la seconde notée au journal. | ADR 0244 |
+| 262 | Fournisseur avant l'ADR 0245 | **A** : toute Feature installée qui embarque la bibliothèque. | ADR 0245 |
+
