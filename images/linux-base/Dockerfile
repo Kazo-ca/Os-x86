@@ -6,6 +6,9 @@
 # docker export); nothing here is run outside Docker. No Wine here (work item 9 builds on the
 # `base` stage).
 #
+# The platform (linux/386) is given by the build command (build-linux-base.py passes
+# --platform linux/386 to every stage); a constant in FROM is refused by BuildKit's linter.
+#
 # Stages: kernel (Alpine: kernel, initramfs, pruned modules, provenance) -> probes (two static
 # programs of the R134.5 checks) -> base (Debian with the packages, the init, the hardening and
 # the package inventory) -> slim (the published root).
@@ -14,7 +17,7 @@ ARG ALPINE_VERSION=3.24
 ARG DEBIAN_IMAGE=debian:trixie-slim
 
 # --- Stage 1: the kernel of Alpine --------------------------------------------------------------
-FROM --platform=linux/386 alpine:${ALPINE_VERSION} AS kernel
+FROM alpine:${ALPINE_VERSION} AS kernel
 ARG LINUX_VIRT_VERSION=6.18.63-r0
 ARG BUSYBOX_VERSION=1.37.0-r31
 ARG MUSL_VERSION=1.2.6-r3
@@ -55,19 +58,19 @@ RUN set -eux; \
     wc -l /tmp/modules.closure
 
 # --- Stage 2: the probes of the R134.5 checks (two tiny static programs, no compiler in the image)
-FROM --platform=linux/386 ${DEBIAN_IMAGE} AS probes
-RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+FROM ${DEBIAN_IMAGE} AS probes
+RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 COPY probes/ /src/
 RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o /osx86-ptrace /src/osx86-ptrace.c && strip /osx86-rawsock /osx86-ptrace
 
 # --- Stage 3: Debian i386, the init, the hardening -----------------------------------------------
-FROM --platform=linux/386 ${DEBIAN_IMAGE} AS base
+FROM ${DEBIAN_IMAGE} AS base
 ARG IMAGE_VERSION=0.1.0
 ENV DEBIAN_FRONTEND=noninteractive
 RUN set -eux; \
-    apt-get update; \
+    apt-get -o Acquire::Retries=5 update; \
     # kmod: modprobe for the agent and the display of later work items; procps: sysctl, ps.
-    apt-get install -y --no-install-recommends kmod procps; \
+    apt-get -o Acquire::Retries=5 install -y --no-install-recommends kmod procps; \
     apt-get clean; rm -rf /var/lib/apt/lists/*
 
 COPY --from=kernel /boot/vmlinuz-virt /boot/initramfs-virt /boot/

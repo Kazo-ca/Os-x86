@@ -84,6 +84,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Build linux-base (Docker linux/386), image test of 210 A, ext4 root, sources, pack
+        env:
+          OSX86_DOCKER_BUILD_ARGS: --network=host # the build sandbox of the runner does not resolve deb.debian.org
         run: python3 -I images/linux-base/build-linux-base.py
       - name: Check the pack
         run: python3 -I images/tools/pack-image.py check images/build/linux-base/pack

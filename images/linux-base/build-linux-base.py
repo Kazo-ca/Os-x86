@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -104,9 +105,13 @@ def check_free_space(directory: Path) -> None:
 
 
 def docker_build(output: Path) -> None:
+    # OSX86_DOCKER_BUILD_ARGS: extra arguments for the two image builds (the CI passes
+    # --network=host: the DNS of the build sandbox on the GitHub runners did not resolve
+    # deb.debian.org).
+    extra = os.environ.get("OSX86_DOCKER_BUILD_ARGS", "").split()
     run(["docker", "build", "-t", TOOLS_IMAGE, str(TOOLS_DIR)])
     for target, tag in (("base", DOCKER_IMAGE_FULL), ("slim", DOCKER_IMAGE)):
-        run(["docker", "build", "--platform", "linux/386", "--target", target, "-t", tag,
+        run(["docker", "build", "--platform", "linux/386", *extra, "--target", target, "-t", tag,
              "--build-arg", f"IMAGE_VERSION={IMAGE_VERSION}", str(HERE)])
 
 
