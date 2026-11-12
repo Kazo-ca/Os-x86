@@ -83,6 +83,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Trace the syscalls apt is refused in an i386 container (temporary diagnostic)
+        continue-on-error: true
+        run: |
+          set +e
+          docker run --security-opt seccomp=unconfined --platform linux/386 --name osx86-probe-c debian:trixie-slim sh -c 'apt-get update >/dev/null && apt-get install -y --no-install-recommends strace >/dev/null && echo strace-installed'
+          docker commit osx86-probe-c osx86-probe >/dev/null && docker rm osx86-probe-c >/dev/null
+          echo "== apt-get update under the default profile, traced (refused syscalls)"
+          docker run --rm --platform linux/386 osx86-probe sh -c 'strace -f -o /tmp/t -e trace=network,clock_gettime64,clock_nanosleep_time64,ppoll_time64,pselect6_time64,futex_time64,recvmmsg_time64,sendmmsg,rseq,clone3,faccessat2,close_range,openat2,statx,getrandom,memfd_create,socketcall apt-get update >/dev/null 2>&1; grep -E "ENOSYS|EPERM" /tmp/t | sed "s/^[0-9]* //" | sort | uniq -c | sort -rn | head -15'
+          echo "== getaddrinfo alone, traced"
+          docker run --rm --platform linux/386 osx86-probe sh -c 'strace -f -o /tmp/g -e trace=network getent ahostsv4 deb.debian.org >/dev/null 2>&1; grep -cE "ENOSYS|EPERM" /tmp/g; grep -E "^[0-9]* (socket|socketcall)" /tmp/g | head -3'
+          true
       - name: Build linux-base (Docker linux/386), image test of 210 A, ext4 root, sources, pack
         run: python3 -I images/linux-base/build-linux-base.py
       - name: Check the pack
