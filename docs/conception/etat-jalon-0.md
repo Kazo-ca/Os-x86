@@ -1,5 +1,7 @@
 # Jalon 0 — où on en est (2026-11-12)
 
+**En pause depuis le 2026-11-12, à ta demande.** Rien ne tourne : les sessions des chantiers 6a et 6 sont arrêtées sans commit, la PR Kazo #450 reste ouverte. Pour reprendre, un mot suffit : je relance 6a et 6 là où elles en sont.
+
 Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-execution.md](jalon-0-execution.md).
 
 ## Fait
@@ -44,7 +46,6 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Fusionner Kazo #450.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
-- Reprendre les deux sessions du chantier 6 quand la limite d'usage sera levée (je m'en charge sur un mot de toi).
 
 ## Démonstration de fin de jalon 0
 
