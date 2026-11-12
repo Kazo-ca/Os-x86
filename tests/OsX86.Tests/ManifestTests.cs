@@ -11,7 +11,7 @@ public sealed class ManifestTests
     [Fact]
     public void The_feature_is_the_x86_terminal_command_with_its_id()
     {
-        Assert.Equal("org.kazoos.x86", _app.Id);
+        Assert.Equal("ca.kazo.x86", _app.Id);
         Assert.Equal(AppKind.Terminal, _app.Kind);
         Assert.Equal(typeof(X86Command), _app.EntryPoint);
         Assert.Equal("x86", _app.Terminal!.Name);
