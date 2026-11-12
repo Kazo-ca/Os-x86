@@ -6,6 +6,7 @@
 | --- | --- |
 | [`features.md`](features.md) | The features: available, in progress, planned |
 | [`changelog.md`](changelog.md) | The changes per version |
+| [`images.md`](images.md) | The guest images: recipes (linux-base, Alpine test, FreeDOS), packing format and manifest, image test, sources and licenses, publication, sizes |
 | [`engine.md`](engine.md) | The v86 engine in a Web Worker: `IEngine`, protocol, vendored v86 and patches, Alpine test image, tests, sources and licenses |
 | [`../conception/`](../conception/) | The design: approved plan, decisions register, question series, milestone 0 order (French only) |
 | [`../essais/`](../essais/) | The reports of the measurement prototypes (French only) |

@@ -1,0 +1,206 @@
+# The guest images (milestone 0, work item 4; decisions 201 A, 202 A, 210 A): built by the CI
+# from the recipes of images/ whenever they change, never committed. Each job builds one image
+# with images/tools/pack-image.py (chunks of 32 MiB, manifest format 1, manifest.sha256) and
+# keeps the pack as a workflow artifact. linux-base also runs the image test of 210 A
+# (images/tools/image-check.py) and fails when one of the 22 R134.5 checks breaks.
+#
+# Publication (plan section 12, decision 202 A), on a push to j0/base or main only:
+#   - the small test images (alpine-test, freedos: manifests, chunks, sources) go to GitHub
+#     Pages when the repository variable OSX86_PUBLISH_PAGES is "true" (Pages must first be
+#     enabled by the maintainer with the source "GitHub Actions"); nothing above 100 MiB ever
+#     goes there, the job refuses it;
+#   - the real images (linux-base, later the Wine image) go to Cloudflare R2 behind a Kazo
+#     domain when the repository variable OSX86_R2_BUCKET and the three OSX86_R2_* secrets are
+#     set; until Kazo provides the origin (202 A) the job never runs.
+# Layout on both hosts: images/<image>/<version>/{manifest.json, manifest.sha256, chunk-NNNNN.bin,
+# sources.json, ...} and images/index.json.
+name: Images
+
+on:
+  pull_request:
+    paths:
+      - "images/**"
+      - "tests/OsX86.Tests/Images/**"
+      - ".github/workflows/images.yml"
+  push:
+    branches: [j0/base, main]
+    paths:
+      - "images/**"
+      - "tests/OsX86.Tests/Images/**"
+      - ".github/workflows/images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14" # compression.zstd in the standard library
+
+jobs:
+  alpine-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build and pack the Alpine test image (official ISO, verified)
+        run: python3 -I images/alpine-test/build-alpine-test.py
+      - name: Check the pack
+        run: python3 -I images/tools/pack-image.py check images/build/alpine-test/pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-alpine-test
+          path: images/build/alpine-test/pack
+          if-no-files-found: error
+
+  freedos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install mtools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mtools
+      - name: Build and pack the FreeDOS image (official archive, verified)
+        run: python3 -I images/freedos/build-freedos.py
+      - name: Check the pack
+        run: python3 -I images/tools/pack-image.py check images/build/freedos/pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-freedos
+          path: images/build/freedos/pack
+          if-no-files-found: error
+
+  linux-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Repair the socket rule of the daemon's seccomp profile for 32-bit containers
+        # Measured with strace on ubuntu-latest (Docker 29.4): under the daemon's default seccomp
+        # profile, an i386 container gets ENOSYS on socket(2) and socketcall(2) (24 refusals in
+        # one apt-get update), so apt cannot download anything; amd64 containers are fine. The
+        # default profile allows socket(2) per address family through argument comparisons,
+        # which do not hold for a 32-bit container. The daemon of this job keeps the whole
+        # official default profile (moby/profiles, pinned commit and SHA-256) with the socket
+        # rule made unconditional, then proves it on an i386 apt-get update.
+        env:
+          PROFILE_COMMIT: 7b5ccfab2d6b4e0aa64c6cce401a2705788eafeb
+          PROFILE_SHA256: 15434cc9c9037d85b35027a60721bf45f381782b4283b01d94663366e71569f8
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/moby/profiles/${PROFILE_COMMIT}/seccomp/default.json" -o /tmp/seccomp-default.json
+          echo "${PROFILE_SHA256}  /tmp/seccomp-default.json" | sha256sum -c -
+          jq '.syscalls |= (map(select((.names | length) != 1 or .names[0] != "socket")) + [{"names": ["socket"], "action": "SCMP_ACT_ALLOW"}])' /tmp/seccomp-default.json > /tmp/seccomp-osx86.json
+          sudo install -m 0644 /tmp/seccomp-osx86.json /etc/docker/seccomp-osx86.json
+          echo '{"seccomp-profile": "/etc/docker/seccomp-osx86.json"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+          docker info --format 'security options: {{.SecurityOptions}}'
+          docker run --rm --platform linux/386 debian:trixie-slim sh -c 'apt-get update 2>&1 | grep -E "^(Err|Get|Hit):" | head -3; apt-get update > /dev/null 2>&1'
+      - name: Build linux-base (Docker linux/386), image test of 210 A, ext4 root, sources, pack
+        run: python3 -I images/linux-base/build-linux-base.py
+      - name: Check the pack
+        run: python3 -I images/tools/pack-image.py check images/build/linux-base/pack
+      - name: Sizes
+        run: cat images/build/linux-base/measurements.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-linux-base
+          path: images/build/linux-base/pack
+          if-no-files-found: error
+
+  image-tool-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build
+        run: dotnet build tests/OsX86.Tests/OsX86.Tests.csproj -c Release -warnaserror
+      - name: Unit tests of the image tools
+        run: dotnet test tests/OsX86.Tests/OsX86.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~OsX86.Tests.Images&Category=unit"
+
+  publish-pages:
+    # The small test images on GitHub Pages (202 A). Needs Pages enabled with the source
+    # "GitHub Actions" (a repository setting) and the variable OSX86_PUBLISH_PAGES set to true.
+    if: github.event_name != 'pull_request' && vars.OSX86_PUBLISH_PAGES == 'true'
+    needs: [alpine-test, freedos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-alpine-test
+          path: packs/alpine-test
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-freedos
+          path: packs/freedos
+      - name: Lay the site out and refuse anything above 100 MiB
+        run: python3 -I images/tools/publish-layout.py --packs packs --site site --max-file-bytes 104857600 --max-total-bytes 943718400
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  publish-r2:
+    # The real images on Cloudflare R2 behind a Kazo domain (202 A). Never runs until Kazo
+    # provides the bucket (variable OSX86_R2_BUCKET) and the credentials (secrets
+    # OSX86_R2_ACCOUNT_ID, OSX86_R2_ACCESS_KEY_ID, OSX86_R2_SECRET_ACCESS_KEY). Objects are
+    # immutable (versioned paths); the bucket's CORS policy must expose Content-Range, ETag and
+    # Content-Length (trial E3).
+    if: github.event_name != 'pull_request' && vars.OSX86_R2_BUCKET != ''
+    needs: [alpine-test, freedos, linux-base]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: packs
+      - name: Lay the publication out (no size limit on R2)
+        run: |
+          for pack in packs/image-*; do mv "$pack" "packs/${pack#packs/image-}"; done
+          python3 -I images/tools/publish-layout.py --packs packs --site site
+      - name: Install rclone
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rclone
+      - name: Upload to R2 (immutable, versioned paths)
+        env:
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.OSX86_R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.OSX86_R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.OSX86_R2_SECRET_ACCESS_KEY }}
+        run: |
+          rclone copy site "r2:${{ vars.OSX86_R2_BUCKET }}" --checksum --exclude images/index.json             --header-upload "Cache-Control: public, max-age=31536000, immutable"
+          rclone copyto site/images/index.json "r2:${{ vars.OSX86_R2_BUCKET }}/images/index.json"             --header-upload "Cache-Control: no-cache"

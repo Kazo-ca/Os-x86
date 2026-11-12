@@ -16,7 +16,7 @@ The design was debated and recorded before any code: [`docs/conception/`](docs/c
 | `src/OsX86.Os/` | a Kazo OS host with the feature, for development and demos |
 | `tests/` | xUnit tests (`unit`; `guest` boots the test image in a headless browser) |
 | `tools/v86/` | the script and patches that vendor v86 into `src/OsX86/wwwroot/v86/` |
-| `images/` | recipes of the guest images (the Alpine test image; built, never committed) |
+| `images/` | recipes of the guest images (linux-base, Alpine test, FreeDOS) and their packing and test tools; built, never committed |
 | `docs/fr/`, `docs/en/` | product documentation (features, changelog), French first |
 | `external/KazoOs` | Kazo OS as a submodule, pinned on a release tag |
 

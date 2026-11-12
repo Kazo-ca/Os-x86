@@ -1,0 +1,34 @@
+# Kernel modules kept in the root of linux-base (their dependencies are added by the Dockerfile).
+# Everything else of the 868 modules of linux-virt is dropped: it is the bulk of the 130 MiB of
+# decompressed modules measured in trial E17. Later work items add what they need here.
+# Disks and file systems
+sd_mod
+ata_generic
+virtio_blk
+virtio_scsi
+ext4
+overlay
+loop
+squashfs
+isofs
+vfat
+nls_cp437
+nls_iso8859-1
+nls_utf8
+# The shared folder (9p over virtio, decision D22, trial E8)
+9p
+9pnet_virtio
+# Display and input (work items of milestones 1 to 3: Xorg on the Bochs framebuffer, evdev)
+bochs
+drm_kms_helper
+simpledrm
+evdev
+psmouse
+mousedev
+# Sound (v86 emulates a Sound Blaster 16; milestone 2)
+snd_sb16
+snd_pcm_oss
+# Network (v86 emulates an NE2000 PCI card; work item 12)
+ne2k-pci
+virtio_net
+tun
