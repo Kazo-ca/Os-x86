@@ -211,7 +211,10 @@ Chaque pack publie `sources.json` à côté de l'image :
 
 ## Publication (202 A)
 
-`images.yml` tourne sur tout changement de `images/**`, des tests d'images ou du workflow :
+`images.yml` tourne sur tout changement de `images/**`, des tests d'images ou du workflow (le job
+linux-base répare d'abord la règle `socket` du profil seccomp du démon Docker du runner, qui refuse
+`socket(2)` à tout conteneur 32 bits, mesuré par `strace` : profil officiel épinglé, règle rendue
+inconditionnelle, rien d'autre ne change) :
 quatre jobs construisent et vérifient alpine-test, freedos, linux-base (Docker sur le runner,
 i386 natif) et les tests des outils, et gardent chaque pack en artefact. Sur un push vers
 `j0/base` ou `main` :
