@@ -11,7 +11,7 @@ Output (git-ignored, never committed): images/build/agent/
     agent, osx86-open-url    the binaries
     toolchain.txt            the compiler and libc packages that built them
     manifest.json            sizes and SHA-256 of the binaries, SHA-256 of every source file,
-                             protocol version
+                             protocol version, name of the Docker image that holds them in /out
 
 images/linux-base/build-linux-base.py and images/alpine-test/build-alpine-test.py install the
 binaries from there. Docker images and containers created here are named osx86-agent-*; nothing
@@ -104,6 +104,7 @@ def build(output: Path) -> None:
         "format": 1,
         "agent": AGENT_VERSION,
         "protocol": PROTOCOL_VERSION,
+        "dockerImage": BUILD_IMAGE,
         "architecture": "i386",
         "libc": "musl (static)",
         "files": {name: {"size": (output / name).stat().st_size, "sha256": sha256_bytes((output / name).read_bytes())}

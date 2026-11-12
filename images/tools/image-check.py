@@ -34,6 +34,9 @@ from pathlib import Path
 
 INIT_PATH = "sbin/init"
 AGENT_PATH = "usr/lib/osx86/agent"
+# What the agent of work item 5 installs: the agent (root, started by the init) and the program a
+# guest runs to hand a URL to the host.
+AGENT_FILES = (AGENT_PATH, "usr/bin/osx86-open-url")
 PROBES = ("usr/lib/osx86/osx86-rawsock", "usr/lib/osx86/osx86-ptrace")
 MAX_INIT_BYTES = 256 * 1024
 MAX_LINK_DEPTH = 16
@@ -350,6 +353,17 @@ def run_checks(tree: Tree, init_path: str, allow_tar_root_mode: bool) -> Report:
     missing = [path for path in PROBES + ("usr/lib/osx86/verify-console.sh",) if not tree.exists(path)]
     report.check("runtime_probes_present", not missing, "present" if not missing else "missing: " + " ".join(missing),
                  "verify-console.sh and its two probes under /usr/lib/osx86")
+    # The agent runs as root: when the image carries it, nobody else may be able to replace it.
+    # An image without the agent is legitimate (decision 212 A): the check then has nothing to break.
+    agent_files = {path: entries[path] for path in AGENT_FILES if path in entries}
+    unsafe = [path for path, entry in agent_files.items()
+              if not entry.is_file or entry.uid != 0 or entry.mode & 0o022 or not entry.mode & 0o100]
+    report.check("agent_files_root_only", not unsafe,
+                 ("absent (image without agent)" if not agent_files else "root-owned, not writable by others: " + " ".join(sorted(agent_files)))
+                 if not unsafe else "replaceable or not runnable: " + " ".join(unsafe),
+                 "owner and mode of /usr/lib/osx86/agent and /usr/bin/osx86-open-url")
+    report.inventory["agent"] = {path: {"mode": f"{entry.mode & 0o7777:04o}", "uid": entry.uid, "size": entry.size}
+                                 for path, entry in sorted(agent_files.items())}
     mountpoint_modes = {path: f"{entries[path].mode & 0o7777:04o}" for path in sorted(MOUNT_POINTS) if path in entries}
     report.inventory["mountPoints"] = mountpoint_modes
     return report
@@ -369,7 +383,8 @@ def main(argv: list[str] | None = None) -> int:
     tree = load_tar(args.tar) if args.tar else load_directory(args.tree)
     report = run_checks(tree, normalise(args.init), args.allow_tar_root_mode)
     r134 = [control for control in report.controls if control["id"] not in
-            ("world_writable_inventory", "root_mode_755", "run_mode_0755", "display_input_devices_0600", "runtime_probes_present")]
+            ("world_writable_inventory", "root_mode_755", "run_mode_0755", "display_input_devices_0600", "runtime_probes_present",
+             "agent_files_root_only")]
     result = {
         "ok": not report.leaks,
         "inventory": report.inventory,

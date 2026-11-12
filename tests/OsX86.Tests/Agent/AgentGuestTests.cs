@@ -101,7 +101,8 @@ public sealed class AgentGuestTests(ITestOutputHelper output)
         }
 
         times.Sort();
-        output.WriteLine($"ping round trip through the test bridge: median {times[5]:0.0} ms, min {times[0]:0.0}, max {times[^1]:0.0}");
+        AgentStatus status = await client.PingAsync(None);
+        output.WriteLine($"ping round trip through the test bridge: median {times[5]:0.0} ms, min {times[0]:0.0}, max {times[^1]:0.0}; agent RSS {status.ResidentKiB} KiB, guest up for {status.Uptime.TotalSeconds:0} s");
     }
 
     /// <summary>The criterion of E7: A is stopped by its launch identifier, B and the VM are not touched.</summary>
@@ -232,16 +233,29 @@ public sealed class AgentGuestTests(ITestOutputHelper output)
         Assert.Equal(first.Launch, closed.Launch);
         await Assert.ThrowsAsync<AgentException>(async () => await first.WriteAsync("x", None));
 
-        // Closing (208 A): a job left in the background dies with the console, the rest of the VM stays.
+        // Closing (208 A): of two jobs left in the background, the one the host names (it would be
+        // the one with a window) moves to a launch of its own and lives on; the other dies with
+        // the console; the rest of the VM stays.
         LaunchResult bystander = await client.LaunchAsync(new LaunchOptions { Prefix = "other", Program = "sleep", Arguments = ["302"] }, None);
-        await second.WriteAsync("sleep 700 & echo job-$((2+2))\n", None);
+        await second.WriteAsync("sleep 700 & sleep 701 & echo job-$((2+2))\n", None);
         await secondOutput.WaitForAsync("job-4", Soon);
-        Assert.Contains(await client.ListProcessesAsync(None), p => p.Launch == second.Launch && p.CommandLine == "sleep 700");
-        ConsoleCloseResult closing = await second.CloseAsync(TimeSpan.FromMilliseconds(500));
-        Assert.Equal(0, closing.KeptProcesses);
+        IReadOnlyList<ProcessInfo> inConsole = (await client.ListProcessesAsync(None)).Where(p => p.Launch == second.Launch).ToList();
+        ProcessInfo dies = Assert.Single(inConsole, p => p.CommandLine == "sleep 700");
+        ProcessInfo kept = Assert.Single(inConsole, p => p.CommandLine == "sleep 701");
+        ConsoleCloseResult closing = await second.CloseAsync(TimeSpan.FromMilliseconds(500), [kept.ProcessId]);
+        Assert.Equal(1, closing.KeptProcesses);
+        LaunchId keptLaunch = Assert.NotNull(closing.Kept);
+        Assert.Equal("other", keptLaunch.Prefix);
         Assert.True((await second.Exited.WaitAsync(Soon)).Signaled);
         await WaitUntilAsync(async () => !(await client.ListProcessesAsync(None)).Any(p => p.Launch == second.Launch), Soon);
-        Assert.Single(await client.ListProcessesAsync(None), p => p.Launch == bystander.Id);
+        IReadOnlyList<ProcessInfo> after = await client.ListProcessesAsync(None);
+        Assert.DoesNotContain(after, p => p.ProcessId == dies.ProcessId);
+        Assert.Equal(keptLaunch, Assert.Single(after, p => p.ProcessId == kept.ProcessId).Launch);
+        Assert.Single(after, p => p.Launch == bystander.Id);
+
+        // The kept launch is a launch like any other: it is killed by its identifier, and reports its end.
+        await client.KillAsync(keptLaunch);
+        await events.WaitAsync<LaunchExitedEvent>(e => e.Launch == keptLaunch, Soon);
         await client.KillAsync(bystander.Id);
     }
 

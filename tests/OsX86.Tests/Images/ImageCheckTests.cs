@@ -74,6 +74,40 @@ public sealed class ImageCheckTests : IDisposable
     }
 
     [SkippableFact]
+    public void The_agent_is_inventoried_and_must_not_be_replaceable()
+    {
+        // No agent in the tree: nothing to break, an empty inventory.
+        (int exitCode, _) = Run(WriteTar("no-agent.tar", _ => { }), out JsonElement report);
+        Assert.Equal(0, exitCode);
+        Assert.Equal("HELD", Status(report, "agent_files_root_only"));
+        Assert.Empty(report.GetProperty("inventory").GetProperty("agent").EnumerateObject());
+
+        // The agent as the recipe installs it: 0755, root.
+        string installed = WriteTar("agent.tar", entries =>
+        {
+            entries.Add(("usr/lib/osx86/agent", TarEntryType.RegularFile, Dir755, "binary"));
+            entries.Add(("usr/bin/osx86-open-url", TarEntryType.RegularFile, Dir755, "binary"));
+        });
+        (exitCode, string output) = Run(installed, out report);
+        Assert.True(exitCode == 0, output);
+        Assert.Equal(22, report.GetProperty("r134_5").GetProperty("held").GetInt32());
+        Assert.Equal("0755", report.GetProperty("inventory").GetProperty("agent").GetProperty("usr/lib/osx86/agent").GetProperty("mode").GetString());
+
+        // Writable by others: any guest user could put its own program in root's place.
+        string writable = WriteTar("agent-writable.tar", entries => entries.Add(("usr/lib/osx86/agent", TarEntryType.RegularFile, 0b111_101_111, "binary")));
+        (exitCode, output) = Run(writable, out report);
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("agent_files_root_only", output, StringComparison.Ordinal);
+        Assert.Equal("LEAK", Status(report, "agent_files_root_only"));
+
+        // Not executable: the init would silently start nothing.
+        string inert = WriteTar("agent-inert.tar", entries => entries.Add(("usr/lib/osx86/agent", TarEntryType.RegularFile, File644, "binary")));
+        (exitCode, _) = Run(inert, out report);
+        Assert.NotEqual(0, exitCode);
+        Assert.Equal("LEAK", Status(report, "agent_files_root_only"));
+    }
+
+    [SkippableFact]
     public void A_setuid_program_breaks_no_setuid_and_the_checks_that_rest_on_it()
     {
         string tar = WriteTar("setuid.tar", entries => entries.Add(("usr/bin/su", TarEntryType.RegularFile, 0b100_111_101_101, "binary")));

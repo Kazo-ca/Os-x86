@@ -1,7 +1,7 @@
 # Os-x86 linux-base (milestone 0, work item 4; decisions 201 A, 210 A): the Linux guest every
 # Linux image of Os-x86 starts from. Debian trixie i386 (glibc, the WineHQ packages of work item 9
 # install on it), the `linux-virt` kernel of Alpine fetched with `apk fetch`, a minimal init, four
-# virtio-console ports and the serial console, a place for the guest agent of work item 5, and the
+# virtio-console ports and the serial console, the guest agent of work item 5, and the
 # hardening of 210 A. Built by build-linux-base.py (docker build --platform linux/386, then
 # docker export); nothing here is run outside Docker. No Wine here (work item 9 builds on the
 # `base` stage).
@@ -23,6 +23,9 @@
 ARG ALPINE_VERSION=3.24
 ARG DEBIAN_TOOLS_IMAGE=osx86-debian-tools:0.1.0
 ARG DEBIAN_COMPILER_IMAGE=osx86-debian-compiler:0.1.0
+# The guest agent of work item 5, built by images/agent/build-agent.py (a static musl i386 binary,
+# the same one the Alpine test image carries): build-linux-base.py builds it first.
+ARG AGENT_IMAGE=osx86-agent-build:0.1.0
 
 # --- Stage 1: the kernel of Alpine --------------------------------------------------------------
 FROM alpine:${ALPINE_VERSION} AS kernel
@@ -70,6 +73,9 @@ FROM ${DEBIAN_COMPILER_IMAGE} AS probes
 COPY probes/ /src/
 RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o /osx86-ptrace /src/osx86-ptrace.c && strip /osx86-rawsock /osx86-ptrace
 
+# --- The guest agent (images/agent): only its two binaries are taken from this image ---------------
+FROM ${AGENT_IMAGE} AS agent
+
 # --- Stage 3: Debian i386, the init, the hardening -----------------------------------------------
 FROM ${DEBIAN_TOOLS_IMAGE} AS base
 ARG IMAGE_VERSION=0.1.0
@@ -79,6 +85,10 @@ COPY --from=kernel /boot/vmlinuz-virt /boot/initramfs-virt /boot/
 COPY --from=kernel /out/modules /lib/modules
 COPY --from=kernel /provenance /usr/lib/osx86/provenance
 COPY --from=probes /osx86-rawsock /osx86-ptrace /usr/lib/osx86/
+# The agent (root, started by the init on hvc0, user consoles on hvc1) and the program a guest
+# runs to hand a URL to the host.
+COPY --from=agent /out/agent /usr/lib/osx86/agent
+COPY --from=agent /out/osx86-open-url /usr/bin/osx86-open-url
 COPY init.sh /sbin/init
 COPY verify-console.sh /usr/lib/osx86/verify-console.sh
 # (/etc/hosts and /etc/hostname are read-only mounts during a build: copied, not written.)
@@ -87,8 +97,9 @@ RUN set -eux; \
     release="$(cat /usr/lib/osx86/provenance/kernel.release)"; \
     depmod -a "$release"; \
     chmod 755 /sbin/init /usr/lib/osx86/verify-console.sh /usr/lib/osx86/osx86-rawsock /usr/lib/osx86/osx86-ptrace; \
+    chown 0:0 /usr/lib/osx86/agent /usr/bin/osx86-open-url; \
+    chmod 755 /usr/lib/osx86/agent /usr/bin/osx86-open-url; \
     echo "${IMAGE_VERSION}" > /etc/osx86-release; \
-    # The agent of work item 5 goes to /usr/lib/osx86/agent; the init starts it when present.
     mkdir -p /usr/lib/osx86 /home; \
     # Hardening (210 A and trial E7): / is 0755, no setuid or setgid program (the VM is driven by
     # the agent as root; a guest user never needs su, mount or passwd), home directories 0700.
