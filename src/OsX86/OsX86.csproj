@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -6,9 +6,21 @@
     <IsTrimmable>true</IsTrimmable>
     <RootNamespace>OsX86</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- x86-Lib (plan §1.1): the reusable implementation of Ix86. Engine, storage, network, share, agent, identity and VM registry live here. -->
+    <!--
+      x86-Lib (plan §1.1): the reusable implementation of Ix86. Engine, storage, network, share, agent,
+      identity and VM registry live here. The Razor SDK is used for its static web assets only:
+      wwwroot/ (the vendored v86 and the engine worker, served at _content/OsX86/) has no Razor component.
+    -->
+    <StaticWebAssetBasePath>_content/OsX86</StaticWebAssetBasePath>
+    <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.JSInterop" Version="10.0.14" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\OsX86.Interface\OsX86.Interface.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="OsX86.Tests" />
   </ItemGroup>
 </Project>

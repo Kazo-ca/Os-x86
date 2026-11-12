@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Os-x86 engine guest test</title>
+<style>
+  body { font: 13px/1.4 system-ui, sans-serif; margin: 12px; }
+  pre { background: #111; color: #ddd; padding: 8px; height: 320px; overflow: auto; white-space: pre-wrap; }
+  canvas { border: 1px solid #888; display: block; margin-top: 8px; }
+  #status { font-weight: bold; }
+</style>
+</head>
+<body>
+<!--
+  Test page of the v86 engine worker (milestone 0, work item 2). It plays the part of the C# side:
+  imports the host module, receives the worker messages through a fake DotNet callback, copies the
+  Alpine test image into the OPFS, then boots it and talks on the serial console. Driven by the
+  `guest` xUnit test (Playwright) through window.guest, or by hand with the buttons.
+
+  Query parameters: host=<url of v86-host.js> (default ../../../src/OsX86/wwwroot/engine/v86-host.js),
+  image=<url of the directory that holds manifest.json> (default ../../../images/build/alpine-test/).
+-->
+<div>State: <span id="status">not started</span></div>
+<div>
+  <button id="boot">Boot</button>
+  <button id="pause">Pause</button>
+  <button id="resume">Resume</button>
+  <button id="stop">Stop</button>
+  <input id="line" size="60" placeholder="line for the serial console">
+  <button id="send">Send</button>
+</div>
+<pre id="serial"></pre>
+<canvas id="screen" width="720" height="400"></canvas>
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const hostUrl = new URL(params.get("host") || "../../../src/OsX86/wwwroot/engine/v86-host.js", location.href).href;
+  const imageUrl = new URL(params.get("image") || "../../../images/build/alpine-test/", location.href).href;
+  const OPFS_DIRECTORY = "osx86-test";
+
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const transcripts = { serial0: "", virtio0: "", virtio1: "", virtio2: "", virtio3: "" };
+  const events = [];
+  const screenSizes = [];
+  const waiters = [];
+  let state = "stopped";
+  let host = null;
+  let manifest = null;
+
+  const statusElement = document.getElementById("status");
+  const serialElement = document.getElementById("serial");
+
+  function base64ToBytes(text) {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }
+
+  function checkWaiters() {
+    for (const waiter of waiters.slice()) {
+      const haystack = waiter.kind === "state" ? state : transcripts[waiter.channel];
+      const matched = waiter.kind === "state" ? state === waiter.needle : haystack.includes(waiter.needle);
+      if (matched) {
+        waiters.splice(waiters.indexOf(waiter), 1);
+        clearTimeout(waiter.timer);
+        waiter.resolve(waiter.kind === "state" ? state : haystack);
+      }
+    }
+  }
+
+  function waitFor(kind, channel, needle, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const waiter = { kind, channel, needle, resolve };
+      waiter.timer = setTimeout(() => {
+        waiters.splice(waiters.indexOf(waiter), 1);
+        reject(new Error(`timeout waiting for ${kind} ${JSON.stringify(needle)}; state=${state}; serial tail: ${transcripts.serial0.slice(-400)}`));
+      }, timeoutMs);
+      waiters.push(waiter);
+      checkWaiters();
+    });
+  }
+
+  function onWorkerMessage(json) {
+    const message = JSON.parse(json);
+    events.push(message);
+    switch (message.type) {
+      case "state":
+        state = message.state;
+        statusElement.textContent = `${state}${message.reason ? " (" + message.reason + ")" : ""}`;
+        break;
+      case "console": {
+        const text = decoder.decode(base64ToBytes(message.data));
+        transcripts[message.channel] += text;
+        if (message.channel === "serial0") {
+          serialElement.textContent += text;
+          serialElement.scrollTop = serialElement.scrollHeight;
+        }
+        break;
+      }
+      case "error":
+        statusElement.textContent = `${state} error ${message.code}: ${message.message}`;
+        transcripts.serial0 += `\n[engine error ${message.code}: ${message.message}]\n`;
+        break;
+      case "screen-size":
+        screenSizes.push([message.cols, message.rows, message.bpp]);
+        break;
+    }
+    checkWaiters();
+  }
+
+  const callback = { invokeMethodAsync: async (method, json) => { if (method === "OnWorkerMessage") onWorkerMessage(json); } };
+
+  async function copyImageToOpfs() {
+    const response = await fetch(new URL("manifest.json", imageUrl), { cache: "no-store" });
+    if (!response.ok) throw new Error(`manifest.json: HTTP ${response.status}`);
+    manifest = await response.json();
+    const root = await navigator.storage.getDirectory();
+    const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: true });
+    for (const entry of [manifest.kernel, manifest.initrd]) {
+      const bytes = await (await fetch(new URL(entry.file, imageUrl), { cache: "no-store" })).arrayBuffer();
+      if (bytes.byteLength !== entry.size) throw new Error(`${entry.file}: ${bytes.byteLength} bytes, expected ${entry.size}`);
+      const file = await directory.getFileHandle(entry.file, { create: true });
+      const writable = await file.createWritable();
+      await writable.write(bytes);
+      await writable.close();
+    }
+    return manifest;
+  }
+
+  function post(message) {
+    host.post(JSON.stringify(message));
+  }
+
+  const guest = {
+    hostUrl,
+    imageUrl,
+    get state() { return state; },
+    get events() { return events; },
+    get screenSizes() { return screenSizes; },
+    transcript(channel = "serial0") { return transcripts[channel]; },
+
+    /** Copies the image into the OPFS, starts the worker and boots until the ready marker. */
+    async boot(options = {}) {
+      const { createHost } = await import(hostUrl);
+      await copyImageToOpfs();
+      host = createHost(callback, {});
+      if (options.attachCanvas !== false) host.attachCanvas(document.getElementById("screen"));
+      post({
+        type: "start",
+        options: {
+          kernelPath: `${OPFS_DIRECTORY}/${manifest.kernel.file}`,
+          initrdPath: `${OPFS_DIRECTORY}/${manifest.initrd.file}`,
+          cmdline: manifest.cmdline,
+          memoryMiB: options.memoryMiB || 128,
+          virtioConsole: true,
+        },
+      });
+      await waitFor("state", null, "running", options.startTimeoutMs || 60000);
+      await waitFor("console", "serial0", manifest.readyMarker, options.bootTimeoutMs || 180000);
+      await waitFor("console", "serial0", manifest.prompt, 30000);
+      return { manifest, state };
+    },
+
+    /** Writes a line on the serial console. */
+    send(text, channel = "serial0") {
+      post({ type: "write", channel, data: bytesToBase64(encoder.encode(text + "\n")) });
+    },
+
+    /** Writes a line then waits for the given text on a channel; returns that channel's transcript. */
+    async sendAndWait(text, needle, timeoutMs = 30000, channel = "serial0") {
+      guest.send(text);
+      return waitFor("console", channel, needle, timeoutMs);
+    },
+
+    waitForText(needle, timeoutMs = 30000, channel = "serial0") { return waitFor("console", channel, needle, timeoutMs); },
+
+    async pause() { post({ type: "pause" }); return waitFor("state", null, "paused", 15000); },
+    async resume() { post({ type: "resume" }); return waitFor("state", null, "running", 15000); },
+    async stop() { post({ type: "stop" }); return waitFor("state", null, "stopped", 30000); },
+    queryState() { post({ type: "query-state" }); },
+  };
+  window.guest = guest;
+
+  document.getElementById("boot").onclick = () => guest.boot().catch((error) => { statusElement.textContent = String(error); });
+  document.getElementById("pause").onclick = () => guest.pause();
+  document.getElementById("resume").onclick = () => guest.resume();
+  document.getElementById("stop").onclick = () => guest.stop();
+  document.getElementById("send").onclick = () => guest.send(document.getElementById("line").value);
+</script>
+</body>
+</html>
