@@ -11,12 +11,12 @@ Kept up to date by every PR (plan, section 12). Numbers in parentheses refer to 
 | `x86` command: `--version`, `vm list` | 0.1.0 | Packaged as a terminal command until Kazo OS ships the "Feature" app kind (ADR 0243) |
 | Contracts package `Os-x86.Interface`: `Ix86` (version, VM list) | 0.1.0 | Generic, no Wine type (29 C); public API tracked in `PublicAPI.Unshipped.txt` |
 | v86 engine in a Web Worker: `IEngine` (start, stop, pause, states), serial and virtio-console (raw and line streams), OffscreenCanvas bridge, vendored v86 0.5.473 with patch #1661, Alpine test image, `unit` and `guest` tests | 0.1.0 | Work item 2, [`engine.md`](engine.md); D3, 187 A; internal to x86-Lib, not exposed by `Ix86` yet |
+| Storage: image manifest (format 1, SHA-256 per 32 MiB chunk, expected hash), download and verification Web Worker (`SubtleCrypto`, OPFS writes through a `SyncAccessHandle`, resume after a cut or a reload, retries, cancellation, progress), image repository in the OPFS (list, delete, footprint, `estimate()`), write lock through `navigator.locks`, periodic `flush()`, versioned-format metadata, 800 MiB `guest` test with faults | 0.1.0 | Work item 3, [`storage.md`](storage.md); 169, 177 A, 188, 203 A, E11; internal to x86-Lib, not exposed by `Ix86` yet |
 
 ## In progress (milestone 0, console programs)
 
 | Feature | Work item | Decisions |
 | --- | --- | --- |
-| OPFS storage, image manifest, verified download with resume | 3 | 149, 177 A, 203 A |
 | Images: base Linux (Debian i386 + Alpine kernel + agent), test Alpine, FreeDOS; sources and licenses | 4 | 201 A, 210 A |
 | Guest agent (JSON lines, one cgroup per launch, console through a pty) | 5 | 205 A, 206 A, 213 A |
 | VM registry, lifecycle, `x86 vm`, `x86 shell`, profiles | 6 | 165, 166, 183, 190, 212 A |

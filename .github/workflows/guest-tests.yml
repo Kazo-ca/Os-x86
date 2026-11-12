@@ -1,26 +1,32 @@
 # The `guest` tests (plan section 11): a headless Chromium boots the Alpine test image in the
-# engine worker from the OPFS and talks on its consoles. Run when the engine, its assets, the
-# image recipe or the guest tests change, every night, and on demand. The image is built from the
-# official Alpine release (verified SHA-256), never committed.
+# engine worker from the OPFS and talks on its consoles, and the storage worker downloads an
+# 800 MiB image (generated on the fly, never committed) through 503s and cut connections, verifies
+# it and resumes it after a page reload. Run when the engine, the storage layer, their assets, the
+# image recipe or the guest tests change, every night, and on demand. The Alpine image is built
+# from the official Alpine release (verified SHA-256), never committed.
 name: Guest tests
 
 on:
   pull_request:
     paths:
       - "src/OsX86/Engine/**"
+      - "src/OsX86/Storage/**"
       - "src/OsX86/wwwroot/**"
       - "tools/v86/**"
       - "images/**"
       - "tests/OsX86.Tests/Guest/**"
+      - "tests/OsX86.Tests/Storage/**"
       - ".github/workflows/guest-tests.yml"
   push:
     branches: [j0/base]
     paths:
       - "src/OsX86/Engine/**"
+      - "src/OsX86/Storage/**"
       - "src/OsX86/wwwroot/**"
       - "tools/v86/**"
       - "images/**"
       - "tests/OsX86.Tests/Guest/**"
+      - "tests/OsX86.Tests/Storage/**"
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
