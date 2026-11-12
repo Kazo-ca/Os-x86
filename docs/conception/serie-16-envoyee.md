@@ -21,6 +21,6 @@ Trois questions que le chantier `feature/14-feature-app-type-code` de Kazo-ca/Os
 
 | # | Réponse | Lecture |
 |---|---|---|
-| 256 | **B** | `kind` entre dans le `catalog.json` dès maintenant (`app` par défaut, `feature` pour une Feature ; changement du dépôt Os-AppMarketPlace) et le Store cache « Installer pour moi » pour une Feature ; le refus au clic reste comme filet. Correctif sur la PR #449, plus une PR dans Os-AppMarketPlace. |
+| 256 | **B** | `kind` entre dans le `catalog.json` dès maintenant (`app` par défaut, `feature` pour une Feature ; changement du dépôt Os-AppMarketPlace) et le Store cache « Installer pour moi » pour une Feature ; le refus au clic reste comme filet. Correctif sur la PR #449, plus une PR dans Os-AppMarketPlace. Appliqué le même jour : commit `dcc249c0` sur #449 (lecteur de catalogue : `app` par défaut, `feature`, `theme-pack`, valeur inconnue lue comme `app` avec avertissement ; le Store liste une Feature avec les apps et ne propose que « Installer pour tous » ; tests et docs) et PR [Kazo-ca/Os-AppMarketPlace#20](https://github.com/Kazo-ca/Os-AppMarketPlace/pull/20) (doc du format du catalogue fr et en, tâche pour l'outil quand son sous-module lira ce genre). Rien de fusionné. |
 | 257 | **A** | Les lignes `allow` machine sont effacées au retrait d'une Feature ; une réinstallation redemande le consentement. Déjà dans le code. |
 | 258 | **A** | Un enfant de genre `Web` est refusé. Déjà dans le code. |
