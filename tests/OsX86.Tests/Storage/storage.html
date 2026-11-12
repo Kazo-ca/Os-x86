@@ -72,16 +72,20 @@
 
   const callback = { invokeMethodAsync: async (method, json) => { if (method === "OnWorkerMessage") onWorkerMessage(json); } };
 
-  async function ensureHost() {
-    if (host) return host;
-    const { createHost } = await import(hostUrl);
-    let resolve;
-    ready = new Promise((r) => { resolve = r; });
-    ready.resolve = resolve;
-    host = createHost(callback, {});
-    const readiness = await ready;
-    if (!readiness.opfs) throw new Error("OPFS unavailable in the worker");
-    return host;
+  let hostPromise = null;
+
+  function ensureHost() {
+    hostPromise ||= (async () => {
+      const { createHost } = await import(hostUrl);
+      let resolve;
+      ready = new Promise((r) => { resolve = r; });
+      ready.resolve = resolve;
+      host = createHost(callback, {});
+      const readiness = await ready;
+      if (!readiness.opfs) throw new Error("OPFS unavailable in the worker");
+      return host;
+    })();
+    return hostPromise;
   }
 
   function request(command) {

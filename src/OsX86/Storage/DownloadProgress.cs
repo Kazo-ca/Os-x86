@@ -83,9 +83,10 @@ public sealed record ImageSource(string BaseUrl, string ManifestSha256, int Para
     /// <exception cref="ArgumentException">A field is malformed.</exception>
     public void Validate()
     {
-        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out Uri? uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp) || !BaseUrl.EndsWith('/'))
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out Uri? uri) || !BaseUrl.EndsWith('/')
+            || !(uri.Scheme == Uri.UriSchemeHttps || (uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback)))
         {
-            throw new ArgumentException("The base URL must be an absolute http(s) URL ending with '/'.", nameof(BaseUrl));
+            throw new ArgumentException("The base URL must be an absolute https URL ending with '/' (http only on the loopback host, for tests).", nameof(BaseUrl));
         }
 
         if (!ImageManifest.IsLowercaseSha256(ManifestSha256?.ToLowerInvariant()))

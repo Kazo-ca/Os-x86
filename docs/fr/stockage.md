@@ -45,18 +45,27 @@ Le schéma fait foi pour les recettes du chantier 4 comme pour ce lecteur. Forma
   version sémantique. Ce sont aussi les noms des dossiers OPFS.
 - `engine` : les versions de moteur pour lesquelles l'image est construite, `v86` au moins. Le
   lecteur l'expose ; la règle « même version majeure » (169) s'appliquera au chantier 6.
-- `size` : taille de la charge utile en octets ; `chunkSize` : taille de chaque morceau sauf le
-  dernier (64 Kio à 512 Mio ; les recettes utilisent 32 Mio, la bonne taille d'après E3).
+- `size` : taille de la charge utile en octets (au plus 100 000 morceaux de 64 Mio) ; `chunkSize` :
+  taille de chaque morceau sauf le dernier (64 Kio à 64 Mio, parce que le worker garde un morceau
+  en mémoire par flux parallèle ; les recettes utilisent 32 Mio, la bonne taille d'après E3).
 - `chunks` : un SHA-256 en hex minuscules par morceau, dans l'ordre, exactement
   `ceil(size / chunkSize)` entrées (100 000 au plus : cinq chiffres dans les noms). Les morceaux
   sont les fichiers `chunk-00000.bin`, `chunk-00001.bin`, … à côté du manifeste.
 - `files` : les fichiers logiques de la charge utile (`kernel`, `initramfs`, `rootfs`, …) avec
   leur position et leur taille ; peut être vide.
 
+Les recettes du chantier 4 (`pack-image.py`) ajoutent des champs facultatifs que ce lecteur
+ignore sans erreur, comme tout champ inconnu : `rawSize` et `blockSize` (la charge utile est un
+flux zstd « seekable » d'une image disque brute ext4, attachée en `hda`) et un `sha256` par
+entrée de `files`. Le dépôt stocke les morceaux tels quels ; la décompression n'est pas de son
+ressort.
+
 `ImageManifest.Parse(texte)` valide tout cela ; `ImageManifest.Parse(octets, sha256Attendu)` compare
 d'abord l'empreinte au SHA-256 que le C# connaît (décision 203 A : le manifeste est la racine de
 confiance, l'appelant doit connaître son empreinte) et refuse l'image (`manifest-integrity`) si
-elle diffère. Le manifeste lui-même est borné à 1 Mio.
+elle diffère. Le manifeste lui-même est borné à 1 Mio (le worker refuse d'en lire plus), doit
+être de l'UTF-8 valide sans marque d'ordre des octets, et une clé en double dans `files` ou
+`engine` le rend invalide.
 
 ## Comment ça marche
 
@@ -92,13 +101,18 @@ un second couvre la latence de la requête suivante sans doubler la mémoire (un
 
 - **Erreur réseau ou 5xx** (aussi 408 et 429) : le morceau est réessayé avec un délai croissant
   (500 ms, 1 s, 2 s, … 30 s au plus, avec une gigue), 8 tentatives ; au-delà, le téléchargement
-  échoue avec `network`. Une coupure coûte au plus le morceau en cours (E3). Un 404 ou un 403
+  échoue avec `network`. Une coupure coûte au plus le morceau en cours (E3). Un serveur qui ne
+  répond plus coûte une tentative après 30 s sans octet (chaque `fetch` a son propre
+  `AbortController`, interrompu par ce chien de garde ou par l'annulation). Un 404 ou un 403
   échoue tout de suite (`http`).
 - **Empreinte fausse** : le morceau est redemandé jusqu'à trois fois, puis `chunk-integrity`.
 - **Rechargement de la page, fermeture du navigateur, plantage** : l'état de reprise est dans
-  l'OPFS (`download.json` : l'empreinte du manifeste et les index vérifiés), écrit après le
-  `flush()` du morceau, donc il ne nomme jamais un morceau qui n'est pas sur le disque. Au
-  téléchargement suivant, le plan ne demande que les morceaux manquants.
+  l'OPFS (`download.json` et `download.1.json`, écrits en alternance avec un numéro de séquence :
+  l'empreinte du manifeste et les index vérifiés ; une écriture déchirée n'abîme qu'une copie, la
+  plus récente valide est lue), écrit après le `flush()` du morceau, donc il ne nomme jamais un
+  morceau qui n'est pas sur le disque. Un `image.bin` absent ou d'une autre taille que celle du
+  manifeste invalide l'état : tout est repris. Au téléchargement suivant, le plan ne demande que
+  les morceaux manquants.
 - **Annulation** : le jeton du C# envoie `cancel` ; le worker interrompt les `fetch` en cours,
   ferme le fichier, libère le verrou et répond `cancelled` (le C# attend cet accusé jusqu'à 5 s
   pour que le verrou soit libre quand l'appelant reprend la main). Les morceaux vérifiés restent.
@@ -117,7 +131,8 @@ osx86/
       <version>/
         manifest.json     la copie du manifeste publié
         image.bin         les morceaux concaténés (la charge utile)
-        download.json     l'état de reprise : {"format":1,"manifestSha256":"…","verified":[0,1,2]}
+        download.json     l'état de reprise : {"format":1,"seq":3,"manifestSha256":"…","verified":[0,1,2]}
+        download.1.json   sa copie alternée (le numéro de séquence le plus haut fait foi)
         image.meta.json   les métadonnées versionnées (voir plus bas), complete:true à la fin
 ```
 
@@ -125,8 +140,9 @@ osx86/
 son format et ses versions de moteur ; `IsSupported` dit si cette version d'Os-x86 peut
 l'ouvrir), `DeleteAsync` (refusé par `locked` pendant un téléchargement), `EstimateAsync`
 (`navigator.storage.estimate()` : usage et quota de l'origine, plus l'occupation du dépôt),
-`ReadManifestAsync` (la copie locale, validée : un format inconnu est refusé), `VerifyAsync`
-(relecture et hachage de chaque morceau sur place, 1 s pour 800 Mio d'après E3), et
+`ReadManifestAsync` (la copie locale, validée et épinglée à l'empreinte que l'état de reprise a
+enregistrée : un format inconnu ou une copie modifiée est refusée), `VerifyAsync` (relecture et
+hachage de chaque morceau sur place sous le verrou, 1 s pour 800 Mio d'après E3), et
 `ImageStore.Locate(manifeste, "kernel")` qui rend le chemin OPFS de `image.bin` avec la position et
 la taille du fichier logique : c'est ce que le chantier 6 donnera au moteur. `IEngine` et le worker
 v86 ne changent pas dans ce chantier ; le worker v86 lit aujourd'hui des fichiers entiers, il
@@ -135,14 +151,16 @@ du dépôt.
 
 ### Verrou d'écriture (E11) et `flush()` (177 A)
 
-Un seul écrivain par version d'image : le worker demande `navigator.locks.request("osx86:image:<image>@<version>", { ifAvailable: true })`
-et le garde pendant tout le téléchargement ou la suppression ; un second écrivain reçoit `locked`
-tout de suite au lieu d'attendre. Le verrou est libéré par le navigateur si la page est fermée ou
+Un seul écrivain par version d'image : le worker demande `navigator.locks.request("osx86:image:<image>@<version>")`
+et le garde pendant tout le téléchargement ou la suppression ; un second écrivain attend 2 s au
+plus (le temps que le navigateur rende le verrou d'un worker tué par un rechargement) puis reçoit
+`locked` au lieu d'attendre indéfiniment. Le verrou est libéré par le navigateur si la page est fermée ou
 plante, sans fichier de verrou ni échéance à gérer : c'est pourquoi il est préféré à un fichier de
 verrou. Sans l'API Web Locks (le worker le dit dans `ready`), l'exclusivité de
 `createSyncAccessHandle()` sur `image.bin` joue le même rôle : le second ouvreur échoue, traduit en
-`locked`. Une lecture (vérification) n'a pas besoin du verrou ; elle échoue en `locked` si un
-téléchargement tient le fichier.
+`locked`. La vérification prend le même verrou, pour ne pas lire sous un téléchargement. Le
+worker ouvre `image.bin` avant d'écrire quoi que ce soit d'autre, et réessaie cinq fois à 200 ms
+quand le navigateur n'a pas encore rendu le handle d'un worker terminé (rechargement de page).
 
 `flush()` : après chaque morceau avant que l'état le nomme, toutes les 5 s tant qu'un fichier
 est ouvert en écriture (classe `WritableFile` du worker, prête pour les disques des prochains
@@ -207,13 +225,13 @@ erreur du worker hors de toute requête (plantage, message mal formé) est remon
 - Le C# décide, le worker exécute : la validation du manifeste et le plan de reprise sont en C#
   (testables sans navigateur) ; le worker ne télécharge que la liste qu'on lui donne et revérifie
   les noms avant de créer un dossier.
-- Verrou par `navigator.locks` (`ifAvailable`), libéré par le navigateur, plutôt qu'un fichier de
-  verrou avec échéance ; repli sur l'exclusivité du `SyncAccessHandle`.
+- Verrou par `navigator.locks` (attente bornée à 2 s), libéré par le navigateur, plutôt qu'un
+  fichier de verrou avec échéance ; repli sur l'exclusivité du `SyncAccessHandle`.
 - Deux morceaux en parallèle par défaut, quatre au plus ; à remesurer sur R2.
 - Une seule charge utile `image.bin` par version plus un plan des fichiers logiques, plutôt qu'un
   fichier OPFS par fichier logique : l'écriture reste séquentielle par morceau et la position d'un
   fichier vient du manifeste.
-- `storage-worker.js` tient en un fichier de 880 lignes (dont 60 de protocole en tête) : un
+- `storage-worker.js` tient en un fichier d'environ 1 000 lignes (dont 60 de protocole en tête) : un
   worker se charge par URL, et le couper en deux aurait ajouté un `importScripts` et un second
   téléchargement pour séparer ce qui ne se réutilise pas ailleurs.
 - Non vérifié ici : Firefox et Safari (E3 a vu Firefox se comporter comme Chrome sur le

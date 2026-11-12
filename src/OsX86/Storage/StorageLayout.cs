@@ -63,12 +63,12 @@ public static partial class StorageLayout
     /// <summary>The OPFS path of the payload of one version of one image.</summary>
     public static string PayloadPath(string image, string version) => $"{ImageDirectory(image, version)}/{PayloadFileName}";
 
-    [GeneratedRegex("^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$")]
+    [GeneratedRegex(@"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z")]
     private static partial Regex ImageIdPattern();
 
-    [GeneratedRegex(@"^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")]
+    [GeneratedRegex(@"^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?\z")]
     private static partial Regex VersionPattern();
 
-    [GeneratedRegex("^[a-z0-9][a-z0-9._-]*$")]
+    [GeneratedRegex(@"^[a-z0-9][a-z0-9._-]*\z")]
     private static partial Regex FileNamePattern();
 }

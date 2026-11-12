@@ -106,6 +106,77 @@ public sealed class ImageStoreTests
         Assert.Equal(StorageErrorCodes.ManifestIntegrity, error.Code);
         Assert.Equal(["fetch-manifest"], worker.PostedTypes);
         Assert.DoesNotContain(progress.Reports, r => DownloadStateMachine.MayHaveWritten(r.Phase));
+        Assert.Equal(DownloadPhase.Failed, progress.Reports[^1].Phase);
+    }
+
+    [Fact]
+    public async Task A_cancellation_that_lands_while_the_download_command_is_being_posted_still_tells_the_worker()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var worker = new SimulatedStorageWorkerChannel { ManifestText = Manifest, HangDownloads = true, PostDelay = TimeSpan.FromMilliseconds(30), CancelOnDownloadPost = cancellation };
+        await using var store = new ImageStore(worker);
+        var progress = new Progress();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await store.DownloadAsync(Source, progress, cancellation.Token));
+
+        Assert.Equal(["fetch-manifest", "read-state", "download", "cancel"], worker.PostedTypes);
+        Assert.Equal(DownloadPhase.Cancelled, progress.Reports[^1].Phase);
+    }
+
+    [Fact]
+    public async Task A_throwing_progress_callback_does_not_break_the_download()
+    {
+        var worker = new SimulatedStorageWorkerChannel { ManifestText = Manifest };
+        await using var store = new ImageStore(worker);
+        var reported = new List<StorageException>();
+        store.UnroutedErrorReported += (_, e) => reported.Add(e);
+        var progress = new ThrowingProgress();
+
+        StoredImage image = await store.DownloadAsync(Source, progress, None);
+
+        Assert.True(image.Complete);
+        Assert.Single(reported);
+        Assert.Contains("progress callback threw", reported[0].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task After_a_worker_crash_every_later_request_fails_at_once()
+    {
+        var worker = new SimulatedStorageWorkerChannel();
+        await using var store = new ImageStore(worker);
+        await store.EstimateAsync(None);
+        await worker.SendAsync(new { type = "error", code = "worker-error", message = "crashed" });
+
+        var error = await Assert.ThrowsAsync<StorageException>(async () => await store.ListAsync(None));
+
+        Assert.Equal(StorageErrorCodes.WorkerError, error.Code);
+        Assert.Contains("crashed", error.Message, StringComparison.Ordinal);
+        Assert.Equal(["estimate"], worker.PostedTypes);
+    }
+
+    [Fact]
+    public async Task A_failed_start_is_retried_by_the_next_operation()
+    {
+        var worker = new SimulatedStorageWorkerChannel { StartException = new InvalidOperationException("module 404") };
+        await using var store = new ImageStore(worker);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await store.ListAsync(None));
+
+        worker.StartException = null;
+        IReadOnlyList<StoredImage> images = await store.ListAsync(None);
+
+        Assert.Empty(images);
+        Assert.True(worker.Started);
+    }
+
+    private sealed class ThrowingProgress : IProgress<DownloadProgress>
+    {
+        public void Report(DownloadProgress value)
+        {
+            if (value.Phase == DownloadPhase.Downloading && value.BytesPerSecond > 0)
+            {
+                throw new InvalidOperationException("UI gone");
+            }
+        }
     }
 
     [Fact]

@@ -62,6 +62,12 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
     /// <summary>When set, <see cref="PostAsync"/> throws before recording anything.</summary>
     public Exception? PostException { get; set; }
 
+    /// <summary>How long every <see cref="PostAsync"/> takes before the command is recorded (JS interop latency).</summary>
+    public TimeSpan PostDelay { get; set; }
+
+    /// <summary>When set, cancelled as soon as a download command is posted, before the post completes.</summary>
+    public CancellationTokenSource? CancelOnDownloadPost { get; set; }
+
     /// <summary>The last download command received, parsed.</summary>
     public JsonElement? LastDownload { get; private set; }
 
@@ -87,16 +93,26 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
             throw PostException;
         }
 
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement root = document.RootElement.Clone();
+        string type = root.GetProperty("type").GetString()!;
+        int id = root.TryGetProperty("id", out JsonElement idElement) ? idElement.GetInt32() : 0;
+        if (type == "download")
+        {
+            CancelOnDownloadPost?.Cancel();
+        }
+
+        if (PostDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(PostDelay, CancellationToken.None);
+        }
+
         Posted.Add(json);
         if (Silent)
         {
             return;
         }
 
-        using JsonDocument document = JsonDocument.Parse(json);
-        JsonElement root = document.RootElement.Clone();
-        string type = root.GetProperty("type").GetString()!;
-        int id = root.TryGetProperty("id", out JsonElement idElement) ? idElement.GetInt32() : 0;
         switch (type)
         {
             case "fetch-manifest":

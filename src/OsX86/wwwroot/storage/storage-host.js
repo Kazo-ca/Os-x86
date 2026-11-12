@@ -21,22 +21,31 @@ export function createHost(callback, options) {
   return new StorageHost(callback, options || {});
 }
 
-function sameOrigin(url, name) {
-  if (url.origin !== new URL(import.meta.url).origin) {
-    throw new Error(`${name} must be served from the origin of the storage module`);
+/** The worker must be an http(s) script of this module's own directory: no blob: or data: URL gets OPFS access as the storage worker. */
+function checkWorkerUrl(url) {
+  const module = new URL(import.meta.url);
+  const directory = module.href.slice(0, module.href.lastIndexOf("/") + 1);
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.origin !== module.origin || !url.href.startsWith(directory)) {
+    throw new Error("workerUrl must be a script next to the storage module, on its origin");
   }
   return url;
 }
 
 class StorageHost {
   constructor(callback, options) {
-    const workerUrl = sameOrigin(new URL(options.workerUrl || "./storage-worker.js", import.meta.url), "workerUrl");
+    const workerUrl = checkWorkerUrl(new URL(options.workerUrl || "./storage-worker.js", import.meta.url));
     this.callback = callback;
+    this.disposed = false;
     this.worker = new Worker(workerUrl, { name: "os-x86-storage" });
     this.worker.onmessage = (event) => this.deliver(event.data);
+    // Both are fatal for the C# side (an error without id fails every pending request): a script that
+    // does not load, an uncaught exception, a message that cannot be cloned.
     this.worker.onerror = (event) => {
-      const message = event && event.message ? event.message : "worker error";
+      const message = event && event.message ? event.message : "the storage worker failed to load or threw";
       this.deliver(JSON.stringify({ type: "error", code: "worker-error", message }));
+    };
+    this.worker.onmessageerror = () => {
+      this.deliver(JSON.stringify({ type: "error", code: "protocol", message: "a worker message could not be deserialized" }));
     };
   }
 
@@ -47,10 +56,17 @@ class StorageHost {
 
   /** Kills the worker at once; a download in progress keeps its verified chunks (the state is in the OPFS). */
   dispose() {
+    this.disposed = true;
+    this.worker.onmessage = null;
+    this.worker.onerror = null;
+    this.worker.onmessageerror = null;
     this.worker.terminate();
   }
 
   deliver(json) {
+    if (this.disposed) {
+      return; // a late message must not reach a disposed DotNetObjectReference
+    }
     try {
       const result = this.callback.invokeMethodAsync("OnWorkerMessage", json);
       if (result && typeof result.catch === "function") {

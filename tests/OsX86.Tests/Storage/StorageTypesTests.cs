@@ -15,6 +15,7 @@ public sealed class StorageTypesTests
     [InlineData("Alpine", false)]
     [InlineData("a.b", false)]
     [InlineData("a/b", false)]
+    [InlineData("alpine\n", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
     public void Image_identifiers_are_lowercase_dashed_names(string? image, bool valid)
@@ -29,6 +30,7 @@ public sealed class StorageTypesTests
     [InlineData("1.0", false)]
     [InlineData("..", false)]
     [InlineData("1.0.0/x", false)]
+    [InlineData("1.0.0\n", false)]
     [InlineData(null, false)]
     public void Versions_are_semantic_versions(string? version, bool valid)
     {
@@ -42,6 +44,7 @@ public sealed class StorageTypesTests
     [InlineData(".hidden", false)]
     [InlineData("Kernel", false)]
     [InlineData("a/b", false)]
+    [InlineData("kernel\n", false)]
     public void File_names_are_plain(string name, bool valid)
     {
         Assert.Equal(valid, StorageLayout.IsValidFileName(name));
@@ -104,6 +107,8 @@ public sealed class StorageTypesTests
     [Theory]
     [InlineData("https://images.example/alpine-test/1.0.0/", 2, true)]
     [InlineData("http://localhost:8080/image/", 1, true)]
+    [InlineData("http://127.0.0.1:8080/image/", 1, true)]
+    [InlineData("http://images.example/a/", 2, false)]
     [InlineData("https://images.example/alpine-test/1.0.0", 2, false)]
     [InlineData("ftp://images.example/a/", 2, false)]
     [InlineData("not a url", 2, false)]

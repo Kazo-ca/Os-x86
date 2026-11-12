@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -35,11 +36,14 @@ public sealed class ImageManifest
     /// <summary>The smallest chunk size accepted.</summary>
     public const int MinChunkSize = 64 * 1024;
 
-    /// <summary>The largest chunk size accepted (the worker holds one chunk per slot in memory).</summary>
-    public const int MaxChunkSize = 512 * 1024 * 1024;
+    /// <summary>The largest chunk size accepted (the worker holds one chunk per parallel slot in memory, four at most).</summary>
+    public const int MaxChunkSize = 64 * 1024 * 1024;
 
     /// <summary>The most chunks a manifest may list (five digits in the chunk file names).</summary>
     public const int MaxChunks = 100_000;
+
+    /// <summary>The largest payload accepted (<see cref="MaxChunks"/> chunks of <see cref="MaxChunkSize"/>, below 2^53 so the worker's numbers stay exact).</summary>
+    public const long MaxSize = (long)MaxChunks * MaxChunkSize;
 
     /// <summary>The largest manifest text accepted, in bytes.</summary>
     public const int MaxManifestBytes = 1024 * 1024;
@@ -126,7 +130,7 @@ public sealed class ImageManifest
             throw new StorageException(StorageErrorCodes.ManifestIntegrity, $"The manifest hashes to {actual}, not to the expected {expectedSha256.ToLowerInvariant()}: the image is refused.");
         }
 
-        return Parse(Encoding.UTF8.GetString(utf8));
+        return ParseCore(Encoding.UTF8.GetString(utf8), actual); // the hash of the bytes verified, not of a re-encoding
     }
 
     /// <summary>Parses and validates a manifest text.</summary>
@@ -140,6 +144,11 @@ public sealed class ImageManifest
             throw new StorageException(StorageErrorCodes.ManifestInvalid, $"The manifest is {bytes.Length} bytes, more than the {MaxManifestBytes} accepted.");
         }
 
+        return ParseCore(json, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+    }
+
+    private static ImageManifest ParseCore(string json, string sha256)
+    {
         using JsonDocument document = ParseDocument(json);
         JsonElement root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object)
@@ -151,11 +160,10 @@ public sealed class ImageManifest
         string image = ReadName(root, "image", StorageLayout.IsValidImageId, "an image identifier (lowercase letters, digits and dashes)");
         string version = ReadName(root, "version", StorageLayout.IsValidVersion, "a semantic version");
         IReadOnlyDictionary<string, string> engine = ReadEngine(root);
-        long size = ReadInteger(root, "size", 1, long.MaxValue);
+        long size = ReadInteger(root, "size", 1, MaxSize);
         int chunkSize = (int)ReadInteger(root, "chunkSize", MinChunkSize, MaxChunkSize);
         IReadOnlyList<string> chunks = ReadChunks(root, size, chunkSize);
         IReadOnlyDictionary<string, ImageFileEntry> files = ReadFiles(root, size);
-        string sha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
         return new ImageManifest(json, sha256, format, image, version, engine, size, chunkSize, chunks, files);
     }
 
@@ -237,7 +245,10 @@ public sealed class ImageManifest
                 throw Invalid($"'engine.{property.Name}' must be a non-empty string");
             }
 
-            engine[property.Name] = property.Value.GetString()!;
+            if (!engine.TryAdd(property.Name, property.Value.GetString()!))
+            {
+                throw Invalid($"'engine.{property.Name}' appears twice");
+            }
         }
 
         if (!engine.ContainsKey("v86"))
@@ -245,13 +256,13 @@ public sealed class ImageManifest
             throw Invalid("'engine.v86' is missing");
         }
 
-        return engine;
+        return new ReadOnlyDictionary<string, string>(engine);
     }
 
     private static IReadOnlyList<string> ReadChunks(JsonElement root, long size, int chunkSize)
     {
         JsonElement element = Require(root, "chunks", JsonValueKind.Array, "an array");
-        long expected = (size + chunkSize - 1) / chunkSize;
+        long expected = size / chunkSize + (size % chunkSize == 0 ? 0 : 1); // no overflow: size is capped at MaxSize
         if (expected > MaxChunks)
         {
             throw Invalid($"'size' and 'chunkSize' give {expected} chunks, more than the {MaxChunks} accepted");
@@ -279,7 +290,7 @@ public sealed class ImageManifest
             throw Invalid($"'chunks' has {hashes.Count} entries; 'size' and 'chunkSize' give {expected}");
         }
 
-        return hashes;
+        return hashes.AsReadOnly();
     }
 
     private static IReadOnlyDictionary<string, ImageFileEntry> ReadFiles(JsonElement root, long size)
@@ -300,15 +311,18 @@ public sealed class ImageManifest
 
             long offset = ReadInteger(property.Value, "offset", 0, size);
             long length = ReadInteger(property.Value, "size", 0, size);
-            if (offset + length > size)
+            if (length > size - offset)
             {
                 throw Invalid($"'files.{property.Name}' ends at {offset + length}, beyond the payload size {size}");
             }
 
-            files[property.Name] = new ImageFileEntry(offset, length);
+            if (!files.TryAdd(property.Name, new ImageFileEntry(offset, length)))
+            {
+                throw Invalid($"'files.{property.Name}' appears twice");
+            }
         }
 
-        return files;
+        return new ReadOnlyDictionary<string, ImageFileEntry>(files);
     }
 
     /// <summary>Whether <paramref name="value"/> is a SHA-256 in lowercase hex.</summary>

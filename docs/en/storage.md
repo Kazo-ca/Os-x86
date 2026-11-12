@@ -46,18 +46,25 @@ The schema is the reference for the recipes of work item 4 as for this reader. F
   a semantic version. They are also the OPFS directory names.
 - `engine`: the engine versions the image is built for, `v86` at least. The reader exposes it;
   the "same major version" rule (169) is applied by work item 6.
-- `size`: payload size in bytes; `chunkSize`: the size of every chunk but the last (64 KiB to
-  512 MiB; the recipes use 32 MiB, the right size according to E3).
+- `size`: payload size in bytes (100,000 chunks of 64 MiB at most); `chunkSize`: the size of
+  every chunk but the last (64 KiB to 64 MiB, because the worker keeps one chunk in memory per
+  parallel stream; the recipes use 32 MiB, the right size according to E3).
 - `chunks`: one lowercase hex SHA-256 per chunk, in order, exactly `ceil(size / chunkSize)`
   entries (100,000 at most: five digits in the names). The chunks are the files
   `chunk-00000.bin`, `chunk-00001.bin`, ... next to the manifest.
 - `files`: the logical files of the payload (`kernel`, `initramfs`, `rootfs`, ...) with their
   offset and size; may be empty.
 
+The recipes of work item 4 (`pack-image.py`) add optional fields that this reader ignores
+without error, as it does any unknown field: `rawSize` and `blockSize` (the payload is a
+seekable zstd stream of a raw ext4 disk image, attached as `hda`) and a `sha256` per `files`
+entry. The repository stores the chunks as they are; decompression is not its job.
+
 `ImageManifest.Parse(text)` validates all of it; `ImageManifest.Parse(bytes, expectedSha256)`
 first compares the hash to the SHA-256 the C# side knows (decision 203 A: the manifest is the
 root of trust, the caller must know its hash) and refuses the image (`manifest-integrity`) when
-it differs. The manifest itself is capped at 1 MiB.
+it differs. The manifest itself is capped at 1 MiB (the worker reads no more), must be valid
+UTF-8 without a byte order mark, and a duplicate key in `files` or `engine` makes it invalid.
 
 ## How it works
 
@@ -94,12 +101,16 @@ stream; a second one covers the latency of the next request without doubling the
 
 - **Network error or 5xx** (408 and 429 too): the chunk is retried with a growing delay
   (500 ms, 1 s, 2 s, ... 30 s at most, with jitter), 8 attempts; beyond that the download fails
-  with `network`. A cut costs at most the chunk in progress (E3). A 404 or a 403 fails at once
-  (`http`).
+  with `network`. A cut costs at most the chunk in progress (E3). A server that stops answering
+  costs one attempt after 30 s without a byte (every `fetch` has its own `AbortController`,
+  aborted by that watchdog or by the cancellation). A 404 or a 403 fails at once (`http`).
 - **Wrong hash**: the chunk is fetched again up to three times, then `chunk-integrity`.
-- **Page reload, browser closed, crash**: the resume state is in the OPFS (`download.json`: the
-  manifest hash and the verified indices), written after the chunk's `flush()`, so it never
-  names a chunk that is not on disk. The next download only requests the missing chunks.
+- **Page reload, browser closed, crash**: the resume state is in the OPFS (`download.json` and
+  `download.1.json`, written alternately with a sequence number: the manifest hash and the
+  verified indices; a torn write spoils one copy at most, the newest valid one is read), written
+  after the chunk's `flush()`, so it never names a chunk that is not on disk. An `image.bin` that
+  is missing or not the size of the manifest voids the state: everything starts over. The next
+  download only requests the missing chunks.
 - **Cancellation**: the C# token sends `cancel`; the worker aborts the fetches in progress,
   closes the file, releases the lock and answers `cancelled` (the C# side waits for that
   acknowledgement up to 5 s so the lock is free when the caller goes on). Verified chunks stay.
@@ -118,7 +129,8 @@ osx86/
       <version>/
         manifest.json     the copy of the published manifest
         image.bin         the chunks concatenated (the payload)
-        download.json     the resume state: {"format":1,"manifestSha256":"…","verified":[0,1,2]}
+        download.json     the resume state: {"format":1,"seq":3,"manifestSha256":"…","verified":[0,1,2]}
+        download.1.json   its alternate copy (the highest sequence number wins)
         image.meta.json   the versioned metadata (below), complete:true at the end
 ```
 
@@ -126,8 +138,9 @@ osx86/
 format and its engine versions; `IsSupported` says whether this version of Os-x86 can open it),
 `DeleteAsync` (refused with `locked` during a download), `EstimateAsync`
 (`navigator.storage.estimate()`: usage and quota of the origin, plus the repository footprint),
-`ReadManifestAsync` (the local copy, validated: an unknown format is refused), `VerifyAsync`
-(every chunk re-read and hashed in place, 1 s for 800 MiB according to E3), and
+`ReadManifestAsync` (the local copy, validated and pinned to the hash the resume state recorded:
+an unknown format or a modified copy is refused), `VerifyAsync` (every chunk re-read and hashed
+in place under the lock, 1 s for 800 MiB according to E3), and
 `ImageStore.Locate(manifest, "kernel")` which gives the OPFS path of `image.bin` with the
 offset and size of the logical file: what work item 6 will hand to the engine. `IEngine` and
 the v86 worker are unchanged in this work item; the v86 worker reads whole files today and
@@ -137,13 +150,16 @@ from the repository.
 ### Write lock (E11) and `flush()` (177 A)
 
 One writer per image version: the worker calls
-`navigator.locks.request("osx86:image:<image>@<version>", { ifAvailable: true })` and holds it
-for the whole download or deletion; a second writer gets `locked` at once instead of waiting.
+`navigator.locks.request("osx86:image:<image>@<version>")` and holds it for the whole download
+or deletion; a second writer waits 2 s at most (the time the browser takes to release the lock
+of a worker killed by a reload) then gets `locked` instead of waiting forever.
 The browser releases the lock when the page closes or crashes, with no lock file and no expiry
 to manage: that is why it is preferred to a lock file. Without the Web Locks API (the worker
 says so in `ready`), the exclusivity of `createSyncAccessHandle()` on `image.bin` plays the same
-role: the second opener fails, translated to `locked`. A read (verification) needs no lock; it
-fails with `locked` while a download holds the file.
+role: the second opener fails, translated to `locked`. Verification takes the same lock, so it
+never reads under a download. The worker opens `image.bin` before it writes anything else, and
+retries five times at 200 ms when the browser has not yet released the handle of a terminated
+worker (page reload).
 
 `flush()`: after every chunk before the state names it, every 5 s while a file is open for
 writing (the worker's `WritableFile` class, ready for the disks of the next work items), and at
@@ -206,13 +222,13 @@ worker error outside any request (crash, malformed message) is raised through
 - The C# side decides, the worker executes: manifest validation and the resume plan are in C#
   (testable without a browser); the worker downloads only the list it is given and re-checks the
   names before creating a directory.
-- Lock through `navigator.locks` (`ifAvailable`), released by the browser, rather than a lock
-  file with an expiry; fallback on the exclusivity of the `SyncAccessHandle`.
+- Lock through `navigator.locks` (bounded wait of 2 s), released by the browser, rather than a
+  lock file with an expiry; fallback on the exclusivity of the `SyncAccessHandle`.
 - Two chunks in parallel by default, four at most; to re-measure on R2.
 - One payload `image.bin` per version plus a map of the logical files, rather than one OPFS
   file per logical file: writes stay sequential per chunk and a file's offset comes from the
   manifest.
-- `storage-worker.js` is one file of 880 lines (60 of them the protocol at the top): a worker
+- `storage-worker.js` is one file of about 1,000 lines (60 of them the protocol at the top): a worker
   loads by URL, and splitting it would have added an `importScripts` and a second download to
   separate code that is reused nowhere else.
 - Not verified here: Firefox and Safari (E3 saw Firefox behave like Chrome on the download; no

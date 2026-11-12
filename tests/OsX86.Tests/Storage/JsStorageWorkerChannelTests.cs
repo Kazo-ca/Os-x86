@@ -8,7 +8,7 @@ namespace OsX86.Tests.Storage;
 [Trait("Category", "unit")]
 public sealed class JsStorageWorkerChannelTests
 {
-    private sealed class FakeJsObject(string name, List<string> calls, Func<bool> failCreateHost, Func<bool> failDispose) : IJSObjectReference
+    private sealed class FakeJsObject(string name, List<string> calls, Func<bool> failCreateHost, Func<bool> failDispose, Action<JsStorageWorkerChannel>? onCreateHost) : IJSObjectReference
     {
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => InvokeAsync<TValue>(identifier, CancellationToken.None, args);
 
@@ -20,6 +20,11 @@ public sealed class JsStorageWorkerChannelTests
                 throw new InvalidOperationException("createHost failed");
             }
 
+            if (identifier == "createHost" && onCreateHost is not null && args?[0] is DotNetObjectReference<JsStorageWorkerChannel> reference)
+            {
+                onCreateHost(reference.Value); // the worker posts "ready" before createHost returns
+            }
+
             if (identifier == "dispose" && failDispose())
             {
                 throw new JSDisconnectedException("gone");
@@ -27,7 +32,7 @@ public sealed class JsStorageWorkerChannelTests
 
             if (typeof(TValue) == typeof(IJSObjectReference))
             {
-                return ValueTask.FromResult((TValue)(object)new FakeJsObject(identifier, calls, failCreateHost, failDispose));
+                return ValueTask.FromResult((TValue)(object)new FakeJsObject(identifier, calls, failCreateHost, failDispose, onCreateHost));
             }
 
             if (typeof(TValue) == typeof(IJSVoidResult))
@@ -66,12 +71,14 @@ public sealed class JsStorageWorkerChannelTests
 
         public bool FailDispose { get; set; }
 
+        public Action<JsStorageWorkerChannel>? OnCreateHost { get; set; }
+
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => InvokeAsync<TValue>(identifier, CancellationToken.None, args);
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
         {
             Calls.Add($"js.{identifier}({string.Join(", ", (args ?? []).Select(a => a is string s ? $"\"{s}\"" : a?.GetType().Name ?? "null"))})");
-            return ValueTask.FromResult((TValue)(object)new FakeJsObject("module", Calls, () => FailCreateHost, () => FailDispose));
+            return ValueTask.FromResult((TValue)(object)new FakeJsObject("module", Calls, () => FailCreateHost, () => FailDispose, OnCreateHost));
         }
     }
 
@@ -89,6 +96,18 @@ public sealed class JsStorageWorkerChannelTests
         Assert.Equal(["js.import(\"./_content/OsX86/storage/storage-host.js\")", "module.createHost(dotnet-ref)"], js.Calls);
         await channel.OnWorkerMessage("{\"type\":\"ready\"}");
         Assert.Equal(["{\"type\":\"ready\"}"], received);
+    }
+
+    [Fact]
+    public async Task A_ready_posted_before_createHost_returns_is_not_lost()
+    {
+        var js = new FakeJsRuntime { OnCreateHost = channel => channel.OnWorkerMessage("{\"type\":\"ready\",\"opfs\":true}").GetAwaiter().GetResult() };
+        var channel = new JsStorageWorkerChannel(js);
+        var received = new List<string>();
+
+        await channel.StartAsync(json => { received.Add(json); return ValueTask.CompletedTask; }, CancellationToken.None);
+
+        Assert.Equal(["{\"type\":\"ready\",\"opfs\":true}"], received);
     }
 
     [Fact]

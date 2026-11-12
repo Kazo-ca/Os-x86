@@ -18,6 +18,7 @@ public sealed class ImageStore : IAsyncDisposable
     private readonly Dictionary<int, PendingRequest> _pending = [];
     private readonly TaskCompletionSource<StorageMessage> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _channelStart;
+    private StorageException? _faulted;
     private int _nextId;
     private bool _disposed;
 
@@ -27,6 +28,7 @@ public sealed class ImageStore : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(channel);
         _channel = channel;
         _time = time ?? TimeProvider.System;
+        _ = _ready.Task.ContinueWith(static task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously); // observed: a failed start is reported through the operations
     }
 
     /// <summary>Raised for an error the worker reports outside any request (a crash, a message that is not the protocol).</summary>
@@ -103,48 +105,53 @@ public sealed class ImageStore : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(source);
         source.Validate();
-        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
-        progress?.Report(new DownloadProgress(DownloadPhase.FetchingManifest, 0, 0, 0, 0, 0));
-        StorageMessage fetched = await RequestAsync(StorageProtocol.FetchManifest(id, source.ManifestUrl, source.ManifestSha256.ToLowerInvariant()), id, StorageProtocol.Types.Manifest, null, cancellationToken).ConfigureAwait(false);
-        ImageManifest manifest = ImageManifest.Parse(System.Text.Encoding.UTF8.GetBytes(fetched.Text ?? string.Empty), source.ManifestSha256);
-
-        progress?.Report(new DownloadProgress(DownloadPhase.Planning, 0, manifest.Size, 0, manifest.ChunkCount, 0));
-        int stateId = NextId();
-        StorageMessage stored = await RequestAsync(StorageProtocol.ReadState(stateId, manifest.Image, manifest.Version), stateId, StorageProtocol.Types.State, null, cancellationToken).ConfigureAwait(false);
-        ResumePlan plan = ResumePlan.Create(manifest, stored.State);
-
-        int downloadId = NextId();
-        var command = new DownloadCommand
+        var current = new DownloadProgress(DownloadPhase.Idle, 0, 0, 0, 0, 0);
+        void Report(DownloadProgress next)
         {
-            Id = downloadId,
-            Image = manifest.Image,
-            Version = manifest.Version,
-            BaseUrl = source.BaseUrl,
-            Manifest = manifest.Json,
-            Metadata = StoredObjectMetadata.ForImage(manifest, _time.GetUtcNow()).ToJson(),
-            Chunks = plan.ChunksToFetch,
-            Reset = plan.Reset,
-            Parallelism = source.Parallelism,
-        };
-        progress?.Report(new DownloadProgress(DownloadPhase.Downloading, plan.BytesVerified, manifest.Size, plan.ChunksVerified.Count, manifest.ChunkCount, 0));
-        StorageMessage done;
+            current = next;
+            progress?.Report(next);
+        }
+
         try
         {
-            done = await RequestAsync(StorageProtocol.Download(command), downloadId, StorageProtocol.Types.Done, message => progress?.Report(ToProgress(DownloadPhase.Downloading, message)), cancellationToken, cancellable: true).ConfigureAwait(false);
+            int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+            Report(new DownloadProgress(DownloadPhase.FetchingManifest, 0, 0, 0, 0, 0));
+            StorageMessage fetched = await RequestAsync(StorageProtocol.FetchManifest(id, source.ManifestUrl, source.ManifestSha256.ToLowerInvariant()), id, StorageProtocol.Types.Manifest, null, cancellationToken).ConfigureAwait(false);
+            ImageManifest manifest = ImageManifest.Parse(System.Text.Encoding.UTF8.GetBytes(fetched.Text ?? string.Empty), source.ManifestSha256);
+
+            Report(new DownloadProgress(DownloadPhase.Planning, 0, manifest.Size, 0, manifest.ChunkCount, 0));
+            int stateId = NextId();
+            StorageMessage stored = await RequestAsync(StorageProtocol.ReadState(stateId, manifest.Image, manifest.Version), stateId, StorageProtocol.Types.State, null, cancellationToken).ConfigureAwait(false);
+            ResumePlan plan = ResumePlan.Create(manifest, stored.State);
+
+            int downloadId = NextId();
+            var command = new DownloadCommand
+            {
+                Id = downloadId,
+                Image = manifest.Image,
+                Version = manifest.Version,
+                BaseUrl = source.BaseUrl,
+                Manifest = manifest.Json,
+                Metadata = StoredObjectMetadata.ForImage(manifest, _time.GetUtcNow()).ToJson(),
+                Chunks = plan.ChunksToFetch,
+                Reset = plan.Reset,
+                Parallelism = source.Parallelism,
+            };
+            Report(new DownloadProgress(DownloadPhase.Downloading, plan.BytesVerified, manifest.Size, plan.ChunksVerified.Count, manifest.ChunkCount, 0));
+            StorageMessage done = await RequestAsync(StorageProtocol.Download(command), downloadId, StorageProtocol.Types.Done, message => Report(ToProgress(DownloadPhase.Downloading, message)), cancellationToken, cancellable: true).ConfigureAwait(false);
+            Report(new DownloadProgress(DownloadPhase.Completed, manifest.Size, manifest.Size, manifest.ChunkCount, manifest.ChunkCount, 0));
+            return new StoredImage(manifest.Image, manifest.Version, manifest.Size, done.BytesOnDisk, true, StoredObjectMetadata.CurrentFormat, manifest.Engine);
         }
         catch (OperationCanceledException)
         {
-            progress?.Report(new DownloadProgress(DownloadPhase.Cancelled, plan.BytesVerified, manifest.Size, plan.ChunksVerified.Count, manifest.ChunkCount, 0));
+            Report(current with { Phase = DownloadPhase.Cancelled, BytesPerSecond = 0 });
             throw;
         }
-        catch (StorageException)
+        catch (Exception exception) when (exception is StorageException or ObjectDisposedException)
         {
-            progress?.Report(new DownloadProgress(DownloadPhase.Failed, plan.BytesVerified, manifest.Size, plan.ChunksVerified.Count, manifest.ChunkCount, 0));
+            Report(current with { Phase = DownloadPhase.Failed, BytesPerSecond = 0 });
             throw;
         }
-
-        progress?.Report(new DownloadProgress(DownloadPhase.Completed, manifest.Size, manifest.Size, manifest.ChunkCount, manifest.ChunkCount, 0));
-        return new StoredImage(manifest.Image, manifest.Version, manifest.Size, done.BytesOnDisk, true, StoredObjectMetadata.CurrentFormat, manifest.Engine);
     }
 
     /// <summary>Re-reads and hashes every chunk of a stored image against its local manifest.</summary>
@@ -204,10 +211,26 @@ public sealed class ImageStore : IAsyncDisposable
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowIfFaulted();
             start = _channelStart ??= _channel.StartAsync(OnWorkerMessageAsync, CancellationToken.None).AsTask();
         }
 
-        await start.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await start.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (start.IsFaulted)
+        {
+            lock (_lock)
+            {
+                if (ReferenceEquals(_channelStart, start))
+                {
+                    _channelStart = null; // a failed start is forgotten: the next operation tries again
+                }
+            }
+
+            throw;
+        }
         StorageMessage ready = await _ready.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         if (!ready.Opfs)
         {
@@ -217,28 +240,44 @@ public sealed class ImageStore : IAsyncDisposable
         return NextId();
     }
 
+    private void ThrowIfFaulted()
+    {
+        if (_faulted is not null)
+        {
+            throw new StorageException(_faulted.Code, $"The storage worker is down: {_faulted.Message}", _faulted);
+        }
+    }
+
     private async ValueTask<StorageMessage> RequestAsync(string json, int id, string expectedType, Action<StorageMessage>? onProgress, CancellationToken cancellationToken, bool cancellable = false)
     {
         var request = new PendingRequest(expectedType, onProgress);
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowIfFaulted();
             _pending.Add(id, request);
         }
 
+        // Posted without the token: once dispatched, JS runs the command whatever the token does, so the
+        // cancellation is observed on the wait below and answered with a cancel command when it matters.
         try
         {
-            await _channel.PostAsync(json, cancellationToken).ConfigureAwait(false);
+            await _channel.PostAsync(json, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException and not StorageException)
-        {
-            Remove(id);
-            throw new StorageException(StorageErrorCodes.WorkerError, $"The storage worker could not be reached: {exception.Message}", exception);
-        }
-        catch (Exception)
+        catch (StorageException)
         {
             Remove(id);
             throw;
+        }
+        catch (Exception exception)
+        {
+            Remove(id);
+            if (_disposed)
+            {
+                throw new StorageException(StorageErrorCodes.Disposed, "The image store was disposed.", exception);
+            }
+
+            throw new StorageException(StorageErrorCodes.WorkerError, $"The storage worker could not be reached: {exception.Message}", exception);
         }
 
         try
@@ -325,7 +364,15 @@ public sealed class ImageStore : IAsyncDisposable
     {
         if (message.Type == StorageProtocol.Types.Progress)
         {
-            request.OnProgress?.Invoke(message);
+            try
+            {
+                request.OnProgress?.Invoke(message);
+            }
+            catch (Exception exception)
+            {
+                UnroutedErrorReported?.Invoke(this, new StorageException(StorageErrorCodes.WorkerError, $"A progress callback threw: {exception.Message}", exception)); // the download goes on
+            }
+
             return;
         }
 
@@ -372,6 +419,7 @@ public sealed class ImageStore : IAsyncDisposable
         List<PendingRequest> pending;
         lock (_lock)
         {
+            _faulted ??= exception; // the worker is dead: later requests fail at once instead of hanging
             pending = _pending.Values.ToList();
             _pending.Clear();
         }

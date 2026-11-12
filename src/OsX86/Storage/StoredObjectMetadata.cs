@@ -88,9 +88,9 @@ public sealed class StoredObjectMetadata
     public static StoredObjectMetadata Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
-        if (json.Length > MaxBytes)
+        if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxBytes)
         {
-            throw new StorageException(StorageErrorCodes.ManifestInvalid, $"The metadata is {json.Length} characters, more than the {MaxBytes} accepted.");
+            throw new StorageException(StorageErrorCodes.ManifestInvalid, $"The metadata is more than the {MaxBytes} bytes accepted.");
         }
 
         int format = PeekFormat(json);
@@ -109,7 +109,7 @@ public sealed class StoredObjectMetadata
             throw new StorageException(StorageErrorCodes.ManifestInvalid, $"The metadata is invalid: {exception.Message}", exception);
         }
 
-        if (metadata is null || !StorageLayout.IsValidImageId(metadata.Image) || !StorageLayout.IsValidVersion(metadata.ImageVersion) || !metadata.Engine.ContainsKey("v86"))
+        if (metadata is null || !StorageLayout.IsValidImageId(metadata.Image) || !StorageLayout.IsValidVersion(metadata.ImageVersion) || metadata.Engine is null || !metadata.Engine.ContainsKey("v86"))
         {
             throw new StorageException(StorageErrorCodes.ManifestInvalid, "The metadata is invalid: image, imageVersion or engine.v86 is missing or malformed.");
         }

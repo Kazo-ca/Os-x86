@@ -162,10 +162,108 @@ public sealed class ImageManifestTests
     }
 
     [Fact]
+    public void The_optional_fields_of_the_image_recipes_are_accepted()
+    {
+        // pack-image.py (work item 4) adds rawSize, blockSize and a sha256 per file entry; this reader reads what it needs and ignores the rest.
+        Dictionary<string, object?> manifest = TestManifests.ValidObject();
+        manifest["rawSize"] = 4L * 1024 * 1024 * 1024;
+        manifest["blockSize"] = 1024 * 1024;
+        manifest["files"] = new Dictionary<string, object?>
+        {
+            ["rootfs"] = new Dictionary<string, object?> { ["offset"] = 0, ["size"] = TestManifests.Size, ["sha256"] = TestManifests.FakeHash(9) },
+        };
+
+        ImageManifest parsed = ImageManifest.Parse(TestManifests.Json(manifest));
+
+        Assert.Equal(new ImageFileEntry(0, TestManifests.Size), parsed.Files["rootfs"]);
+        Assert.Equal(4, parsed.ChunkCount);
+    }
+
+    [Fact]
     public void An_empty_files_object_is_allowed()
     {
         ImageManifest manifest = ImageManifest.Parse(TestManifests.With("files", new Dictionary<string, object?>()));
         Assert.Empty(manifest.Files);
+    }
+
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(ImageManifest.MaxSize + 1)]
+    public void A_size_beyond_the_cap_is_refused_without_overflowing(long size)
+    {
+        var error = Assert.Throws<StorageException>(() => ImageManifest.Parse(TestManifests.With("size", size)));
+        Assert.Equal(StorageErrorCodes.ManifestInvalid, error.Code);
+        Assert.Contains("'size'", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("\"files\":{\"kernel\":{\"offset\":0,\"size\":1},\"kernel\":{\"offset\":0,\"size\":1}}")]
+    [InlineData("\"files\":{},\"engine\":{\"v86\":\"1\",\"v86\":\"2\"}")]
+    public void Duplicate_keys_are_refused(string tail)
+    {
+        string json = TestManifests.With("files", new Dictionary<string, object?>());
+        json = json[..json.LastIndexOf("\"files\"", StringComparison.Ordinal)] + tail + "}";
+
+        var error = Assert.Throws<StorageException>(() => ImageManifest.Parse(json));
+
+        Assert.Equal(StorageErrorCodes.ManifestInvalid, error.Code);
+        Assert.Contains("twice", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_file_may_end_exactly_at_the_payload_end_or_be_empty_at_it()
+    {
+        string json = TestManifests.With("files", new Dictionary<string, object?>
+        {
+            ["tail"] = new Dictionary<string, object?> { ["offset"] = TestManifests.Size - 10, ["size"] = 10 },
+            ["mark"] = new Dictionary<string, object?> { ["offset"] = TestManifests.Size, ["size"] = 0 },
+        });
+
+        ImageManifest manifest = ImageManifest.Parse(json);
+
+        Assert.Equal(new ImageFileEntry(TestManifests.Size - 10, 10), manifest.Files["tail"]);
+        Assert.Equal(new ImageFileEntry(TestManifests.Size, 0), manifest.Files["mark"]);
+    }
+
+    [Fact]
+    public void A_manifest_with_a_byte_order_mark_is_refused_as_invalid()
+    {
+        // The worker keeps the BOM in the text it hands over (TextDecoder ignoreBOM), the C# parser refuses it: no
+        // round-tripped text whose hash would differ from the bytes verified.
+        byte[] bytes = [0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(TestManifests.Valid())];
+        string hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes));
+
+        var error = Assert.Throws<StorageException>(() => ImageManifest.Parse(bytes, hash));
+
+        Assert.Equal(StorageErrorCodes.ManifestInvalid, error.Code);
+    }
+
+    [Fact]
+    public void The_hash_is_the_one_of_the_bytes_verified()
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(TestManifests.Valid());
+        string hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes));
+
+        ImageManifest manifest = ImageManifest.Parse(bytes, hash);
+
+        Assert.Equal(hash, manifest.Sha256);
+        Assert.Equal(hash, SimulatedStorageWorkerChannel.Sha256Of(manifest.Json)); // what the worker stores and hashes again on resume
+    }
+
+    [Fact]
+    public void The_collections_are_read_only()
+    {
+        ImageManifest manifest = ImageManifest.Parse(TestManifests.Valid());
+        Assert.True(((ICollection<string>)manifest.ChunkHashes).IsReadOnly);
+        Assert.True(((ICollection<KeyValuePair<string, ImageFileEntry>>)manifest.Files).IsReadOnly);
+        Assert.True(((ICollection<KeyValuePair<string, string>>)manifest.Engine).IsReadOnly);
+    }
+
+    [Fact]
+    public void A_name_with_a_trailing_newline_is_refused()
+    {
+        Assert.Equal(StorageErrorCodes.ManifestInvalid, Assert.Throws<StorageException>(() => ImageManifest.Parse(TestManifests.With("image", "alpine\n"))).Code);
+        Assert.Equal(StorageErrorCodes.ManifestInvalid, Assert.Throws<StorageException>(() => ImageManifest.Parse(TestManifests.With("version", "1.0.0\n"))).Code);
     }
 
     [Fact]

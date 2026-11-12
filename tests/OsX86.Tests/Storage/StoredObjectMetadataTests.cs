@@ -66,6 +66,7 @@ public sealed class StoredObjectMetadataTests
     [InlineData("{\"format\":\"1\"}")]
     [InlineData("{\"format\":1,\"kind\":\"image\",\"image\":\"Bad\",\"imageVersion\":\"1.0.0\",\"engine\":{\"v86\":\"1\"},\"created\":\"2026-11-12T10:00:00Z\"}")]
     [InlineData("{\"format\":1,\"kind\":\"image\",\"image\":\"ok\",\"imageVersion\":\"1.0.0\",\"engine\":{},\"created\":\"2026-11-12T10:00:00Z\"}")]
+    [InlineData("{\"format\":1,\"kind\":\"image\",\"image\":\"ok\",\"imageVersion\":\"1.0.0\",\"engine\":null,\"created\":\"2026-11-12T10:00:00Z\"}")]
     [InlineData("{\"format\":1,\"kind\":\"image\",\"image\":\"ok\",\"imageVersion\":\"1.0.0\",\"engine\":{\"v86\":\"1\"},\"created\":\"not a date\"}")]
     public void An_invalid_metadata_is_refused(string json)
     {
