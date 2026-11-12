@@ -59,11 +59,11 @@ public sealed class AlpineGuestTests(ITestOutputHelper output)
             Assert.Contains(prompt, serial, StringComparison.Ordinal);
             Assert.Contains("OSX86-42\r\n", serial, StringComparison.Ordinal);
 
-            // virtio-console, guest to host then host to guest.
-            string virtio = await page.EvaluateAsync<string>("() => window.guest.sendAndWait('echo hello-from-guest > /dev/hvc1', 'hello-from-guest', 20000, 'virtio1')");
+            // virtio-console, guest to host then host to guest (port 2: ports 0 and 1 belong to the agent when the image has it).
+            string virtio = await page.EvaluateAsync<string>("() => window.guest.sendAndWait('echo hello-from-guest > /dev/hvc2', 'hello-from-guest', 20000, 'virtio2')");
             Assert.Contains("hello-from-guest", virtio, StringComparison.Ordinal);
             string echoed = await page.EvaluateAsync<string>(
-                "async () => { window.guest.send('read line < /dev/hvc1; echo GOT:$line'); await new Promise(r => setTimeout(r, 800)); window.guest.send('ping-from-host', 'virtio1'); return window.guest.waitForText('GOT:ping-from-host', 20000); }");
+                "async () => { window.guest.send('read line < /dev/hvc2; echo GOT:$line'); await new Promise(r => setTimeout(r, 800)); window.guest.send('ping-from-host', 'virtio2'); return window.guest.waitForText('GOT:ping-from-host', 20000); }");
             Assert.Contains("GOT:ping-from-host", echoed, StringComparison.Ordinal);
 
             // Pause stops the output, resume brings it back, stop ends the engine.

@@ -6,7 +6,13 @@ x86 (32-bit), taken from the `alpine-virt` ISO of that release, verified against
 pinned below (the value published next to the ISO on dl-cdn.alpinelinux.org), plus a small
 init script (init.sh, next to this file) that replaces the Alpine init of the initramfs: no
 boot media, no network, no package manager; a busybox shell on the serial console (ttyS0) and
-the virtio-console ports (hvc0 to hvc3, driver built into linux-virt) left free for the tests.
+the virtio-console ports (hvc0 to hvc3, driver built into linux-virt).
+
+Work item 5 adds the guest agent when it is built (images/build/agent, made by
+images/agent/build-agent.py; the same static musl binary as in linux-base): /usr/lib/osx86/agent
+started by the init on hvc0 with the consoles on hvc1, /usr/bin/osx86-open-url, and two guest
+users (osx86-test and osx86-other, the prefixes "test" and "other") for the `guest` tests of the
+agent. Without a built agent the image is the one of work item 2, with hvc0 to hvc3 free.
 
 Output (git-ignored, never committed): images/build/alpine-test/
     vmlinuz-virt        the kernel, byte for byte from the ISO
@@ -18,6 +24,7 @@ Output (git-ignored, never committed): images/build/alpine-test/
 Run from the repository root with an isolated interpreter (standard library only):
 
     python -I images/alpine-test/build-alpine-test.py [--download-dir DIR] [--output-dir DIR]
+                                                      [--agent-dir DIR] [--require-agent]
 
 The download goes to an empty directory of its own (default images/alpine-test/download,
 git-ignored) and is treated as untrusted: it is hashed, parsed with the two small readers
@@ -83,6 +90,12 @@ SOURCES = {
             "package versions are those of the release, listed in the ISO's apks/ directory.",
 }
 DEFAULT_DOWNLOAD = HERE / "download"
+DEFAULT_AGENT = REPO_ROOT / "images" / "build" / "agent"
+AGENT_TOOL = REPO_ROOT / "images" / "agent" / "build-agent.py"
+AGENT_PATH = "usr/lib/osx86/agent"
+OPEN_URL_PATH = "usr/bin/osx86-open-url"
+# The guest users of the agent tests: user osx86-<prefix> for the prefixes "test" and "other".
+GUEST_USERS = (("osx86-test", 1001), ("osx86-other", 1002))
 DEFAULT_OUTPUT = REPO_ROOT / "images" / "build" / "alpine-test"
 CHUNK = 1024 * 1024
 
@@ -261,23 +274,58 @@ def gunzip_bounded(data: bytes, limit: int) -> bytes:
     return output
 
 
-def rebuild_initramfs(official: bytes, init_script: bytes) -> tuple[bytes, dict]:
-    """Rewrites the official initramfs with init.sh as /init and two small files under /etc."""
+def load_agent(agent_dir: Path) -> dict[str, bytes] | None:
+    """The agent binaries of a build that images/agent/build-agent.py --check accepts, or None
+    when there is no build. A build that fails its check (stale, altered) is an error."""
+    if not (agent_dir / "manifest.json").is_file():
+        return None
+    checked = subprocess.run([sys.executable, "-I", str(AGENT_TOOL), "--check", "--output-dir", str(agent_dir)])
+    if checked.returncode != 0:
+        raise SystemExit(f"the agent build in {agent_dir} failed its check: run `python -I images/agent/build-agent.py` again")
+    return {AGENT_PATH: (agent_dir / "agent").read_bytes(), OPEN_URL_PATH: (agent_dir / "osx86-open-url").read_bytes()}
+
+
+def rebuild_initramfs(official: bytes, init_script: bytes, agent: dict[str, bytes] | None = None) -> tuple[bytes, dict]:
+    """Rewrites the official initramfs with init.sh as /init, two small files under /etc, the
+    guest users of the agent tests and, when given, the agent binaries."""
     entries = list(cpio_read(gunzip_bounded(official, MAX_INITRAMFS_BYTES)))
     names = {name for name, _, _ in entries}
     if "bin/busybox" not in names:
         raise SystemExit("the official initramfs has no bin/busybox: not the expected Alpine initramfs")
     replaced = "init" in names
     next_ino = max(header["ino"] for _, header, _ in entries) + 1
-    added = []
-    if "etc" not in names:
-        added.append(("etc", cpio_file_header(0o040755, next_ino), b""))
-        next_ino += 1
-    added.append(("init", cpio_file_header(0o100755, next_ino), init_script))
-    added.append(("etc/osx86-alpine-release", cpio_file_header(0o100644, next_ino + 1), f"{ALPINE_VERSION}\n".encode()))
-    added.append(("etc/osx86-profile", cpio_file_header(0o100644, next_ino + 2), b"PS1='osx86# '\n"))
+    added: list[tuple[str, dict, bytes]] = []
 
-    kept = [(name, header, body) for name, header, body in entries if name.strip("./") != "init"]
+    def add(name: str, mode: int, body: bytes = b"") -> None:
+        nonlocal next_ino
+        added.append((name, cpio_file_header(mode, next_ino), body))
+        next_ino += 1
+
+    def add_directories(path: str) -> None:
+        parts = path.split("/")[:-1]
+        for depth in range(1, len(parts) + 1):
+            directory = "/".join(parts[:depth])
+            if directory not in names and all(directory != name for name, _, _ in added):
+                add(directory, 0o040755)
+
+    replaced_files = {"init", "etc/passwd", "etc/group"}
+    bodies = {name: body for name, _, body in entries if name in ("etc/passwd", "etc/group")}
+    passwd = bodies.get("etc/passwd", b"root:x:0:0:root:/root:/bin/sh\n")
+    group = bodies.get("etc/group", b"root:x:0:root\n")
+    for user, uid in GUEST_USERS:
+        passwd += f"{user}:x:{uid}:{uid}:Os-x86 test prefix:/home/{user}:/bin/sh\n".encode()
+        group += f"{user}:x:{uid}:\n".encode()
+    add_directories("etc/passwd")
+    add("init", 0o100755, init_script)
+    add("etc/osx86-alpine-release", 0o100644, f"{ALPINE_VERSION}\n".encode())
+    add("etc/osx86-profile", 0o100644, b"PS1='osx86# '\n")
+    add("etc/passwd", 0o100644, passwd)
+    add("etc/group", 0o100644, group)
+    for path, body in sorted((agent or {}).items()):
+        add_directories(path)
+        add(path, 0o100755, body)
+
+    kept = [(name, header, body) for name, header, body in entries if name.strip("./") not in replaced_files]
     final = kept + added
     if sum(1 for name, _, _ in final if name == "init") != 1:
         raise SystemExit("the rebuilt initramfs must have exactly one /init")
@@ -296,8 +344,11 @@ def kernel_version(image: bytes) -> str:
     return image[offset:end].decode("ascii", "replace").split(" ")[0]
 
 
-def build(download_dir: Path, output: Path) -> dict:
+def build(download_dir: Path, output: Path, agent_dir: Path, require_agent: bool) -> dict:
     output.mkdir(parents=True, exist_ok=True)
+    agent = load_agent(agent_dir)
+    if agent is None and require_agent:
+        raise SystemExit(f"no agent build in {agent_dir}: run `python -I images/agent/build-agent.py` first")
 
     print(f"Alpine {ALPINE_VERSION} {ARCHITECTURE} (official release)")
     iso_path = download_dir / ISO_NAME
@@ -309,8 +360,9 @@ def build(download_dir: Path, output: Path) -> dict:
     print(f"  {INITRAMFS_IN_ISO}: {len(initramfs)} bytes")
 
     init_script = (HERE / "init.sh").read_bytes().replace(b"\r\n", b"\n")
-    rebuilt, details = rebuild_initramfs(initramfs, init_script)
-    print(f"  initramfs rebuilt: {details['entries']} entries kept, /init replaced, {len(rebuilt)} bytes")
+    rebuilt, details = rebuild_initramfs(initramfs, init_script, agent)
+    print(f"  initramfs rebuilt: {details['entries']} entries kept, /init replaced, {len(rebuilt)} bytes, "
+          + (f"agent {len(agent[AGENT_PATH])} bytes" if agent else "no agent (images/build/agent not built)"))
 
     (output / "vmlinuz-virt").write_bytes(kernel)
     (output / "initramfs-osx86").write_bytes(rebuilt)
@@ -325,6 +377,12 @@ def build(download_dir: Path, output: Path) -> dict:
         "cmdline": KERNEL_CMDLINE,
         "readyMarker": "OSX86-READY",
         "prompt": "osx86# ",
+        # The agent of work item 5, when the image carries it: where it is, its two ports and the
+        # prefixes the image has a guest user for.
+        "agent": None if agent is None else {
+            "path": "/" + AGENT_PATH, "sha256": sha256_bytes(agent[AGENT_PATH]), "port": "virtio0", "consolePort": "virtio1",
+            "prefixes": [user.removeprefix("osx86-") for user, _ in GUEST_USERS],
+        },
         "sources": {
             "iso": {"url": ISO_URL, "sha256": ISO_SHA256},
             "kernel_in_iso": KERNEL_IN_ISO,
@@ -351,6 +409,8 @@ def pack(output: Path, build_manifest: dict) -> None:
         "prompt": build_manifest["prompt"],
         "memoryMiB": 128,
     }
+    if build_manifest.get("agent"):
+        boot["agent"] = {key: build_manifest["agent"][key] for key in ("path", "port", "consolePort")}
     build = {
         "recipe": "images/alpine-test/build-alpine-test.py",
         "alpine": ALPINE_VERSION,
@@ -378,6 +438,9 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT,
                         help="where the image goes (default: images/build/alpine-test, git-ignored)")
     parser.add_argument("--keep-download", action="store_true", help="keep the download directory afterwards")
+    parser.add_argument("--agent-dir", type=Path, default=DEFAULT_AGENT,
+                        help="the agent build to put in the image (default: images/build/agent; skipped when not built)")
+    parser.add_argument("--require-agent", action="store_true", help="fail when the agent is not built instead of making an image without it")
     args = parser.parse_args()
     download_dir = args.download_dir.resolve()
     # The download directory is an empty directory of its own: checked before anything is written
@@ -386,8 +449,9 @@ def main() -> int:
     if any(download_dir.iterdir()):
         raise SystemExit(f"{download_dir} is not empty: the download directory must be an empty directory of its own")
     try:
-        manifest = build(download_dir, args.output_dir.resolve())
-        print(f"Built {manifest['image']} (Alpine {manifest['alpine']}, kernel {manifest['kernel']['version']}) in {args.output_dir}")
+        manifest = build(download_dir, args.output_dir.resolve(), args.agent_dir.resolve(), args.require_agent)
+        print(f"Built {manifest['image']} (Alpine {manifest['alpine']}, kernel {manifest['kernel']['version']}, "
+              f"{'with' if manifest['agent'] else 'without'} the agent) in {args.output_dir}")
         return 0
     finally:
         if not args.keep_download and download_dir.exists():

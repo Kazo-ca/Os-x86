@@ -3,3 +3,5 @@ src/OsX86/wwwroot/v86/** -text
 tools/v86/patches/*.patch -text
 # Guest scripts run inside Linux: LF only.
 images/**/*.sh text eol=lf
+# The agent is compiled inside Linux containers and hashed by its recipe: LF only.
+images/agent/** text eol=lf

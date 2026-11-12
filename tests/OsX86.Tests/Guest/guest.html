@@ -96,6 +96,9 @@
         statusElement.textContent = `${state}${message.reason ? " (" + message.reason + ")" : ""}`;
         break;
       case "console": {
+        // The agent tests (work item 5) take the raw bytes of a port (consoleTap) and decode them
+        // in C#; the transcripts stay for the tests that read text.
+        if (guest.consoleTap) guest.consoleTap(message.channel, message.data);
         const text = decoder.decode(base64ToBytes(message.data));
         transcripts[message.channel] += text;
         if (message.channel === "serial0") {
@@ -171,6 +174,14 @@
     /** Writes a line on the serial console. */
     send(text, channel = "serial0") {
       post({ type: "write", channel, data: bytesToBase64(encoder.encode(text + "\n")) });
+    },
+
+    /** Set by a test to receive every console chunk as (channel, base64). */
+    consoleTap: null,
+
+    /** Writes raw bytes (base64) on a console port. */
+    sendBase64(channel, data) {
+      post({ type: "write", channel, data });
     },
 
     /** Writes a line then waits for the given text on a channel; returns that channel's transcript. */

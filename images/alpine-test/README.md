@@ -18,11 +18,17 @@ python -I images/alpine-test/build-alpine-test.py
 - Writes `images/build/alpine-test/` (git-ignored): `vmlinuz-virt`, `initramfs-osx86`,
   `manifest.json` (sizes, SHA-256, kernel command line, ready marker, prompt, sources, licenses).
 
+- When the guest agent is built (`python -I images/agent/build-agent.py`, work item 5), adds it as
+  `/usr/lib/osx86/agent` with `/usr/bin/osx86-open-url` and two guest users (`osx86-test`,
+  `osx86-other`: the prefixes `test` and `other`); `--require-agent` fails when it is missing. The
+  init then starts the agent on `hvc0` (consoles on `hvc1`); `hvc2` and `hvc3` stay free.
+
 Boot: the engine loads both files from the OPFS and passes `console=ttyS0 tsc=reliable
 mitigations=off quiet`. The guest prints `OSX86-GUEST ...` then `OSX86-READY` on the serial
 console, then runs a busybox shell on it with the prompt `osx86# `. The virtio-console ports
 `/dev/hvc0` to `/dev/hvc3` exist (the driver is built into `linux-virt`) when the engine declares
-the virtio-console device.
+the virtio-console device. With the agent in the image, `hvc0` and `hvc1` are its ports (see
+`docs/en/agent.md`).
 
 Licenses: the kernel and BusyBox are GPL-2.0; their sources are the Alpine aports (branch
 `3.22-stable`, `main/linux-lts` and `main/busybox`). This image is a test fixture and is never

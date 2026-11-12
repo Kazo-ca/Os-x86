@@ -1,9 +1,12 @@
 # The `guest` tests (plan section 11): a headless Chromium boots the Alpine test image in the
 # engine worker from the OPFS and talks on its consoles, and the storage worker downloads an
 # 800 MiB image (generated on the fly, never committed) through 503s and cut connections, verifies
-# it and resumes it after a page reload. Run when the engine, the storage layer, their assets, the
-# image recipe or the guest tests change, every night, and on demand. The Alpine image is built
-# from the official Alpine release (verified SHA-256), never committed.
+# it and resumes it after a page reload. The guest agent of work item 5 is built (Docker, an
+# Alpine i386 stage), put in the Alpine image, and driven from the C# client: ping, launch,
+# process list, kill by launch, mounts, consoles. Run when the engine, the storage layer, the
+# agent or its client, their assets, the image recipes or the guest tests change, every night,
+# and on demand. The Alpine image is built from the official Alpine release (verified SHA-256),
+# never committed, like the agent's binary.
 name: Guest tests
 
 on:
@@ -11,22 +14,30 @@ on:
     paths:
       - "src/OsX86/Engine/**"
       - "src/OsX86/Storage/**"
+      - "src/OsX86/Agent/**"
       - "src/OsX86/wwwroot/**"
       - "tools/v86/**"
       - "images/**"
       - "tests/OsX86.Tests/Guest/**"
       - "tests/OsX86.Tests/Storage/**"
+      - "tests/OsX86.Tests/Agent/**"
+      - "tests/OsX86.Tests/Images/**"
+      - ".github/scripts/repair-i386-seccomp.sh"
       - ".github/workflows/guest-tests.yml"
   push:
     branches: [j0/base]
     paths:
       - "src/OsX86/Engine/**"
       - "src/OsX86/Storage/**"
+      - "src/OsX86/Agent/**"
       - "src/OsX86/wwwroot/**"
       - "tools/v86/**"
       - "images/**"
       - "tests/OsX86.Tests/Guest/**"
       - "tests/OsX86.Tests/Storage/**"
+      - "tests/OsX86.Tests/Agent/**"
+      - "tests/OsX86.Tests/Images/**"
+      - ".github/scripts/repair-i386-seccomp.sh"
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
@@ -51,8 +62,14 @@ jobs:
         with:
           python-version: "3.14" # compression.zstd for images/tools/pack-image.py (work item 4)
 
-      - name: Build the Alpine test image (official release, verified)
-        run: python3 -I images/alpine-test/build-alpine-test.py
+      - name: Repair the socket rule of the daemon's seccomp profile for 32-bit containers
+        run: bash .github/scripts/repair-i386-seccomp.sh
+
+      - name: Build the guest agent (Docker linux/386) and drive it in a container
+        run: python3 -I images/agent/build-agent.py --smoke
+
+      - name: Build the Alpine test image (official release, verified) with the agent
+        run: python3 -I images/alpine-test/build-alpine-test.py --require-agent
 
       - name: Build (Release, packages)
         run: dotnet build OsX86.sln -c Release

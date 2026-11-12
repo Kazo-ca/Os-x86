@@ -2,6 +2,8 @@
 """Builds the linux-base image of Os-x86 (milestone 0, work item 4; decisions 201 A, 210 A).
 
 Steps, all through Docker (images and containers named osx86-*; nothing else is touched):
+  0. images/agent/build-agent.py builds and checks the guest agent of work item 5 (its Docker
+     image is a stage of the Dockerfile; the export is checked to carry exactly that binary);
   1. docker build of the Dockerfile next to this script (stages `base` and `slim`, linux/386);
   2. docker export of the slim stage into build/linux-base/rootfs.tar;
   3. in the osx86-tools container: the tree is extracted (as root, exact modes), the image test
@@ -61,6 +63,9 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
 TOOLS_DIR = REPO_ROOT / "images" / "tools"
 PACK_TOOL = TOOLS_DIR / "pack-image.py"
+AGENT_TOOL = REPO_ROOT / "images" / "agent" / "build-agent.py"
+AGENT_DIR = REPO_ROOT / "images" / "build" / "agent"
+AGENT_IN_IMAGE = "usr/lib/osx86/agent"
 DEFAULT_OUTPUT = REPO_ROOT / "images" / "build" / IMAGE_ID
 
 # What the tools container runs on the exported tree: extraction with owners and modes, the
@@ -125,7 +130,30 @@ def prepare_debian() -> dict[str, str]:
     return prepared
 
 
-def docker_build(output: Path) -> None:
+def build_agent(rebuild: bool) -> dict:
+    """Builds (or, with rebuild false, only checks) the guest agent and returns its manifest."""
+    run([sys.executable, "-I", str(AGENT_TOOL)] + ([] if rebuild else ["--check"]))
+    return json.loads((AGENT_DIR / "manifest.json").read_text(encoding="utf-8"))
+
+
+def check_agent_in_export(tar_path: Path, agent: dict) -> None:
+    """The export must carry exactly the agent that was built and checked, owned by root."""
+    expected = agent["files"]["agent"]["sha256"]
+    with tarfile.open(tar_path, "r:") as archive:
+        for member in archive:
+            name = member.name[2:] if member.name.startswith("./") else member.name
+            if name != AGENT_IN_IMAGE:
+                continue
+            stream = archive.extractfile(member) if member.isfile() else None
+            actual = hashlib.sha256(stream.read()).hexdigest() if stream is not None else None
+            if actual != expected or member.uid != 0 or member.mode & 0o7777 != 0o755:
+                raise SystemExit(f"/{AGENT_IN_IMAGE} in the export is not the agent that was built "
+                                 f"(sha256 {actual}, uid {member.uid}, mode {member.mode & 0o7777:04o}; expected {expected}, 0, 0755)")
+            return
+    raise SystemExit(f"/{AGENT_IN_IMAGE} is missing from the export")
+
+
+def docker_build(output: Path, agent: dict) -> None:
     # OSX86_DOCKER_BUILD_ARGS: extra arguments for every docker build (for a CI that needs
     # --load, --network or --add-host; see images.yml for what the GitHub runners needed).
     extra = os.environ.get("OSX86_DOCKER_BUILD_ARGS", "").split()
@@ -135,7 +163,8 @@ def docker_build(output: Path) -> None:
         run(["docker", "build", "--platform", "linux/386", *extra, "--target", target, "-t", tag,
              "--build-arg", f"IMAGE_VERSION={IMAGE_VERSION}",
              "--build-arg", f"DEBIAN_TOOLS_IMAGE={prepared['tools']}",
-             "--build-arg", f"DEBIAN_COMPILER_IMAGE={prepared['compiler']}", str(HERE)])
+             "--build-arg", f"DEBIAN_COMPILER_IMAGE={prepared['compiler']}",
+             "--build-arg", f"AGENT_IMAGE={agent['dockerImage']}", str(HERE)])
 
 
 def docker_export(output: Path) -> Path:
@@ -333,7 +362,7 @@ def fetch_source_archives(components: list[dict], directory: Path) -> list[dict]
 # --- pack --------------------------------------------------------------------------------------
 
 
-def pack(output: Path, sizes: dict, sources: dict) -> dict:
+def pack(output: Path, sizes: dict, sources: dict, agent: dict) -> dict:
     pack_dir = output / "pack"
     pack_dir.mkdir(exist_ok=True)
     boot = {
@@ -344,12 +373,13 @@ def pack(output: Path, sizes: dict, sources: dict) -> dict:
         "readyMarker": "OSX86-READY",
         "prompt": "osx86# ",
         "memoryMiB": 256,
-        "agent": {"path": "/usr/lib/osx86/agent", "port": "virtio0"},
+        "agent": {"path": "/" + AGENT_IN_IMAGE, "port": "virtio0", "consolePort": "virtio1", "protocol": agent["protocol"]},
     }
     build = {
         "recipe": "images/linux-base/build-linux-base.py",
         "debian": "trixie-slim i386",
         "kernelRelease": (output / "kernel.release").read_text(encoding="utf-8").strip(),
+        "agent": {"version": agent["agent"], "protocol": agent["protocol"], "sha256": agent["files"]["agent"]["sha256"]},
         "sizes": sizes,
     }
     for name, value in (("boot.json", boot), ("build.json", build), ("sources.json", sources)):
@@ -374,10 +404,12 @@ def main() -> int:
     check_free_space(output)
 
     print(f"linux-base {IMAGE_VERSION}")
+    agent = build_agent(rebuild=not args.skip_docker_build)
     if not args.skip_docker_build:
-        docker_build(output)
+        docker_build(output, agent)
     tar_path = docker_export(output)
     print(f"  export: {tar_path.stat().st_size} bytes")
+    check_agent_in_export(tar_path, agent)
     extract_from_tar(tar_path, output)
     run_tools(output)
     ext4 = output / "rootfs.ext4"
@@ -396,10 +428,13 @@ def main() -> int:
                            "(the .dsc, .orig.tar and .debian.tar are there); the copyright files are kept in the image "
                            "under /usr/share/doc/<package>/copyright."},
         "alpine": {"branch": ALPINE_BRANCH, "components": alpine_sources(output)},
+        "agent": {"version": agent["agent"], "source": "images/agent/src of the Os-x86 repository (the repository's license)",
+                  "linkedStatically": "musl (MIT, Alpine aports main/musl)", "toolchain": agent["toolchain"],
+                  "sourcesSha256": agent["sources"]},
     }
     if args.fetch_sources:
         sources["fetched"] = fetch_source_archives(sources["alpine"]["components"], output / "sources")
-    manifest = pack(output, sizes, sources)
+    manifest = pack(output, sizes, sources, agent)
     sizes["pack"] = manifest["size"]
     sizes["packEntries"] = {name: entry["size"] for name, entry in manifest["files"].items()}
     (output / "measurements.json").write_text(json.dumps(sizes, indent=2) + "\n", encoding="utf-8", newline="\n")

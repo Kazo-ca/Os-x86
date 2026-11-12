@@ -13,12 +13,12 @@ Kept up to date by every PR (plan, section 12). Numbers in parentheses refer to 
 | Guest images: packing tool (`pack-image.py`, framed zstd, 32 MiB chunks, manifest format 1), recipes linux-base (Debian trixie i386, Alpine `linux-virt` kernel, init, 210 A hardening), Alpine test and FreeDOS, image test (22 R134.5 checks), sources and licenses, `images.yml` workflow (Pages and R2 prepared) | 0.1.0 | Work item 4, [`images.md`](images.md); 201 A, 202 A, 210 A; root on an ext4 disk (`hda`), 9p kept for the shared folder; linux-base boots with work item 6 |
 | v86 engine in a Web Worker: `IEngine` (start, stop, pause, states), serial and virtio-console (raw and line streams), OffscreenCanvas bridge, vendored v86 0.5.473 with patch #1661, Alpine test image, `unit` and `guest` tests | 0.1.0 | Work item 2, [`engine.md`](engine.md); D3, 187 A; internal to x86-Lib, not exposed by `Ix86` yet |
 | Storage: image manifest (format 1, SHA-256 per 32 MiB chunk, expected hash), download and verification Web Worker (`SubtleCrypto`, OPFS writes through a `SyncAccessHandle`, resume after a cut or a reload, retries, cancellation, progress), image repository in the OPFS (list, delete, footprint, `estimate()`), write lock through `navigator.locks`, periodic `flush()`, versioned-format metadata, 800 MiB `guest` test with faults | 0.1.0 | Work item 3, [`storage.md`](storage.md); 169, 177 A, 188, 203 A, E11; internal to x86-Lib, not exposed by `Ix86` yet |
+| Guest agent (109 KiB static C, JSON lines on `hvc0`, one cgroup v2 per launch, `kill` by launch identifier, `mounts`, `exec-in-prefix`, `open-url`, pty consoles multiplexed on `hvc1` with Ctrl+C and exit code, 208 A closing) and its C# client (`AgentClient`, `LaunchId`, `ConsoleHandle`, typed errors); installed in linux-base and in the Alpine test image; `unit` and `guest` tests | 0.1.0 | Work item 5, [`agent.md`](agent.md); 205 A, 206 A, 208 A, 213 A, 216 A; internal to x86-Lib, not exposed by `Ix86` yet; `list-windows` waits for an X server (work item 9) |
 
 ## In progress (milestone 0, console programs)
 
 | Feature | Work item | Decisions |
 | --- | --- | --- |
-| Guest agent (JSON lines, one cgroup per launch, console through a pty) | 5 | 205 A, 206 A, 213 A |
 | VM registry, lifecycle, `x86 vm`, `x86 shell`, profiles | 6 | 165, 166, 183, 190, 212 A |
 | Admin pages, role, personal journal | 7 | 137, 140 B, 156, 160 |
 | "Feature" app kind, declared permissions, `GetServiceAsync<Ix86>()` | 8 | D33, D10, 176 A |
