@@ -11,12 +11,12 @@ Tenu à chaque PR (plan, section 12). Les numéros entre parenthèses renvoient 
 | Commande `x86` : `--version`, `vm list` | 0.1.0 | Empaquetée comme commande de terminal en attendant le type d'app « Feature » de Kazo OS (ADR 0243) |
 | Paquet de contrats `Os-x86.Interface` : `Ix86` (version, liste des VM) | 0.1.0 | Générique, aucun type Wine (29 C) ; API publique suivie dans `PublicAPI.Unshipped.txt` |
 | Moteur v86 dans un Web Worker : `IEngine` (démarrage, arrêt, pause, états), console série et virtio-console (flux brut et par lignes), pont OffscreenCanvas, v86 0.5.473 vendorisé avec le correctif #1661, image Alpine de test, tests `unit` et `guest` | 0.1.0 | Chantier 2, [`moteur.md`](moteur.md) ; D3, 187 A ; interne à x86-Lib, pas encore exposé par `Ix86` |
+| Stockage : manifeste d'image (format 1, SHA-256 par morceau de 32 Mio, empreinte attendue), Web Worker de téléchargement et de vérification (`SubtleCrypto`, écriture OPFS par `SyncAccessHandle`, reprise après coupure et rechargement, réessais, annulation, progression), dépôt d'images dans l'OPFS (liste, suppression, occupation, `estimate()`), verrou d'écriture par `navigator.locks`, `flush()` périodique, métadonnées de format versionné, test `guest` de 800 Mio avec pannes | 0.1.0 | Chantier 3, [`stockage.md`](stockage.md) ; 169, 177 A, 188, 203 A, E11 ; interne à x86-Lib, pas encore exposé par `Ix86` |
 
 ## En cours (jalon 0, programmes console)
 
 | Fonctionnalité | Chantier | Décisions |
 | --- | --- | --- |
-| Stockage OPFS, manifeste d'images, téléchargement vérifié et reprise | 3 | 149, 177 A, 203 A |
 | Images : Linux de base (Debian i386 + noyau Alpine + agent), Alpine de test, FreeDOS ; sources et licences | 4 | 201 A, 210 A |
 | Agent invité (JSON par ligne, cgroup par lancement, console par pty) | 5 | 205 A, 206 A, 213 A |
 | Registre des VM, cycle de vie, `x86 vm`, `x86 shell`, profils | 6 | 165, 166, 183, 190, 212 A |

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Os-x86 storage test</title>
+<style>
+  body { font: 13px/1.4 system-ui, sans-serif; margin: 12px; }
+  pre { background: #111; color: #ddd; padding: 8px; height: 320px; overflow: auto; white-space: pre-wrap; }
+  #status { font-weight: bold; }
+</style>
+</head>
+<body>
+<!--
+  Test page of the storage worker (milestone 0, work item 3). It plays the part of the C# side
+  (ImageStore): imports the host module, receives the worker messages through a fake DotNet
+  callback, fetches the manifest with its expected hash, reads the resume state, computes the
+  plan (the chunks not yet verified) and asks the worker to download them; then lists, verifies
+  and deletes. Driven by the `guest` xUnit test (Playwright) through window.storage, or by hand.
+
+  Query parameters: host=<url of storage-host.js> (default ../../../src/OsX86/wwwroot/storage/storage-host.js).
+-->
+<div>State: <span id="status">not started</span></div>
+<div>
+  <input id="base" size="50" placeholder="image directory URL (ending with /)">
+  <input id="sha" size="66" placeholder="expected SHA-256 of manifest.json">
+  <button id="download">Download</button>
+  <button id="cancel">Cancel</button>
+  <button id="list">List</button>
+</div>
+<pre id="log"></pre>
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const hostUrl = new URL(params.get("host") || "../../../src/OsX86/wwwroot/storage/storage-host.js", location.href).href;
+  const statusElement = document.getElementById("status");
+  const logElement = document.getElementById("log");
+
+  let host = null;
+  let nextId = 0;
+  const pending = new Map();
+  const events = [];
+  let ready = null;
+
+  function log(text) {
+    logElement.textContent += text + "\n";
+    logElement.scrollTop = logElement.scrollHeight;
+  }
+
+  function onWorkerMessage(json) {
+    const message = JSON.parse(json);
+    events.push(message);
+    if (message.type === "ready") {
+      ready.resolve(message);
+      return;
+    }
+    const request = pending.get(message.id);
+    if (!request) {
+      if (message.type === "error") log(`unrouted error ${message.code}: ${message.message}`);
+      return;
+    }
+    if (message.type === "progress") {
+      request.progress.push(message);
+      statusElement.textContent = `${message.chunksVerified}/${message.chunksTotal} chunks, ${(message.bytesPerSecond / 1048576).toFixed(1)} MiB/s`;
+      return;
+    }
+    pending.delete(message.id);
+    if (message.type === "error") {
+      request.reject(Object.assign(new Error(message.message), { code: message.code, progress: request.progress }));
+    } else {
+      request.resolve(Object.assign(message, { progress: request.progress }));
+    }
+  }
+
+  const callback = { invokeMethodAsync: async (method, json) => { if (method === "OnWorkerMessage") onWorkerMessage(json); } };
+
+  async function ensureHost() {
+    if (host) return host;
+    const { createHost } = await import(hostUrl);
+    let resolve;
+    ready = new Promise((r) => { resolve = r; });
+    ready.resolve = resolve;
+    host = createHost(callback, {});
+    const readiness = await ready;
+    if (!readiness.opfs) throw new Error("OPFS unavailable in the worker");
+    return host;
+  }
+
+  function request(command) {
+    const id = ++nextId;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject, progress: [] });
+      host.post(JSON.stringify({ ...command, id }));
+    }).then((answer) => ({ ...answer, requestId: id }));
+  }
+
+  const hex = (buffer) => [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const sha256 = async (text) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+
+  let currentDownloadId = null;
+
+  const storage = {
+    hostUrl,
+    get events() { return events; },
+
+    /** The C# flow: fetch-manifest, read-state, plan, download. Returns the manifest, the plan and the download answer. */
+    async download({ baseUrl, sha256: expected, parallelism = 2, reset = false }) {
+      await ensureHost();
+      const started = performance.now();
+      const fetched = await request({ type: "fetch-manifest", url: baseUrl + "manifest.json", sha256: expected });
+      const manifest = JSON.parse(fetched.text);
+      if (manifest.format !== 1) throw new Error(`format ${manifest.format} not supported`);
+      const stateAnswer = await request({ type: "read-state", image: manifest.image, version: manifest.version });
+      const state = stateAnswer.state;
+      const manifestSha256 = await sha256(fetched.text);
+      const all = manifest.chunks.map((_, index) => index);
+      let verified = [];
+      let doReset = reset;
+      if (state && state.manifestSha256 === manifestSha256 && Array.isArray(state.verified)) verified = state.verified;
+      else if (state && state.manifestSha256 !== manifestSha256) doReset = true;
+      if (state && state.complete && state.manifestSha256 === manifestSha256) verified = all;
+      const chunks = all.filter((index) => !verified.includes(index));
+      const metadata = JSON.stringify({ format: 1, kind: "image", image: manifest.image, imageVersion: manifest.version, engine: manifest.engine, created: new Date().toISOString(), complete: false });
+      const command = { type: "download", image: manifest.image, version: manifest.version, baseUrl, manifest: fetched.text, metadata, chunks, reset: doReset, parallelism };
+      currentDownloadId = nextId + 1;
+      log(`download ${manifest.image} ${manifest.version}: ${chunks.length} of ${manifest.chunks.length} chunks to fetch (${verified.length} verified before)`);
+      try {
+        const done = await request(command);
+        const seconds = (performance.now() - started) / 1000;
+        log(`done in ${seconds.toFixed(1)} s, ${done.bytesOnDisk} bytes on disk`);
+        statusElement.textContent = "complete";
+        return { manifest, verifiedBefore: verified.length, chunksRequested: chunks.length, reset: doReset, bytesOnDisk: done.bytesOnDisk, progress: done.progress, seconds };
+      } finally {
+        currentDownloadId = null;
+      }
+    },
+
+    cancel() {
+      if (currentDownloadId !== null) host.post(JSON.stringify({ type: "cancel", id: ++nextId, target: currentDownloadId }));
+    },
+
+    async readState(image, version) { await ensureHost(); return (await request({ type: "read-state", image, version })).state; },
+    async list() { await ensureHost(); return request({ type: "list" }); },
+    async estimate() { await ensureHost(); return request({ type: "estimate" }); },
+    async delete(image, version) { await ensureHost(); return request({ type: "delete", image, version }); },
+    async verify(image, version) {
+      await ensureHost();
+      const manifest = await request({ type: "read-manifest", image, version });
+      return request({ type: "verify", image, version, manifest: manifest.text });
+    },
+
+    /** A second worker tries to download the same image while the first holds the lock: returns the error code. */
+    async conflictingDownload({ baseUrl, sha256: expected }) {
+      const { createHost } = await import(hostUrl);
+      const answers = [];
+      let settle;
+      const result = new Promise((r) => { settle = r; });
+      const other = createHost({ invokeMethodAsync: async (_, json) => {
+        const message = JSON.parse(json);
+        answers.push(message);
+        if (message.type === "error" || message.type === "done") settle(message);
+      } }, {});
+      try {
+        await new Promise((r) => setTimeout(r, 200));
+        const fetched = await fetch(baseUrl + "manifest.json", { cache: "no-store" });
+        const text = await fetched.text();
+        const manifest = JSON.parse(text);
+        const metadata = JSON.stringify({ format: 1, kind: "image", image: manifest.image, imageVersion: manifest.version, engine: manifest.engine, created: new Date().toISOString(), complete: false });
+        other.post(JSON.stringify({ type: "download", id: 1, image: manifest.image, version: manifest.version, baseUrl, manifest: text, metadata, chunks: [0], reset: false, parallelism: 1 }));
+        const answer = await result;
+        return { type: answer.type, code: answer.code, message: answer.message };
+      } finally {
+        other.dispose();
+      }
+    },
+  };
+  window.storage = storage;
+
+  document.getElementById("download").onclick = () => storage.download({ baseUrl: document.getElementById("base").value, sha256: document.getElementById("sha").value }).catch((error) => { statusElement.textContent = String(error); log(String(error)); });
+  document.getElementById("cancel").onclick = () => storage.cancel();
+  document.getElementById("list").onclick = () => storage.list().then((answer) => log(JSON.stringify(answer.images)));
+</script>
+</body>
+</html>
