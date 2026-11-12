@@ -106,8 +106,8 @@ def check_free_space(directory: Path) -> None:
 
 def docker_build(output: Path) -> None:
     # OSX86_DOCKER_BUILD_ARGS: extra arguments for the two image builds (the CI passes
-    # --network=host: the DNS of the build sandbox on the GitHub runners did not resolve
-    # deb.debian.org).
+    # --add-host=deb.debian.org:<ip>: the glibc resolver of the Debian containers gets a
+    # temporary failure from the DNS of the GitHub runners).
     extra = os.environ.get("OSX86_DOCKER_BUILD_ARGS", "").split()
     run(["docker", "build", "-t", TOOLS_IMAGE, str(TOOLS_DIR)])
     for target, tag in (("base", DOCKER_IMAGE_FULL), ("slim", DOCKER_IMAGE)):
