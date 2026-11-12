@@ -1,0 +1,4 @@
+# Built images and downloads: produced by the scripts of this directory, never committed
+# (plan section 11: test images are downloaded by the CI; milestone 0 work item 2).
+build/
+*/download/
