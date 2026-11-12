@@ -25,8 +25,8 @@
   ],
   "files": {
     "COPYING.LESSER": "a853c2ffec17057872340eee242ae4d96cbf2b520ae27d903e1b2fef1a5f9d1c",
-    "libv86.js": "bf480a0bf27394a6c2f999fe1044df206a5f8e1a24bdd33eef408e873a735d35",
     "LICENSE": "3f61ba65e3215b09ef264ba8d777d73c19644309fbb705967634eb5147e500a0",
+    "libv86.js": "bf480a0bf27394a6c2f999fe1044df206a5f8e1a24bdd33eef408e873a735d35",
     "seabios.bin": "73e3f359102e3a9982c35fce98eb7cd08f18303ac7f1ba6ebfbe6cdc1c244d98",
     "v86.wasm": "2f0c4150f266415b754a84a32e6f8e4c975a1d3abb94c78b047fa30027db1ef1",
     "vgabios.bin": "a4bc0d80cc3ca028c73dafa8fee396b8d054ce87ebd8abfbd31b06b437607880"

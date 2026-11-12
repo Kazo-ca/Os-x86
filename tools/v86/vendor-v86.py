@@ -214,7 +214,8 @@ def build(download_dir: Path, output: Path) -> dict:
         },
         "unpatched_sha256": unpatched,
         "patches": [patch.name for patch in patches],
-        "files": {path.name: sha256_of(path) for path in sorted(output.iterdir()) if path.name != "VENDOR.json"},
+        # Sorted by name (byte order) so the file is the same on every platform (the CI compares it).
+        "files": {path.name: sha256_of(path) for path in sorted(output.iterdir(), key=lambda p: p.name) if path.name != "VENDOR.json"},
     }
     (output / "VENDOR.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8", newline="\n")
     return provenance
@@ -225,7 +226,7 @@ def check(download_dir: Path, committed: Path) -> int:
         fresh = Path(temp) / "v86"
         build(download_dir, fresh)
         differences = []
-        for path in sorted(fresh.iterdir()):
+        for path in sorted(fresh.iterdir(), key=lambda p: p.name):
             other = committed / path.name
             if not other.exists() or sha256_of(other) != sha256_of(path):
                 differences.append(path.name)
