@@ -1,5 +1,8 @@
 # Builds and tests the Release profile: the Kazo OS packages from nuget.org, at the version of the
 # submodule (ADR 0176 §4, §6). This is what the Kazo OS Store compiles.
+#
+# The `guest` tests (a real browser booting the Alpine test image) run in guest-tests.yml, on the
+# paths that touch the engine, nightly and on demand (plan section 11).
 name: CI
 
 on:
@@ -25,8 +28,14 @@ jobs:
       - name: Check the Kazo OS submodule
         run: bash .github/scripts/check-kazoos-submodule.sh
 
-      - name: Build (Release, packages)
-        run: dotnet build OsX86.sln -c Release
+      - name: Check the vendored v86 (same bytes as a fresh download, patches applied)
+        run: python3 -I tools/v86/vendor-v86.py --check
 
-      - name: Test
-        run: dotnet test OsX86.sln -c Release --no-build
+      - name: Build (Release, packages)
+        run: dotnet build OsX86.sln -c Release -warnaserror
+
+      - name: Unit tests with coverage (80 % of lines on the C# of OsX86 and OsX86.Feature)
+        run: >
+          dotnet test OsX86.sln -c Release --no-build --filter "Category!=guest"
+          -p:CollectCoverage=true "-p:Include=[OsX86]*%2c[OsX86.Feature]*"
+          -p:Threshold=80 -p:ThresholdType=line -p:ThresholdStat=total

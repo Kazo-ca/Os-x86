@@ -4,6 +4,7 @@ using OsX86.Interface;
 namespace OsX86.Tests;
 
 /// <summary>The <c>x86</c> command against a fake feature service.</summary>
+[Trait("Category", "unit")]
 public sealed class X86CommandTests
 {
     private sealed class FakeX86 : Ix86

@@ -11,6 +11,10 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.85" />
+    <PackageReference Include="coverlet.msbuild" Version="10.1.0" PrivateAssets="all" />
+    <!-- The guest tests drive a real browser (plan section 11: integration without a screen). -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.64.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\OsX86.Feature\OsX86.Feature.csproj" />
+    <ProjectReference Include="..\..\src\OsX86\OsX86.csproj" />
   </ItemGroup>
 
 </Project>
