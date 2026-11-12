@@ -16,3 +16,11 @@ Trois questions que le chantier `feature/14-feature-app-type-code` de Kazo-ca/Os
 - A) Refusé (`manifest.feature.child.kind`) : un site n'est pas un point d'entrée d'une fonctionnalité ✨(Recommandé)
 - B) Permis
 - C) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-11
+
+| # | Réponse | Lecture |
+|---|---|---|
+| 256 | **B** | `kind` entre dans le `catalog.json` dès maintenant (`app` par défaut, `feature` pour une Feature ; changement du dépôt Os-AppMarketPlace) et le Store cache « Installer pour moi » pour une Feature ; le refus au clic reste comme filet. Correctif sur la PR #449, plus une PR dans Os-AppMarketPlace. |
+| 257 | **A** | Les lignes `allow` machine sont effacées au retrait d'une Feature ; une réinstallation redemande le consentement. Déjà dans le code. |
+| 258 | **A** | Un enfant de genre `Web` est refusé. Déjà dans le code. |
