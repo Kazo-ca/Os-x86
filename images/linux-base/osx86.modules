@@ -1,0 +1,8 @@
+kernel/drivers/scsi/sd_mod.ko*
+kernel/drivers/ata/*.ko*
+kernel/arch/*/crypto/crc32*
+kernel/crypto/crc32*
+kernel/fs/ext4
+kernel/fs/jbd2
+kernel/fs/mbcache*
+kernel/lib/crc16*

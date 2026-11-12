@@ -11,7 +11,9 @@ the virtio-console ports (hvc0 to hvc3, driver built into linux-virt) left free 
 Output (git-ignored, never committed): images/build/alpine-test/
     vmlinuz-virt        the kernel, byte for byte from the ISO
     initramfs-osx86     the official initramfs with init.sh as /init (gzip, deterministic)
-    manifest.json       names, sizes, SHA-256 of both files, kernel command line, sources
+    manifest.json       build description: names, sizes, SHA-256 of both files, command line, sources
+    pack/               the published form (work item 4): chunk-NNNNN.bin, manifest.json (format 1),
+                        manifest.sha256, sources.json; made by images/tools/pack-image.py
 
 Run from the repository root with an isolated interpreter (standard library only):
 
@@ -32,6 +34,7 @@ import json
 import os
 import shutil
 import struct
+import subprocess
 import sys
 import urllib.request
 import zlib
@@ -58,6 +61,27 @@ KERNEL_CMDLINE = "console=ttyS0 tsc=reliable mitigations=off quiet"
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
+PACK_TOOL = REPO_ROOT / "images" / "tools" / "pack-image.py"
+IMAGE_ID = "alpine-test"
+IMAGE_VERSION = "0.1.0"
+# Alpine aports commit used for the source references of the copyleft components (branch
+# 3.22-stable at the time of the 3.22.8 release); the APKBUILD files there give the upstream
+# tarballs and the patches.
+APORTS_BRANCH = "3.22-stable"
+SOURCES = {
+    "components": [
+        {"name": "linux-virt", "license": "GPL-2.0-only", "origin": "Alpine aports main/linux-lts",
+         "apkbuild": f"https://gitlab.alpinelinux.org/alpine/aports/-/raw/{APORTS_BRANCH}/main/linux-lts/APKBUILD",
+         "upstream": "https://cdn.kernel.org/pub/linux/kernel/v6.x/"},
+        {"name": "busybox", "license": "GPL-2.0-only", "origin": "Alpine aports main/busybox",
+         "apkbuild": f"https://gitlab.alpinelinux.org/alpine/aports/-/raw/{APORTS_BRANCH}/main/busybox/APKBUILD",
+         "upstream": "https://busybox.net/downloads/"},
+        {"name": "musl", "license": "MIT", "origin": "Alpine aports main/musl",
+         "apkbuild": f"https://gitlab.alpinelinux.org/alpine/aports/-/raw/{APORTS_BRANCH}/main/musl/APKBUILD"},
+    ],
+    "note": "The initramfs is the official one of the alpine-virt ISO with /init replaced; its exact "
+            "package versions are those of the release, listed in the ISO's apks/ directory.",
+}
 DEFAULT_DOWNLOAD = HERE / "download"
 DEFAULT_OUTPUT = REPO_ROOT / "images" / "build" / "alpine-test"
 CHUNK = 1024 * 1024
@@ -314,7 +338,40 @@ def build(download_dir: Path, output: Path) -> dict:
         },
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+    pack(output, manifest)
     return manifest
+
+
+def pack(output: Path, build_manifest: dict) -> None:
+    """Runs images/tools/pack-image.py: the published form (chunks, manifest format 1, sources)."""
+    pack_dir = output / "pack"
+    pack_dir.mkdir(exist_ok=True)
+    boot = {
+        "kind": "linux",
+        "cmdline": KERNEL_CMDLINE,
+        "console": "serial0",
+        "readyMarker": build_manifest["readyMarker"],
+        "prompt": build_manifest["prompt"],
+        "memoryMiB": 128,
+    }
+    build = {
+        "recipe": "images/alpine-test/build-alpine-test.py",
+        "alpine": ALPINE_VERSION,
+        "architecture": ARCHITECTURE,
+        "kernelVersion": build_manifest["kernel"]["version"],
+        "iso": build_manifest["sources"]["iso"],
+    }
+    (pack_dir / "boot.json").write_text(json.dumps(boot, indent=2) + "\n", encoding="utf-8", newline="\n")
+    (pack_dir / "build.json").write_text(json.dumps(build, indent=2) + "\n", encoding="utf-8", newline="\n")
+    sources = dict(SOURCES, image=IMAGE_ID, version=IMAGE_VERSION,
+                   iso=build_manifest["sources"]["iso"], initSha256=build_manifest["sources"]["init_sha256"])
+    (pack_dir / "sources.json").write_text(json.dumps(sources, indent=2) + "\n", encoding="utf-8", newline="\n")
+    command = [sys.executable, "-I", str(PACK_TOOL), "pack", "--image", IMAGE_ID, "--version", IMAGE_VERSION,
+               "--entry", f"kernel={output / 'vmlinuz-virt'}", "--entry", f"initramfs={output / 'initramfs-osx86'}",
+               "--boot-json", str(pack_dir / "boot.json"), "--build-json", str(pack_dir / "build.json"),
+               "--output", str(pack_dir)]
+    subprocess.run(command, check=True)
+    subprocess.run([sys.executable, "-I", str(PACK_TOOL), "check", str(pack_dir)], check=True)
 
 
 def main() -> int:
