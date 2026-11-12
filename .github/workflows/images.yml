@@ -83,6 +83,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Diagnose name resolution in the build containers (temporary)
+        continue-on-error: true
+        run: |
+          docker info --format 'security={{.SecurityOptions}} version={{.ServerVersion}}'
+          cat /etc/resolv.conf
+          echo "== debian i386"; docker run --rm --platform linux/386 debian:trixie-slim sh -c 'cat /etc/resolv.conf; getent hosts deb.debian.org; echo rc=$?; getent hosts dl-cdn.alpinelinux.org; echo rc=$?'
+          echo "== debian i386, host network"; docker run --rm --network host --platform linux/386 debian:trixie-slim sh -c 'cat /etc/resolv.conf; getent hosts deb.debian.org; echo rc=$?'
+          echo "== debian amd64"; docker run --rm debian:trixie-slim sh -c 'getent hosts deb.debian.org; echo rc=$?'
+          echo "== alpine i386"; docker run --rm --platform linux/386 alpine:3.24 sh -c 'getent hosts deb.debian.org; echo rc=$?'
+          echo "== debian i386, apt update"; docker run --rm --platform linux/386 debian:trixie-slim sh -c 'apt-get update 2>&1 | tail -3'
       - name: Build linux-base (Docker linux/386), image test of 210 A, ext4 root, sources, pack
         env:
           OSX86_DOCKER_BUILD_ARGS: --network=host # the build sandbox of the runner does not resolve deb.debian.org
