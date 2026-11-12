@@ -9,12 +9,20 @@
 # The platform (linux/386) is given by the build command (build-linux-base.py passes
 # --platform linux/386 to every stage); a constant in FROM is refused by BuildKit's linter.
 #
+# No apt-get runs in a build step: the seccomp profile BuildKit applies to its RUN sandboxes
+# refuses socket(2) to a 32-bit container on the GitHub runners (measured with strace), so
+# build-linux-base.py installs the packages with `docker run` (the daemon's profile, repaired
+# by the workflow) and commits two prepared images that the two Debian stages start from:
+#   DEBIAN_TOOLS_IMAGE     debian:trixie-slim + kmod (modprobe) + procps (sysctl, ps)
+#   DEBIAN_COMPILER_IMAGE  debian:trixie-slim + gcc + libc6-dev (the static probes only)
+#
 # Stages: kernel (Alpine: kernel, initramfs, pruned modules, provenance) -> probes (two static
 # programs of the R134.5 checks) -> base (Debian with the packages, the init, the hardening and
 # the package inventory) -> slim (the published root).
 
 ARG ALPINE_VERSION=3.24
-ARG DEBIAN_IMAGE=debian:trixie-slim
+ARG DEBIAN_TOOLS_IMAGE=osx86-debian-tools:0.1.0
+ARG DEBIAN_COMPILER_IMAGE=osx86-debian-compiler:0.1.0
 
 # --- Stage 1: the kernel of Alpine --------------------------------------------------------------
 FROM alpine:${ALPINE_VERSION} AS kernel
@@ -58,20 +66,14 @@ RUN set -eux; \
     wc -l /tmp/modules.closure
 
 # --- Stage 2: the probes of the R134.5 checks (two tiny static programs, no compiler in the image)
-FROM ${DEBIAN_IMAGE} AS probes
-RUN apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+FROM ${DEBIAN_COMPILER_IMAGE} AS probes
 COPY probes/ /src/
 RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o /osx86-ptrace /src/osx86-ptrace.c && strip /osx86-rawsock /osx86-ptrace
 
 # --- Stage 3: Debian i386, the init, the hardening -----------------------------------------------
-FROM ${DEBIAN_IMAGE} AS base
+FROM ${DEBIAN_TOOLS_IMAGE} AS base
 ARG IMAGE_VERSION=0.1.0
 ENV DEBIAN_FRONTEND=noninteractive
-RUN set -eux; \
-    apt-get -o Acquire::Retries=5 update; \
-    # kmod: modprobe for the agent and the display of later work items; procps: sysctl, ps.
-    apt-get -o Acquire::Retries=5 install -y --no-install-recommends kmod procps; \
-    apt-get clean; rm -rf /var/lib/apt/lists/*
 
 COPY --from=kernel /boot/vmlinuz-virt /boot/initramfs-virt /boot/
 COPY --from=kernel /out/modules /lib/modules

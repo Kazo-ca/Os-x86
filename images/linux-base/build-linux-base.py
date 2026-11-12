@@ -45,6 +45,7 @@ IMAGE_ID = "linux-base"
 IMAGE_VERSION = "0.1.0"
 DOCKER_IMAGE = f"osx86-linux-base:{IMAGE_VERSION}"
 DOCKER_IMAGE_FULL = f"osx86-linux-base-full:{IMAGE_VERSION}"
+DEBIAN_IMAGE = "debian:trixie-slim"
 TOOLS_IMAGE = "osx86-tools"
 EXPORT_CONTAINER = "osx86-linux-base-export"
 ALPINE_BRANCH = "3.24-stable"
@@ -104,14 +105,37 @@ def check_free_space(directory: Path) -> None:
         raise SystemExit(f"{free // 1024 ** 2} MiB free under {directory}: at least 5 GiB are required")
 
 
+def prepare_debian() -> dict[str, str]:
+    """The two Debian i386 images the Dockerfile starts from, made with `docker run` and
+    `docker commit` rather than in a build step: the seccomp profile BuildKit applies to its RUN
+    sandboxes refuses socket(2) to a 32-bit container on the GitHub runners (measured with
+    strace), while `docker run` uses the daemon's profile, which the workflow repairs."""
+    prepared = {}
+    for name, packages in (("tools", "kmod procps"), ("compiler", "gcc libc6-dev")):
+        tag = f"osx86-debian-{name}:{IMAGE_VERSION}"
+        container = f"osx86-debian-{name}-prepare"
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        script = ("set -eux; apt-get -o Acquire::Retries=5 update; "
+                  f"DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 install -y --no-install-recommends {packages}; "
+                  "apt-get clean; rm -rf /var/lib/apt/lists/*")
+        run(["docker", "run", "--platform", "linux/386", "--name", container, DEBIAN_IMAGE, "sh", "-c", script])
+        run(["docker", "commit", container, tag], capture_output=True)
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        prepared[name] = tag
+    return prepared
+
+
 def docker_build(output: Path) -> None:
     # OSX86_DOCKER_BUILD_ARGS: extra arguments for every docker build (for a CI that needs
     # --load, --network or --add-host; see images.yml for what the GitHub runners needed).
     extra = os.environ.get("OSX86_DOCKER_BUILD_ARGS", "").split()
     run(["docker", "build", *extra, "-t", TOOLS_IMAGE, str(TOOLS_DIR)])
+    prepared = prepare_debian()
     for target, tag in (("base", DOCKER_IMAGE_FULL), ("slim", DOCKER_IMAGE)):
         run(["docker", "build", "--platform", "linux/386", *extra, "--target", target, "-t", tag,
-             "--build-arg", f"IMAGE_VERSION={IMAGE_VERSION}", str(HERE)])
+             "--build-arg", f"IMAGE_VERSION={IMAGE_VERSION}",
+             "--build-arg", f"DEBIAN_TOOLS_IMAGE={prepared['tools']}",
+             "--build-arg", f"DEBIAN_COMPILER_IMAGE={prepared['compiler']}", str(HERE)])
 
 
 def docker_export(output: Path) -> Path:

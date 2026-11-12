@@ -122,7 +122,9 @@ Quatre étapes Docker, toutes en `linux/386` :
    essai E17).
 2. **probes** : deux programmes C statiques des contrôles R134.5 (`osx86-rawsock`,
    `osx86-ptrace`), parce que l'image n'a pas de compilateur.
-3. **base** : `debian:trixie-slim` i386 plus `kmod` et `procps`, le noyau, l'initramfs et les
+3. **base** : `debian:trixie-slim` i386 plus `kmod` et `procps` (installés par `docker run` puis
+   `docker commit` dans le script, de même que `gcc` pour l'étape `probes` : aucun `apt-get` dans
+   une étape de construction, voir « Publication »), le noyau, l'initramfs et les
    modules, `init.sh` en `/sbin/init`, `verify-console.sh`, la place de l'agent
    (`/usr/lib/osx86/agent`, lancé par l'init s'il existe), le durcissement. Le chantier 9 (Wine)
    part de cette étape.
@@ -214,7 +216,8 @@ Chaque pack publie `sources.json` à côté de l'image :
 `images.yml` tourne sur tout changement de `images/**`, des tests d'images ou du workflow (le job
 linux-base répare d'abord la règle `socket` du profil seccomp du démon Docker du runner, qui refuse
 `socket(2)` à tout conteneur 32 bits, mesuré par `strace` : profil officiel épinglé, règle rendue
-inconditionnelle, rien d'autre ne change) :
+inconditionnelle, rien d'autre ne change ; les étapes `RUN` de BuildKit gardent leur propre profil,
+d'où les installations apt par `docker run`) :
 quatre jobs construisent et vérifient alpine-test, freedos, linux-base (Docker sur le runner,
 i386 natif) et les tests des outils, et gardent chaque pack en artefact. Sur un push vers
 `j0/base` ou `main` :
