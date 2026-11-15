@@ -518,3 +518,12 @@ Série 17 (259 à 262), posée le 2026-11-12 dans [serie-17-envoyee.md](serie-17
 | 261 | Bibliothèques non partagées de même nom | **A** : la première chargée sert les deux, la seconde notée au journal. | ADR 0244 |
 | 262 | Fournisseur avant l'ADR 0245 | **A** : toute Feature installée qui embarque la bibliothèque. | ADR 0245 |
 
+Série 18 (263 à 266), posée le 2026-11-15 dans [serie-18-envoyee.md](serie-18-envoyee.md) (questions du code de l'ADR Kazo 0262, ex-0245, PR Kazo-ca/Os#541, et épinglage de Kazo), répondue le même jour. Tes mots : « Oui, A partout ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 263 | Compte du processus des services d'une Feature | **A** : `kazoos-svc`, portée système, vérification de l'appelant à chaque opération. | ADR 0262, 0246 |
+| 264 | Feature retirée pendant que la page tourne | **A** : instance abandonnée, `Changed` levé, processus gardé jusqu'à l'arrêt de la page. | ADR 0262, 0214 |
+| 265 | Fixture `sdk-compat` et version mineure | **A** : à la publication. | ADR 0262 |
+| 266 | Version de Kazo épinglée dans Os-x86 | **A** : `v3.4.0-preview.4` maintenant, suivre les préliminaires qui apportent une ADR de la série, `v3.4.0` à sa publication. | 220 A (seconde moitié) |
+

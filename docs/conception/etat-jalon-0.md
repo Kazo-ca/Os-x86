@@ -27,6 +27,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 - **Chantier 6a**, disque `hda` lu depuis l'OPFS, couche d'écriture, démarrage de `linux-base` et de FreeDOS dans le moteur : repris le 2026-11-14.
 - **Chantier 6**, registre des VM, cycle de vie, budget de mémoire, profils, `x86 vm`, `x86 shell` : repris le 2026-11-14.
+- **Épinglage de Kazo** sur `v3.4.0-preview.4` (266 A) : petit chantier `j0/1c-kazo-pin` lancé le 2026-11-15.
 - **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : lancé le 2026-11-15, branche `feature/17-provider-declared-permissions-code`.
 
 ## Reste à faire
@@ -46,7 +47,6 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0248 à 0255, un chantier par ADR, dans l'ordre 0248, 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Répondre à la série 18 (263 à 266), dont l'épinglage de Kazo dans Os-x86.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
