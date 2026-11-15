@@ -146,11 +146,18 @@ public sealed partial class LinuxBaseGuestTests(ITestOutputHelper output)
     private async Task RunVerifyConsoleAsync(AgentClient client)
     {
         LaunchResult other = await client.LaunchAsync(new LaunchOptions { Prefix = "other", Program = "sleep", Arguments = ["600"] }, None);
+        ProcessInfo agent = Assert.Single(await client.ListProcessesAsync(None), process => process.Name == "agent" && process.UserId == 0);
         ConsoleHandle console = await client.OpenConsoleAsync(new ConsoleOptions
         {
             Prefix = "test",
             Program = "/bin/sh",
-            Arguments = ["/usr/lib/osx86/verify-console.sh", other.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture), "/home/osx86-other"],
+            Arguments =
+            [
+                "/usr/lib/osx86/verify-console.sh",
+                other.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "/home/osx86-other",
+                agent.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ],
         }, None);
         var text = new StringBuilder();
         Decoder decoder = Encoding.UTF8.GetDecoder();
@@ -172,6 +179,12 @@ public sealed partial class LinuxBaseGuestTests(ITestOutputHelper output)
         Assert.Equal("22", done.Groups[1].Value);
         Assert.Equal("0", done.Groups[2].Value);
         Assert.Contains("uid=1001(osx86-test)", report, StringComparison.Ordinal);
+        // The console is a pty of the user, in the cgroup of its launch: a check that runs a program with
+        // 2>/dev/null only means something if the user can open /dev/null (0660 until work item 6a).
+        Assert.Contains("tty=/dev/pts/", report, StringComparison.Ordinal);
+        Assert.Contains("cgroup=0::/osx86/test/", report, StringComparison.Ordinal);
+        Assert.Contains("RES check kill_agent HELD", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("no agent in this image", report, StringComparison.Ordinal);
         Assert.Equal(new ProcessExit(0, 0), exit);
         await client.KillAsync(other.Id, TimeSpan.Zero);
     }

@@ -266,7 +266,8 @@
     }
 
     stats() {
-      return { framesDecoded: this.framesDecoded, decodeMs: Math.round(this.decodeMs * 10) / 10 };
+      const memoryBytes = this.instance ? this.instance.exports.memory.buffer.byteLength : 0;
+      return { framesDecoded: this.framesDecoded, decodeMs: Math.round(this.decodeMs * 10) / 10, memoryBytes };
     }
   }
 

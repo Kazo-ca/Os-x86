@@ -38,12 +38,21 @@ internal sealed class PackedGuestSession : IAsyncDisposable
 
     public ImageManifest Manifest { get; }
 
-    /// <summary>The pack directory of an image, or skips the calling test when it is not built.</summary>
+    /// <summary>
+    /// The pack directory of an image, or skips the calling test when it is not built; fails instead
+    /// when <c>OSX86_REQUIRE_PACKS</c> is set (the job of <c>images.yml</c> that downloads the packs).
+    /// </summary>
     public static string RequirePack(string image, string recipe)
     {
         string pack = Path.Combine(PythonTools.RepositoryRoot, "images", "build", image, "pack");
-        Skip.IfNot(File.Exists(Path.Combine(pack, "manifest.json")), $"The {image} pack is not built ({pack} missing): run `python -I {recipe}`.");
-        return pack;
+        if (File.Exists(Path.Combine(pack, "manifest.json")))
+        {
+            return pack;
+        }
+
+        string message = $"The {image} pack is not built ({pack} missing): run `python -I {recipe}`.";
+        Skip.If(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OSX86_REQUIRE_PACKS")), message);
+        throw new InvalidOperationException(message);
     }
 
     public static async Task<PackedGuestSession> OpenAsync(string pack, ITestOutputHelper output)
