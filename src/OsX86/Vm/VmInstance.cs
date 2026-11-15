@@ -602,12 +602,35 @@ public sealed class VmInstance
         }
     }
 
+    /// <summary>
+    /// Connects the client, measured in the guest test: until the agent opens <c>hvc0</c> in raw mode,
+    /// the guest's terminal driver echoes what the host writes, so an early <c>ping</c> can come back as
+    /// is and fail as a protocol error. That is retried, like the silence of a booting guest, until the
+    /// connection delay; another protocol error (an unsupported version) is not.
+    /// </summary>
+    private async Task ConnectThroughEchoAsync(AgentClient agent, CancellationToken cancellationToken)
+    {
+        long deadline = Environment.TickCount64 + (long)_options.Agent.ConnectTimeout.TotalMilliseconds;
+        while (true)
+        {
+            try
+            {
+                await agent.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (AgentProtocolException protocol) when (protocol.Code == AgentErrorCodes.Protocol && Environment.TickCount64 < deadline)
+            {
+                await Task.Delay(_options.Agent.ConnectProbeInterval, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     private async Task ConnectAgentAsync(IEngine engine, CancellationToken runStop, CancellationToken cancellationToken)
     {
         var agent = new AgentClient(EngineAgentChannel.For(engine), _options.Agent);
         try
         {
-            await agent.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            await ConnectThroughEchoAsync(agent, cancellationToken).ConfigureAwait(false);
         }
         catch (AgentTimeoutException timeout) when (timeout.Code == AgentErrorCodes.NotReady)
         {

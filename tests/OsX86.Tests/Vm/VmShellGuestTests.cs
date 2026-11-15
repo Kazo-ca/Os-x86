@@ -81,11 +81,20 @@ public sealed class VmShellGuestTests(ITestOutputHelper output)
 
             var input = new QueueTextReader();
             var terminal = new CapturingWriter();
-            var errors = new StringWriter();
+            var errors = new CapturingWriter();
             start = Stopwatch.GetTimestamp();
             Task<int> shell = new X86Command().ExecuteAsync(TestAppContext.Terminal(["shell"], terminal, errors, input), CancellationToken.None).AsTask();
 
-            await terminal.WaitForAsync("$ ", Boot, shell);
+            try
+            {
+                await terminal.WaitForAsync("$ ", Boot, shell);
+            }
+            catch
+            {
+                output.WriteLine($"x86 shell standard error: {errors.Text}");
+                throw;
+            }
+
             output.WriteLine($"x86 shell to the first prompt (boot included): {Stopwatch.GetElapsedTime(start).TotalSeconds:0.0} s");
             VmInstance vm = manager.Running().Single();
             Assert.True(vm.HasAgent);
@@ -112,7 +121,7 @@ public sealed class VmShellGuestTests(ITestOutputHelper output)
             // exit gives its code back; the shell was the last application: the VM stops after the grace.
             input.Add("exit 5");
             Assert.Equal(5, await shell.WaitAsync(Soon));
-            Assert.Equal(string.Empty, errors.ToString());
+            Assert.Equal(string.Empty, errors.Text);
             TimeSpan exited = Stopwatch.GetElapsedTime(start);
             Assert.Equal(0, vm.Applications);
             Assert.Equal(VmState.Running, vm.State);

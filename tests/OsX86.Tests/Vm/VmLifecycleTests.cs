@@ -40,6 +40,36 @@ public sealed class VmLifecycleTests
     }
 
     [Fact]
+    public async Task An_early_ping_echoed_by_the_guest_terminal_is_retried()
+    {
+        await using var rig = new VmTestRig();
+        int pings = 0;
+        rig.Engines.Configure = engine => engine.Agent!.On("ping", _ =>
+            Interlocked.Increment(ref pings) <= 2
+                ? "\"op\":\"ping\"}" // the request itself, echoed by the tty before the agent opened hvc0
+                : """{"ok":true,"version":1,"uptime":3,"rssKb":170,"launches":0,"consoles":0,"cgroups":true}""");
+        VmInstance vm = await rig.CreateAsync();
+
+        using VmApplication application = await vm.AcquireAsync("shell", None);
+
+        Assert.True(vm.HasAgent);
+        Assert.True(pings >= 3);
+    }
+
+    [Fact]
+    public async Task An_agent_of_another_protocol_version_fails_the_start()
+    {
+        await using var rig = new VmTestRig();
+        rig.Engines.Configure = engine => engine.Agent!.On("ping", _ => """{"ok":true,"version":2,"uptime":3,"rssKb":170,"launches":0,"consoles":0,"cgroups":true}""");
+        VmInstance vm = await rig.CreateAsync();
+
+        X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await vm.AcquireAsync("shell", None));
+
+        Assert.Equal(X86ErrorCodes.StartFailed, error.Code);
+        Assert.Equal(VmState.Stopped, vm.State);
+    }
+
+    [Fact]
     public async Task The_vm_stops_after_the_grace_once_its_last_application_closes()
     {
         await using var rig = new VmTestRig();
@@ -273,8 +303,8 @@ public sealed class VmLifecycleTests
         Assert.Equal(1, vm.Applications);
         rig.Engines.Last.Agent!.SendLine("""{"event":"exit","launch":"test/1","pid":448,"code":0,"signal":0,"remaining":0}""");
         Assert.Equal(new ProcessExit(0, 0), await launch.Exited.WaitAsync(Soon));
-        await WaitUntilAsync(() => vm.Children.Count == 0 && application.IsReleased, "the launch removed and released at its exit");
-        Assert.Equal(0, vm.Applications);
+        // IsReleased turns true just before the count goes down: wait for the count itself.
+        await WaitUntilAsync(() => vm.Children.Count == 0 && application.IsReleased && vm.Applications == 0, "the launch removed and released at its exit");
     }
 
     [Fact]

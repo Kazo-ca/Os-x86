@@ -146,14 +146,21 @@ déclaré **perdu**. Un ping à la demande existe aussi (`VmInstance.PingAgentAs
   encore marcher si seul le canal de protocole est bloqué, et c'est à l'usager de l'arrêter
   (`x86 vm stop --force`). L'agent n'est pas relancé : il ne sait pas l'être (chantier 5).
 
-Mesuré par le test `guest` (Chrome sans écran, Windows 11, Ryzen 7 3700X, image Alpine de test) :
+Mesuré par le test `guest` sur six passages (Chrome sans écran, Windows 11, Ryzen 7 3700X, image
+Alpine de test) :
 
 | Mesure | Valeur |
 | --- | --- |
-| `x86 shell` jusqu'à la première invite, démarrage à froid de la VM compris | 8,2 s |
-| Ctrl+C (ligne `^C`) jusqu'à l'invite suivante | 64 ms |
-| `ping` de l'agent, aller-retour par le pont du test | 8,7 ms |
+| `x86 shell` jusqu'à la première invite, démarrage à froid de la VM compris | 8,2 à 11,6 s |
+| Ctrl+C (ligne `^C`) jusqu'à l'invite suivante | 61 à 64 ms |
+| `ping` de l'agent, aller-retour par le pont du test | 8,7 à 45 ms |
 | `exit` jusqu'au début de l'arrêt, délai de grâce du test de 3 s | 3,0 s |
+
+**Écho du terminal de l'invité à la connexion.** Tant que l'agent n'a pas ouvert `hvc0` en mode
+brut, le pilote de terminal de l'invité renvoie ce que l'hôte écrit : le premier `ping` peut
+revenir tel quel et échouer en erreur de protocole. Trouvé par le test `guest`, qui échouait une
+fois sur deux. La connexion le réessaie, comme le silence d'un invité qui démarre, jusqu'au délai
+de connexion ; une autre erreur de protocole (version inconnue) fait échouer le démarrage.
 
 ## Les profils (183 A)
 

@@ -145,14 +145,21 @@ it through its JS module (work item 8); the skeleton's command cannot and assume
   and stopping it is the user's decision (`x86 vm stop --force`). The agent is not restarted: it
   cannot be (work item 5).
 
-Measured by the `guest` test (headless Chrome, Windows 11, Ryzen 7 3700X, Alpine test image):
+Measured by the `guest` test over six runs (headless Chrome, Windows 11, Ryzen 7 3700X, Alpine
+test image):
 
 | Measure | Value |
 | --- | --- |
-| `x86 shell` to the first prompt, cold boot of the VM included | 8.2 s |
-| Ctrl+C (a `^C` line) to the next prompt | 64 ms |
-| Agent `ping`, round trip through the test bridge | 8.7 ms |
+| `x86 shell` to the first prompt, cold boot of the VM included | 8.2 to 11.6 s |
+| Ctrl+C (a `^C` line) to the next prompt | 61 to 64 ms |
+| Agent `ping`, round trip through the test bridge | 8.7 to 45 ms |
 | `exit` to the start of the stop, with the test's 3 s grace | 3.0 s |
+
+**Echo of the guest terminal at connection.** Until the agent opens `hvc0` in raw mode, the guest's
+terminal driver echoes what the host writes: the first `ping` can come back as is and fail as a
+protocol error. Found by the `guest` test, which failed one run in two. The connection retries it,
+like the silence of a booting guest, until the connection delay; another protocol error (an unknown
+version) fails the start.
 
 ## Profiles (183 A)
 
