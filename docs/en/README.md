@@ -13,3 +13,11 @@
 | [`../essais/`](../essais/) | The reports of the measurement prototypes (French only) |
 
 Every PR that ships, changes or plans a feature updates `features.md` and `changelog.md` in both languages; a public API change updates `src/OsX86.Interface/PublicAPI.Unshipped.txt`.
+
+## Kazo OS version
+
+The `external/KazoOs` submodule is pinned on the Kazo OS tag **`v3.4.0`** (before: `v3.2.1`, decision 220 A). Its `wasm2/KazoOs/build/Versions.props` gives the version of every `Kazo.Os.*` package of the repository and the `sdkCompatibility.minimumVersion` of the `OsX86.Feature` manifest.
+
+Follow rule (decision 266 A, 2026-11-15): the repository follows the Kazo OS prereleases that bring an ADR of the Os-x86 series (`vX.Y.Z-preview.N`), then the stable version as soon as it is published on nuget.org; 3.4.0 was released the same day as the decision, so the repository went straight from `v3.2.1` to `v3.4.0`. Changing the version means moving the submodule to another tag (`git -C external/KazoOs checkout v<version>`) in a PR of its own. CI (`.github/scripts/check-kazoos-submodule.sh`) refuses a modified submodule or one that is not exactly on the `v<KazoOsVersion>` tag; a prerelease tag is accepted as is, since the version read from `Versions.props` carries its suffix.
+
+A `Debug` build rewrites generated manifests inside the submodule: before pushing, `git -C external/KazoOs checkout -- .` puts them back to the tag's state.
