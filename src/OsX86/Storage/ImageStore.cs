@@ -79,6 +79,46 @@ public sealed class ImageStore : IAsyncDisposable
         await RequestAsync(StorageProtocol.Delete(id, image, version), id, StorageProtocol.Types.Done, null, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// The write layers of a layer set (<c>osx86/layers/&lt;set&gt;/</c>, work item 6a): one per disk,
+    /// with what it occupies and its versioned metadata. A layer a running engine holds has no size
+    /// here (<see cref="StoredLayer.InUse"/>): the engine reports it (<c>V86Engine.GetDiskStatisticsAsync</c>).
+    /// </summary>
+    public async ValueTask<IReadOnlyList<StoredLayer>> ListLayersAsync(string set, CancellationToken cancellationToken)
+    {
+        StorageLayout.LayerDirectory(set);
+        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        StorageMessage answer = await RequestAsync(StorageProtocol.ListLayers(id, set), id, StorageProtocol.Types.Layers, null, cancellationToken).ConfigureAwait(false);
+        return (answer.Layers ?? []).Select(ToStoredLayer).ToList();
+    }
+
+    /// <summary>Deletes the write layers of a layer set: the disks start again from the image. Nothing when there are none.</summary>
+    /// <exception cref="StorageException"><see cref="StorageErrorCodes.Locked"/> while an engine runs on them.</exception>
+    public async ValueTask DeleteLayersAsync(string set, CancellationToken cancellationToken)
+    {
+        StorageLayout.LayerDirectory(set);
+        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        await RequestAsync(StorageProtocol.DeleteLayers(id, set), id, StorageProtocol.Types.Done, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static StoredLayer ToStoredLayer(StoredLayerEntry entry)
+    {
+        StoredObjectMetadata? metadata = null;
+        if (entry.Metadata is not null)
+        {
+            try
+            {
+                metadata = StoredObjectMetadata.Parse(entry.Metadata);
+            }
+            catch (StorageException)
+            {
+                // an unreadable sidecar: the engine refuses the layer; it is listed so that it can be deleted
+            }
+        }
+
+        return new StoredLayer(entry.Disk, entry.Bytes, entry.InUse, metadata);
+    }
+
     /// <summary>Reads the local copy of the manifest of a stored image version, validated (an unknown format is refused, decision 169).</summary>
     public async ValueTask<ImageManifest> ReadManifestAsync(string image, string version, CancellationToken cancellationToken)
     {

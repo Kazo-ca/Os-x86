@@ -21,6 +21,8 @@
 //     {type:"estimate", id}                                         -> estimate
 //     {type:"read-manifest", id, image, version}                    -> manifest
 //     {type:"verify", id, image, version, manifest}                 -> progress*, verified
+//     {type:"list-layers", id, set}                                 -> layers (work item 6a)
+//     {type:"delete-layers", id, set}                               -> done | error locked
 //   worker -> host
 //     {type:"ready", opfs, locks}                                   posted once at startup
 //     {type:"manifest", id, text}
@@ -30,6 +32,7 @@
 //     {type:"images", id, images:[{image, version, size, bytesOnDisk, complete, format, engine}], repositoryBytes}
 //     {type:"estimate", id, usage, quota, repositoryBytes}
 //     {type:"verified", id, chunksTotal, bad:[i...]}
+//     {type:"layers", id, layers:[{disk, bytes, inUse, metadata}]}  bytes null while an engine holds the layer
 //     {type:"error", id?, code, message}                            without id: the worker itself failed
 //
 // Error codes: opfs-unavailable, manifest-fetch-failed, manifest-integrity, manifest-invalid,
@@ -355,13 +358,16 @@ function locksAvailable() {
   return !!(self.navigator && navigator.locks && typeof navigator.locks.request === "function");
 }
 
-async function withImageLock(image, version, action) {
+function withImageLock(image, version, action) {
+  return withNamedLock(`osx86:image:${image}@${version}`, `${image} ${version}: another operation holds the lock`, action);
+}
+
+async function withNamedLock(name, lockedMessage, action) {
   if (!locksAvailable()) {
-    return action(); // createSyncAccessHandle() on image.bin is exclusive: the second writer fails with "locked"
+    return action(); // createSyncAccessHandle() is exclusive: the second writer fails with "locked"
   }
   // Waits a little rather than failing at once: the browser releases the lock of a worker killed by
   // a page reload asynchronously. A lock that is really held still answers "locked" within 2 s.
-  const name = `osx86:image:${image}@${version}`;
   const waiting = new AbortController();
   const timer = setTimeout(() => waiting.abort(), LOCK_WAIT_MS);
   let acquired = false;
@@ -373,12 +379,80 @@ async function withImageLock(image, version, action) {
     });
   } catch (error) {
     if (!acquired && error && error.name === "AbortError") {
-      throw new StorageError("locked", `${image} ${version}: another operation holds the lock`);
+      throw new StorageError("locked", lockedMessage);
     }
     throw error;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// --- write layers of the engine disks (work item 6a) ----------------------------------------------
+// osx86/layers/<set>/<disk>.layer with <disk>.layer.meta.json next to it, written by the engine
+// worker (disk.js) under the lock "osx86:layer:osx86/layers/<set>". This worker only measures and
+// deletes them; a layer in use by a running engine is reported "inUse" and is not deleted.
+
+const LAYERS = "layers";
+const LAYER_EXTENSION = ".layer";
+const LAYER_METADATA_SUFFIX = ".meta.json";
+
+function checkLayerSet(set) {
+  if (typeof set !== "string" || set.length > MAX_NAME || !IMAGE_ID.test(set)) {
+    throw new StorageError("protocol", "invalid layer set name");
+  }
+}
+
+const layerLockName = (set) => `osx86:layer:${ROOT}/${LAYERS}/${set}`;
+
+async function listLayers(set) {
+  checkLayerSet(set);
+  let directory;
+  try {
+    directory = await getDirectory([ROOT, LAYERS, set], false);
+  } catch (error) {
+    if (error.code === "not-found") {
+      return [];
+    }
+    throw error;
+  }
+  const layers = [];
+  for await (const [name, handle] of directory) {
+    if (handle.kind !== "file" || !name.endsWith(LAYER_EXTENSION)) {
+      continue;
+    }
+    const disk = name.slice(0, -LAYER_EXTENSION.length);
+    let bytes = null;
+    let inUse = false;
+    try {
+      bytes = (await handle.getFile()).size;
+    } catch (error) {
+      if (!error || error.name !== "NoModificationAllowedError") {
+        throw opfsError(error, name);
+      }
+      inUse = true; // a running engine holds its sync access handle; it reports the size itself
+    }
+    layers.push({ disk, bytes, inUse, metadata: await readText(directory, name + LAYER_METADATA_SUFFIX) });
+  }
+  return layers;
+}
+
+async function deleteLayers(set) {
+  checkLayerSet(set);
+  await withNamedLock(layerLockName(set), `${set}: a running engine writes these layers`, async () => {
+    let root;
+    try {
+      root = await getDirectory([ROOT, LAYERS], false);
+      await root.removeEntry(set, { recursive: true });
+    } catch (error) {
+      if (error && (error.name === "NotFoundError" || error.code === "not-found")) {
+        return;
+      }
+      if (error && error.name === "NoModificationAllowedError") {
+        throw new StorageError("locked", `${set}: a running engine writes these layers`);
+      }
+      throw opfsError(error, set);
+    }
+  });
 }
 
 // --- manifests and state --------------------------------------------------------------------------
@@ -1068,6 +1142,13 @@ async function handle(message) {
     }
     case "delete":
       await deleteImage(message.image, message.version);
+      send({ type: "done", id });
+      break;
+    case "list-layers":
+      send({ type: "layers", id, layers: await listLayers(message.set) });
+      break;
+    case "delete-layers":
+      await deleteLayers(message.set);
       send({ type: "done", id });
       break;
     case "estimate":

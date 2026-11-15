@@ -136,6 +136,13 @@ public sealed record StoredImage(string Image, string Version, long Size, long B
 /// <param name="Size">Its length.</param>
 public sealed record ImageFileLocation(string PayloadPath, long Offset, long Size);
 
+/// <summary>A write layer of a disk (work item 6a), as the repository lists it.</summary>
+/// <param name="Disk">The disk it is under (<c>hda</c>).</param>
+/// <param name="Bytes">What the layer file occupies; null while a running engine holds it.</param>
+/// <param name="InUse">Whether a running engine holds it.</param>
+/// <param name="Metadata">Its versioned metadata (image, image version, engine), null when missing or unreadable.</param>
+public sealed record StoredLayer(string Disk, long? Bytes, bool InUse, StoredObjectMetadata? Metadata);
+
 /// <summary>The outcome of an in-place verification of an image (every chunk re-read and hashed).</summary>
 /// <param name="ChunksTotal">How many chunks were checked.</param>
 /// <param name="BadChunks">The indices of the chunks that do not hash to the manifest (empty when the image is sound).</param>

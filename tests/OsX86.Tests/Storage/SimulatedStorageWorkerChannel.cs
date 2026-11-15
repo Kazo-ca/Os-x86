@@ -44,6 +44,12 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
     /// <summary>What <c>list</c> returns.</summary>
     public List<object> Images { get; } = [];
 
+    /// <summary>What <c>list-layers</c> returns, per layer set.</summary>
+    public Dictionary<string, List<object>> Layers { get; } = [];
+
+    /// <summary>The layer sets <c>delete-layers</c> refuses with <c>locked</c> (a running engine).</summary>
+    public HashSet<string> LockedLayerSets { get; } = [];
+
     /// <summary>When set, a download fails with this error after one progress message.</summary>
     public (string Code, string Message)? DownloadError { get; set; }
 
@@ -135,6 +141,21 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
             case "delete":
                 States.Remove(Key(root));
                 await SendAsync(new { type = "done", id });
+                break;
+            case "list-layers":
+                await SendAsync(new { type = "layers", id, layers = Layers.GetValueOrDefault(root.GetProperty("set").GetString()!, []) });
+                break;
+            case "delete-layers":
+                if (LockedLayerSets.Contains(root.GetProperty("set").GetString()!))
+                {
+                    await SendAsync(new { type = "error", id, code = "locked", message = "a running engine writes these layers" });
+                }
+                else
+                {
+                    Layers.Remove(root.GetProperty("set").GetString()!);
+                    await SendAsync(new { type = "done", id });
+                }
+
                 break;
             case "estimate":
                 await SendAsync(new { type = "estimate", id, usage = 5000, quota = 10_000_000, repositoryBytes = 1234 });

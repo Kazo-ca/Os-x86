@@ -825,6 +825,21 @@
       callback(this.read(offset, length));
     }
 
+    /** v86 (the BIOS boot path): the same as get; the frame cache already keeps what was read. */
+    get_and_cache(offset, length, callback) {
+      callback(this.read(offset, length));
+    }
+
+    /** v86: a read that never waits; this disk never does. */
+    get_from_cache(offset, length) {
+      return this.read(offset, length);
+    }
+
+    /** v86 (get_disk_hda): the whole disk as it is now, image and layer merged. */
+    get_buffer(callback) {
+      callback(this.read(0, this.byteLength).buffer);
+    }
+
     read(offset, length) {
       this.checkRange(offset, length);
       const out = this.base.read(offset, length);
