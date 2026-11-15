@@ -23,17 +23,17 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 4, images : outil de paquetage zstd, recettes `linux-base` (Debian i386, 73 Mo), Alpine de test (15 Mo), FreeDOS (17 Mo), durcissement et son test, publication préparée.
 - Chantier 5, agent : agent invité en C statique dans l'image, client C# du protocole, consoles, tests dans l'image Alpine.
 - Chantier 1c, Kazo épinglé sur `v3.4.0` stable (266 A) : fusionné (PR #10).
+- Chantier 6, registre des VM par usager, cycle de vie, budget de mémoire, profils `.x86profile`, `x86 vm`, `x86 shell` par l'agent : fusionné (PR #9).
 - Chantier 6a, disque `hda` depuis l'OPFS : `linux-base` démarre avec son agent (22 contrôles sur 22), couche d'écriture, FreeDOS démarre : fusionné (PR #8).
 
 ## En cours
 
-- **Chantier 6**, registre des VM, cycle de vie, budget de mémoire, profils, `x86 vm`, `x86 shell` : PR #9, mise à jour sur `j0/base` en cours, fusion par moi sur ton mandat.
 - **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : PR Kazo #570 ouverte, CI en cours ; ses questions sont la série 19 (267 à 269).
 
 ## Reste à faire
 
 **Os-x86, étape a (Linux)**
-- Finir 6a et 6, puis brancher `linux-base` comme image par défaut.
+- Brancher `linux-base` comme image par défaut (petit chantier, les briques 6a et 6 sont dans `j0/base`).
 - Chantier 7, pages d'administration et rôle (attend le code Kazo des ADR 0247, 0249, 0254).
 - Chantier 8, passage au vrai type Feature, permissions, interface enregistrée, installation depuis le Store (attend le code Kazo des ADR 0245, 0246, 0248, 0250).
 
