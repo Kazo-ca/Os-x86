@@ -33,3 +33,15 @@ Contexte : Os-x86 est épinglé sur `v3.2.1` (220 A : « 3.3.0 à sa publication
 - B) Épingler sur `v3.3.4` stable maintenant, et attendre `v3.4.0` stable pour le chantier 8.
 - C) Rester sur `v3.2.1` jusqu'à `v3.4.0` stable.
 - D) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-15
+
+Tes mots : « Oui, A partout ».
+
+| # | Réponse | Effet |
+|---|---|---|
+| 263 | **A** | Processus des services d'une Feature sous `kazoos-svc`, en portée système ; la Feature vérifie l'usager appelant. Déjà codé dans #541. |
+| 264 | **A** | Instance abandonnée, `Changed` levé, processus gardé jusqu'à l'arrêt de la page. Déjà codé. |
+| 265 | **A** | Fixture `sdk-compat` et version mineure du SDK à la publication. |
+| 266 | **A** | Os-x86 épinglé sur `v3.4.0-preview.4` par le petit chantier `j0/1c-kazo-pin`, lancé le même jour ; suivi de chaque préliminaire qui apporte une ADR de la série ; `v3.4.0` à sa publication. Remplace la seconde moitié de 220 A. |
+
