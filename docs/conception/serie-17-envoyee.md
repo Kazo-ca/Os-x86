@@ -42,3 +42,17 @@ Contexte : la règle « la copie d'une Feature passe d'abord » demande de savoi
 - Le commit `dcc249c0` (256 B : `kind` dans `catalog.json`, Store sans « Installer pour moi » pour une Feature) n'est **pas** dans `feature/base` : #449 a été fusionnée à `7dc1340e`, avant son arrivée sur la branche. Il est repris dans #450 (commit de fusion `17b5a1f9`). Os-AppMarketPlace#20, déjà fusionnée, documente ce champ.
 - À faire dans Os-x86 quand une version de Kazo contiendra ce chantier : `Os-x86.Interface` pose la marque partagée dans son projet.
 - Hors de la PR, non faits : retrait du contournement de #419 dans Os-App-IRC, régénération d'Os-AppTemplate.
+
+## Réponses, le 2026-11-12
+
+Tes mots : « 259. Donc une librairie ou une dll référencée par l'application n'est gérée ni par Kazo OS ni par le market place. Elle accompagne simplement l'application. Sinon, la réponse A s'applique. Pour le reste, je suis d'accord avec tes recommandations. »
+
+| # | Réponse | Effet |
+|---|---|---|
+| 259 | **A, avec précision** | La marque partagée est dans l'assemblage, posée par le projet de la bibliothèque. Une bibliothèque ordinaire, non marquée, n'est gérée ni par Kazo OS ni par le Store : elle voyage dans le paquet de l'app, sans entrée de catalogue, sans résolution de dépendance, sans comparaison de versions entre apps. Seule une bibliothèque marquée partagée entre dans les règles de l'ADR 0244. Une ADR d'ajustement corrige le §2. |
+| 260 | **A** | Deux majeures s'installent, une seule par page, journal et « Redémarrer pour terminer ». |
+| 261 | **A** | La première chargée sert les deux, la seconde est notée au journal. |
+| 262 | **A** | Fournisseur provisoire : toute Feature installée qui embarque la bibliothèque, jusqu'au code de l'ADR 0245. |
+
+Transmises à la session du chantier Kazo le même jour : relecture du code contre la précision de 259, ajustement de l'ADR 0244 dans la PR #450, mise à jour des questions de la PR.
+
