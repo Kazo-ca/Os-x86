@@ -4,18 +4,57 @@ namespace OsX86.Interface;
 /// The contract of Os-x86, the x86 emulation feature of Kazo OS. An app embeds this package and asks
 /// the OS for the service; it gets <see langword="null"/> when the feature is not installed
 /// (decisions 10 B, 158 A). The contract is generic: it names virtual machines, programs and
-/// consoles, never Wine (29 C). This first surface only identifies the feature and lists the
-/// caller's virtual machines; the launch, console and control operations of the plan (§1.1) are added
-/// by the work items that implement them.
+/// consoles, never Wine (29 C). The service is bound to the calling user: every VM it names belongs
+/// to that user (decision 190 A), and nothing of another user's VMs is reachable through it.
+/// This surface is what the Terminal and BoxedWine need first (work item 6): the list and state of
+/// the VMs, starting and stopping one, opening a console in it. Launching programs, prefixes and
+/// the rest of the plan (§1.1) are added by the work items that implement them.
 /// </summary>
 public interface Ix86
 {
     /// <summary>The version of the installed feature, as published (plan §13: formats are versioned).</summary>
     string Version { get; }
 
-    /// <summary>Lists the virtual machines the calling user may use (plan §1.2, decision 190: one GUID per VM).</summary>
+    /// <summary>Raised when one of the caller's VMs changes state (plan §1.2: started on demand, stopped with its last application).</summary>
+    event EventHandler<VmStateChangedEventArgs>? VmStateChanged;
+
+    /// <summary>Lists the virtual machines the calling user may use (plan §1.2, decision 190: one GUID per VM), with their current state.</summary>
     /// <param name="cancellationToken">Cancels the call.</param>
     ValueTask<IReadOnlyList<VmSummary>> GetVmsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Starts a VM by hand and keeps it running until <see cref="StopVmAsync"/> (decision 72.6: a VM
+    /// started by hand stays up, unlike one started for an application). A no-op when it is already
+    /// held this way; a VM started for applications becomes held.
+    /// </summary>
+    /// <param name="vmId">The VM.</param>
+    /// <param name="cancellationToken">Cancels the wait, not the boot.</param>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.ImageUnavailable"/>, <see cref="X86ErrorCodes.EngineUnavailable"/> or a start failure.</exception>
+    /// <exception cref="VmMemoryBudgetExceededException">Starting it would exceed the memory budget (decision 165 A).</exception>
+    ValueTask StartVmAsync(Guid vmId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stops a VM: releases the manual hold and, when no application uses it any more, shuts it down.
+    /// With <paramref name="force"/>, shuts it down at once, closing every application and console.
+    /// </summary>
+    /// <param name="vmId">The VM.</param>
+    /// <param name="force">Whether to stop it even though applications use it.</param>
+    /// <param name="cancellationToken">Cancels the wait, not the shutdown.</param>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, or <see cref="X86ErrorCodes.VmBusy"/> when applications use it and <paramref name="force"/> is false.</exception>
+    ValueTask StopVmAsync(Guid vmId, bool force, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Opens a console in a VM, starting it when needed (decision 166 A: a console is an application
+    /// that keeps the VM up). Through the guest agent it is a pseudo-terminal with the user's shell
+    /// (213 A); an image without agent gets the serial console when its profile declares one (212 A).
+    /// Disposing the console closes it and releases the VM.
+    /// </summary>
+    /// <param name="vmId">The VM.</param>
+    /// <param name="options">The prefix and the size of the console.</param>
+    /// <param name="cancellationToken">Cancels the wait, not the boot.</param>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.NoConsole"/>, <see cref="X86ErrorCodes.NoPrefix"/> or a start failure.</exception>
+    /// <exception cref="VmMemoryBudgetExceededException">Starting the VM would exceed the memory budget (decision 165 A).</exception>
+    ValueTask<IVmConsole> OpenConsoleAsync(Guid vmId, VmConsoleOptions options, CancellationToken cancellationToken);
 }
 
 /// <summary>What a virtual machine runs (plan §1.1: one VM per kind and image in V1, decision 194 A).</summary>
@@ -52,4 +91,20 @@ public enum VmState
 /// <param name="Name">The name shown to the user.</param>
 /// <param name="Kind">What the VM runs.</param>
 /// <param name="State">Its current lifecycle state.</param>
-public sealed record VmSummary(Guid Id, string Name, VmKind Kind, VmState State);
+/// <param name="Image">The identifier of the image it boots (decision 187).</param>
+/// <param name="ImageVersion">The version of that image the VM is pinned to (plan §13).</param>
+/// <param name="MemoryMiB">The guest memory it is given when it starts, counted against the budget of 165 A.</param>
+public sealed record VmSummary(Guid Id, string Name, VmKind Kind, VmState State, string Image, string ImageVersion, int MemoryMiB);
+
+/// <summary>Arguments of <see cref="Ix86.VmStateChanged"/>.</summary>
+public sealed class VmStateChangedEventArgs(Guid vmId, VmState previous, VmState current) : EventArgs
+{
+    /// <summary>The VM that changed.</summary>
+    public Guid VmId { get; } = vmId;
+
+    /// <summary>Its state before the change.</summary>
+    public VmState Previous { get; } = previous;
+
+    /// <summary>Its state after the change.</summary>
+    public VmState Current { get; } = current;
+}

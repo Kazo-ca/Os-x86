@@ -30,6 +30,9 @@ internal sealed class SimulatedAgentChannel : IAgentChannel
     /// <summary>When set, no request is answered.</summary>
     public bool Silent { get; set; }
 
+    /// <summary>Called with every buffer the client writes on the console port, to play a program that answers (work item 6).</summary>
+    public Action<byte[]>? ConsoleWriteHook { get; set; }
+
     /// <summary>When set, <see cref="WriteLineAsync"/> throws it.</summary>
     public Exception? WriteException { get; set; }
 
@@ -127,11 +130,13 @@ internal sealed class SimulatedAgentChannel : IAgentChannel
     public ValueTask WriteConsoleBytesAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        byte[] bytes = data.ToArray();
         lock (_lock)
         {
-            _consoleWritten.Add(data.ToArray());
+            _consoleWritten.Add(bytes);
         }
 
+        ConsoleWriteHook?.Invoke(bytes);
         return ValueTask.CompletedTask;
     }
 

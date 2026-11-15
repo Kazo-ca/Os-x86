@@ -1,0 +1,311 @@
+> [Version française](../fr/vm.md)
+
+# VMs, their lifecycle and the `x86` command
+
+Milestone 0, work item 6 (`j0/6-vm-and-command`). This work item puts the VM layer on top of the
+engine (work item 2), the storage (work item 3) and the guest agent (work item 5): the per-user VM
+registry, the VM lifecycle, the memory limit, `.x86profile` profiles, and the `x86 vm`,
+`x86 shell` and `x86 profile` commands ([milestone order](../conception/jalon-0-execution.md),
+French only). Decisions: 165 A (several VMs, memory limit), 166 A (what an "application" is),
+183 A (profiles), 190 A (stored by stable user identifier), 200 B (`prefix`), 206 A and 207 A
+(launches and processes), 212 A (image without agent), 213 A (pty), 216 A (Ctrl+C).
+
+## Where things are
+
+| Path | Content |
+| --- | --- |
+| `src/OsX86/Vm/` | `VmRegistry` and its document (`VmRegistryDocument`, `VmRecord`, `IVmRegistryStore`), `VmManager` (the machine's VMs, the budget), `VmInstance` (the lifecycle of one VM), `VmApplication`, the consoles (`VmConsoles.cs`), `MemoryBudget`, `IEngineFactory` and `IBootImageSource`, `X86Service` (the implementation of `Ix86`) |
+| `src/OsX86/Profiles/` | `VmProfile` (the `.x86profile` format), `BuiltInProfiles` (`alpine-test`, `linux-base`) |
+| `src/OsX86.Feature/` | `X86Command` in four files (dispatch, `vm`, `shell`, `profile`), `CommandArguments`, `TerminalTextFilter`, `X86Runtime` (the shared manager), `X86Files` (Kazo files, the registry store) |
+| `src/OsX86.Interface/` | `Ix86` extended, `IVmConsole`, `VmConsoleOptions`, `X86Exception` and `X86ErrorCodes`, `VmMemoryBudgetExceededException` |
+| `tests/OsX86.Tests/Vm/` | `unit` tests (simulated engine and agent, manual clock) and the `guest` test (`VmShellGuestTests`, `vm.html`) |
+
+## Overview
+
+```
+x86 (command) ──┐
+Ix86 (apps)  ───┴─> VmManager ──> VmRegistry ──> IVmRegistryStore (one document per user)
+                        │
+                        ├──> MemoryBudget (165 A)
+                        └──> VmInstance (one per VM) ──> IEngineFactory ──> IEngine (one per run)
+                                   │                        └──> AgentClient (EngineAgentChannel)
+                                   └──> applications, children, watchdog, consoles
+```
+
+One `VmManager` per host holds the VMs of the whole machine: the memory budget counts those of
+every user. Every operation names the user and reaches that user's VMs only (190 A); another
+user's VM answers `vm-not-found`, exactly like a VM that does not exist. Administrator rights over
+other users' VMs are work item 7.
+
+## The registry (190 A)
+
+A VM has a GUID, a name, a creation date and its profile (kind, image and version, memory,
+declared serial port, default prefix); its state is not stored, it lives in memory. The registry is
+**one document per stable user identifier**, never per login name: an account deleted and created
+again with the same name does not get the old account's VMs back.
+
+- **In Kazo**, the command keeps the user's document in the app's private directory,
+  `~/.config/ca.kazo.x86/vms/<guid>.json` (ADR 0044 of Kazo; the `filesystem.private.read` and
+  `filesystem.private.write` capabilities, declared in the manifest). The store refuses to read or
+  write the document of any other user than the one running the command. The identifier comes
+  from `IAppExecutionContext.UserId` (the 32 hexadecimal digits of Kazo's `LocalUserId`); a login
+  name is refused (`invalid-user`).
+- **Format 1** (section 13 of the plan), versioned like the other documents of Os-x86:
+
+```json
+{
+  "format": 1,
+  "user": "0000000000000000000000000000a001",
+  "vms": [
+    { "id": "3f2c…", "name": "Alpine", "created": "2026-11-12T10:00:00+00:00",
+      "profile": { "format": 1, "name": "alpine-test", "kind": "linux", "image": "alpine-test",
+                   "imageVersion": "0.1.0", "memoryMiB": 128, "serialConsole": true, "prefix": "test" } }
+  ],
+  "profiles": []
+}
+```
+
+- An unknown format is refused and nothing is written (169). Also refused: another user's
+  document, an empty or duplicate identifier, two names equal ignoring case, an invalid profile.
+- Operations: create (from a profile copied into the VM: the recipe, 121), list, find by GUID or
+  by name (ignoring case, the GUID wins), rename (allowed while running), remove (refused while
+  running unless `--force`, which stops it first). A name has 1 to 64 characters, no control
+  character, no leading or trailing blank, and is unique for the user.
+- The document is read again before each operation and written after each change, under a lock.
+
+## The lifecycle (166 A)
+
+An **application** keeps the VM running: a program launched through the agent, an interactive
+shell (`x86 shell`), a console. `VmInstance.AcquireAsync` takes one; the first one starts the VM.
+
+1. **Start on demand.** Image found (`IBootImageSource`), budget checked, state `Starting`, engine
+   created by the factory (`IEngineFactory`, injectable), `StartAsync`, then the `AgentClient`
+   connects (`EngineAgentChannel.For(engine)`), then `Running`. Applications that arrive during
+   the boot wait for the same one: one engine per run.
+2. **Application count.** Each `VmApplication` is released by `Dispose`: a console releases it when
+   it closes, a program at its `exit`.
+3. **Stop after the last application**, once the **grace** has passed (`StopGrace`, 5 s by
+   default). An application that comes back during the grace cancels it.
+4. **Start by hand** (`x86 vm start`, `Ix86.StartVmAsync`): the VM is held (72.6) and no longer
+   stops by itself; `x86 vm stop` releases it and stops it.
+5. **Stop**: refused (`vm-busy`) while other applications hold it. **Forced** (`--force`), it
+   closes everything: consoles fail with `console-closed`, the agent client is closed, the engine
+   stopped and released. Stopping erases nothing.
+6. **Guest death**: if the engine stops by itself (a worker crash), the run ends like a stop.
+
+Exposed states: `Stopped`, `Starting`, `Running`, `Stopping` (`VmState`), with the
+`VmManager.InstanceStateChanged` event and, filtered per user, `Ix86.VmStateChanged`.
+
+**Grace choice: 5 s.** 166 A says "as soon as". A short grace lets a shell that reopens at once, or
+a program that chains another, keep the VM, while a boot costs 8 s for the Alpine image (measured
+below) and 45 to 70 s for linux-base. It is configurable (`VmManagerOptions.StopGrace`, 0 = stop at
+once); its writing by the administrator is work item 7.
+
+## The memory limit (165 A)
+
+`MemoryBudget`: the limit is half of the memory the browser announces (`navigator.deviceMemory`),
+or the administrator's limit (`VmManagerOptions.MemoryLimitMiB`, read here, written by work item 7).
+Without an announcement (Firefox, Safari), 4 GiB is assumed, a budget of 2 GiB.
+
+- Under the limit (memory of the VMs starting or running plus the new one), **no question**.
+- Over it, a typed refusal `VmMemoryBudgetExceededException` (`memory-budget-exceeded`), before any
+  engine is created. It carries the requested memory, the running memory, the limit, **the caller's
+  running VMs** and among them **the compatible ones** (same kind, same image). Other users' VMs are
+  counted, never named. The choice window is a matter of user interface.
+- The check and the move to `Starting` are one step for the whole machine: two VMs starting
+  together cannot both pass a budget that only one of them fits in.
+
+`navigator.deviceMemory` is rounded by the browser (8 GB at most in Chrome). The Feature will read
+it through its JS module (work item 8); the skeleton's command cannot and assumes 4 GiB.
+
+## Agent, processes and images without agent (206 A, 207 A, 212 A)
+
+- **Children.** Each launch (`VmInstance.LaunchAsync`) and each console is registered as a child of
+  the VM with its `LaunchId` at the agent's reply, and removed at `Exited` (207 A); `x86 vm info`
+  lists them. This is the shape the Kazo child processes of the VM will have once the Feature is a
+  real process (work item 8); nothing goes through `StartChild`.
+- **Restarted agent** (a `ready` event after the connection): the children are forgotten, their
+  handles fail with `closed` (behaviour of the client of work item 5).
+- **Image without agent.** When the agent does not answer the connection (`not-ready`), the VM runs
+  without children (`HasAgent = false`). `x86 shell` then opens the **serial console** when the
+  profile declares a serial port, and refuses otherwise (`no-console`, code 6). A serial console is
+  the whole `ttyS0`, shared with the boot messages, without exit code (0 when closed).
+
+### Agent watchdog
+
+**Choice: a periodic ping**, every 20 s (`AgentWatchdogInterval`), each ping having 10 s to answer
+(`AgentWatchdogTimeout`). After **2 misses in a row** (`AgentWatchdogMisses`), the agent is declared
+**lost**. A ping on demand also exists (`VmInstance.PingAgentAsync`).
+
+- Cost: a `ping` takes 3 to 9 ms; one every 20 s is negligible. A dead agent is seen within 40 to
+  60 s, without false alarms for a loaded VM thanks to the 10 s margin.
+- **What happens when it stops answering**: the `VmManager.AgentLost` event is raised, the children
+  are forgotten, `x86 vm info` shows "lost", and any new console or launch fails with `agent-lost`.
+  **The VM is not stopped**: an open console may still work if only the protocol channel is stuck,
+  and stopping it is the user's decision (`x86 vm stop --force`). The agent is not restarted: it
+  cannot be (work item 5).
+
+Measured by the `guest` test over six runs (headless Chrome, Windows 11, Ryzen 7 3700X, Alpine
+test image):
+
+| Measure | Value |
+| --- | --- |
+| `x86 shell` to the first prompt, cold boot of the VM included | 8.2 to 11.6 s |
+| Ctrl+C (a `^C` line) to the next prompt | 61 to 64 ms |
+| Agent `ping`, round trip through the test bridge | 8.7 to 45 ms |
+| `exit` to the start of the stop, with the test's 3 s grace | 3.0 s |
+
+**Echo of the guest terminal at connection.** Until the agent opens `hvc0` in raw mode, the guest's
+terminal driver echoes what the host writes: the first `ping` can come back as is and fail as a
+protocol error. Found by the `guest` test, which failed one run in two. The connection retries it,
+like the silence of a booting guest, until the connection delay; another protocol error (an unknown
+version) fails the start.
+
+## Profiles (183 A)
+
+A profile is the **recipe** of a VM (121): a versioned `.x86profile` JSON document.
+
+| Field | Meaning |
+| --- | --- |
+| `format` | 1; an unknown format is refused and nothing is written |
+| `name` | the profile name (`--profile <name>`) |
+| `kind` | `linux`, `dos`, `windows-programs` |
+| `image`, `imageVersion` | the store's image and its version |
+| `memoryMiB` | 16 to 4096, counted in the budget |
+| `serialConsole` | the image has a serial console: the only console of an image without agent (212 A) |
+| `prefix` | the prefix a console opens in without `--prefix` (200 B), or absent |
+| `programs` | an opaque section reserved to BoxedWine, kept as is |
+
+Unknown properties are ignored, comments and trailing commas accepted, 256 KiB at most. Shipped
+profiles: **`alpine-test`** (the Alpine test image with the agent, 128 MiB, serial, prefix `test`,
+default of `x86 vm create`) and **`linux-base`** (256 MiB, serial, no prefix: its guest users come
+with the prefixes, work items 9 and 10). An imported profile (`x86 profile import`) is kept in the
+user's registry and hides a shipped profile of the same name.
+
+## The `x86` command
+
+```text
+x86 vm list
+x86 vm create <name> [--profile <profile | file.x86profile>]
+x86 vm start <vm>
+x86 vm stop <vm> [--force]
+x86 vm remove <vm> [--force]
+x86 vm rename <vm> <name>
+x86 vm info <vm>
+x86 shell [--vm <vm>] [--prefix <prefix>] [--cols N] [--rows N]
+x86 profile list | show <profile> | import <file> | export <profile> <file>
+```
+
+`<vm>` is a name or a GUID. Options are written `--name value` or `--name=value`, in any order; an
+unknown option is an error; `--` ends the options. Messages are in English, like the rest of the
+command: the skeleton has no translated resources.
+
+```text
+$ x86 vm create Alpine
+Created Alpine (3f2c…) from the profile alpine-test.
+$ x86 vm list
+ID                                    KIND              STATE     MEMORY  IMAGE                 NAME
+3f2c…                                 linux             stopped     128M  alpine-test 0.1.0     Alpine
+$ x86 shell
+~ $ echo vm-$((6*7))-$(id -u)
+vm-42-1001
+~ $ sleep 600
+^C
+~ $ exit 5
+$ echo $?
+5
+```
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | done |
+| 1 | the operation failed: agent, invalid profile or name, unknown format, start |
+| 2 | wrong command line: unknown command or option, missing argument; the usage goes to standard error |
+| 3 | memory budget exceeded; the running and compatible VMs are listed |
+| 4 | no VM or profile of that name |
+| 5 | VM busy: stop or remove without `--force` |
+| 6 | nothing on this host can run it: no emulator, image missing, no console |
+| 130 | Ctrl+C before a console was open |
+
+`x86 shell` returns the code of the guest shell, 128 plus the signal when a signal ended it.
+
+### `x86 shell`, line by line
+
+Until ADR 0252 lands, the Kazo terminal is line-based. `x86 shell` relays the agent's console
+(213 A) this way:
+
+- **output**: the pty bytes become text (UTF-8 decoded across chunks; carriage returns and CSI, OSC
+  and ESC sequences removed; other control characters removed except LF, tab and BEL); the pty's
+  echo of each line sent is removed once, since the Kazo terminal already shows the typed line;
+- **input**: each line read is sent with LF. A `^C` line sends Ctrl+C to the guest program, as
+  does the interruption of the command itself (Ctrl+C in the Kazo terminal, 216 A). A `~.` line
+  closes the console, as in ssh. The end of input sends Ctrl+D;
+- **end**: the exit code of the shell is returned. The console was an application of the VM, which
+  stops after the grace when it was the last one.
+
+The shell counts as an application (166 A). Without `--vm`, it takes the user's only VM; without
+VM, it says so (code 4); with several, it asks for `--vm` (code 2).
+
+## What `Ix86` exposes, and why
+
+What the Terminal and BoxedWine will need to call, nothing more (`PublicAPI.Unshipped.txt`):
+
+| Addition | For whom, why |
+| --- | --- |
+| `VmSummary` with `Image`, `ImageVersion`, `MemoryMiB` | BoxedWine shows the VMs and offers a compatible VM (same image); the memory feeds the choice window of 165 A |
+| `VmStateChanged`, `VmStateChangedEventArgs` | the VM page and BoxedWine follow the state without polling |
+| `StartVmAsync`, `StopVmAsync(force)` | "start, stop a VM" of the table in section 9 of the plan |
+| `OpenConsoleAsync`, `IVmConsole`, `VmConsoleOptions` | the Terminal opens a console (213 A): bytes, Ctrl+C (216 A), size, exit code |
+| `X86Exception`, `X86ErrorCodes` | errors with a stable code rather than internal exceptions |
+| `VmMemoryBudgetExceededException` | the refusal of 165 A carries what the choice window needs |
+
+Not yet: creating and removing VMs, profiles, program launches, prefixes; they come with their
+clients (BoxedWine, work items 10 and 13). The service is bound to a user
+(`new X86Service(manager, userId)`); registering it in Kazo is work item 8.
+
+## Tests
+
+- **`unit`** (`VmLifecycleTests`, `VmModelTests`, `X86CommandTests`): the simulated engine
+  (`FakeEngine`) talks on `virtio0` and `virtio1` to the simulated agent of work item 5; a manual
+  clock runs the grace and the watchdog without waiting. Covered: the lifecycle (first start,
+  applications during the boot, grace and its cancellation, start by hand, stop refused then
+  forced, guest death, start failures), children, the serial fallback, the lost agent, the budget
+  (refusal, compatible VMs, another user's VM not named, administrator's limit), the registry and
+  its format, profiles, the service, the terminal filter, the parsing and exact output of each
+  subcommand with its code. Coverage of the work item's files: 94 % of lines.
+- **`guest`** (`VmShellGuestTests`): the Alpine image with the agent boots in a real browser under
+  the production `V86Engine`; only the JS interop is replaced by Playwright (`vm.html`). The `x86`
+  command drives it: `x86 vm create`, then `x86 shell` starts the VM on demand and opens a shell in
+  the guest as the user of the `test` prefix; a command answers with no doubled echo; Ctrl+C
+  interrupts `sleep 600` (status 130); `exit 5` returns 5; the VM stops after the grace and its
+  worker is released. Triggered by `src/OsX86/Vm/**`, `src/OsX86/Profiles/**`,
+  `src/OsX86.Feature/**` and `tests/OsX86.Tests/Vm/**` in `guest-tests.yml`.
+
+## What the other work items will do
+
+- **6a (`hda` disk)**: make `linux-base` the default image of `x86 vm create` and give it an
+  `IBootImageSource` that reads the store (`ImageStore.Locate`). `BootImage` only has the kernel,
+  the initramfs and the command line today; it will take the disk.
+- **7 (admin)**: write the memory limit and the grace, see and manage other users' VMs, keep the
+  personal log; the choice window of 165 A on the interface side.
+- **8 (Feature)**: the Feature creates the engine (it has the `IJSRuntime` the command lacks,
+  ADR 0070 of Kazo), reads `navigator.deviceMemory`, registers `Ix86` per user, and makes each VM a
+  Kazo process and each child a child process (207 A).
+- **10 (prefixes)**: `--prefix` will create its guest users; `x86 run` and `./hello.exe` will go
+  through `VmInstance.LaunchAsync`.
+- **ADR 0252**: once the Terminal has its full screen, `x86 shell` will relay the raw bytes to a VT
+  emulator instead of the line filter.
+
+## Known limits and not verified
+
+- **In Kazo, the command does not start VMs**: a command has no emulator (`engine-unavailable`,
+  code 6) until the Feature exists (work item 8); the `guest` test replaces the engine factory.
+  `vm list`, `create`, `rename`, `remove`, `info` and `profile` work on the persistent registry.
+- **Not verified**: the command inside Kazo itself (real private files, Ctrl+C of the Kazo terminal
+  passed as the command's cancellation), Firefox and Safari, linux-base (no `hda`).
+- The VMs live in the host process: reloading the page stops them all; the registry stays.
+- The line filter renders neither colours nor cursor: a full-screen program (`vi`) is unreadable
+  until ADR 0252. A program that turns echo off (a password) can leave at most eight lines waiting
+  for an echo that never comes.

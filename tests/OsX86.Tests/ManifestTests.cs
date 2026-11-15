@@ -19,8 +19,9 @@ public sealed class ManifestTests
     }
 
     [Fact]
-    public void The_feature_asks_for_no_capability_yet()
+    public void The_feature_asks_only_for_its_private_files()
     {
-        Assert.Empty(_app.Capabilities);
+        // Work item 6: the VM registry and the imported profiles live in ~/.config/ca.kazo.x86/.
+        Assert.Equal([AppCapabilities.FileSystemPrivateRead, AppCapabilities.FileSystemPrivateWrite], _app.Capabilities);
     }
 }
