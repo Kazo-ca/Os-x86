@@ -468,35 +468,50 @@ public sealed class VmInstance
     {
         VmRecord record = Record;
         BootImage boot = await _manager.Images.ResolveAsync(record.Profile.Image, record.Profile.ImageVersion, cancellationToken).ConfigureAwait(false);
-        IEngine engine = _manager.Engines.Create();
+
+        // The check and the move to Starting are one step for the whole machine: two VMs that start
+        // together cannot both pass a budget that only one of them fits in. No engine exists before.
+        await _manager.BudgetGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _manager.CheckBudget(this);
+            lock (_lock)
+            {
+                _hasAgent = null;
+                _agentLost = false;
+                _missedPings = 0;
+                _lastPing = null;
+                _generation++;
+            }
+
+            SetState(VmState.Starting);
+        }
+        finally
+        {
+            _manager.BudgetGate.Release();
+        }
+
+        IEngine engine;
+        try
+        {
+            engine = _manager.Engines.Create();
+        }
+        catch
+        {
+            SetState(VmState.Stopped);
+            throw;
+        }
+
         var runStop = new CancellationTokenSource();
         lock (_lock)
         {
             _engine = engine;
             _runStop = runStop;
-            _hasAgent = null;
-            _agentLost = false;
-            _missedPings = 0;
-            _lastPing = null;
-            _generation++;
         }
 
         engine.StateChanged += OnEngineStateChanged;
         try
         {
-            // The check and the move to Starting are one step for the whole machine: two VMs that
-            // start together cannot both pass a budget that only one of them fits in.
-            await _manager.BudgetGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                _manager.CheckBudget(this);
-                SetState(VmState.Starting);
-            }
-            finally
-            {
-                _manager.BudgetGate.Release();
-            }
-
             var options = new EngineStartOptions
             {
                 KernelPath = boot.KernelPath,
@@ -592,8 +607,8 @@ public sealed class VmInstance
             while (!runStop.IsCancellationRequested)
             {
                 await Task.Delay(_options.AgentWatchdogInterval, _time, runStop).ConfigureAwait(false);
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(runStop);
-                timeout.CancelAfter(_options.AgentWatchdogTimeout);
+                using var deadline = new CancellationTokenSource(_options.AgentWatchdogTimeout, _time);
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(runStop, deadline.Token);
                 long start = _time.GetTimestamp();
                 try
                 {

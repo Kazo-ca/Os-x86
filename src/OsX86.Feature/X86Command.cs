@@ -103,9 +103,16 @@ public sealed partial class X86Command : TerminalAppBase
         }
         catch (X86Exception exception)
         {
-            return await FailAsync(context, exception, cancellationToken).ConfigureAwait(false);
+            return await FailAsync(context, exception, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return InterruptedExitCode; // Ctrl+C before a console was open: as SIGINT ends a program
         }
     }
+
+    /// <summary>The exit code of a command interrupted by Ctrl+C before a console relayed it (128 + SIGINT).</summary>
+    internal const int InterruptedExitCode = 130;
 
     /// <summary>The exit code of an error of Os-x86.</summary>
     internal static int ExitCodeOf(X86Exception exception) => exception.Code switch

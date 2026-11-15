@@ -15,7 +15,7 @@ namespace OsX86.Profiles;
 /// </code>
 /// Unknown properties are ignored; an unknown <c>format</c> is refused and nothing is written (169).
 /// </summary>
-public sealed class VmProfile
+public sealed record VmProfile
 {
     /// <summary>The only format this version reads and writes.</summary>
     public const int CurrentFormat = 1;

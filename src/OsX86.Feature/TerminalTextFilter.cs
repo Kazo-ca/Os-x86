@@ -12,6 +12,9 @@ namespace OsX86.Feature;
 internal sealed class TerminalTextFilter
 {
     private const char Escape = '\u001b';
+
+    /// <summary>How many sent lines may wait for their echo at once.</summary>
+    private const int MaxPending = 8;
     private readonly Decoder _decoder = new UTF8Encoding(false, false).GetDecoder();
     private readonly Queue<string> _expectedEcho = new();
     private readonly StringBuilder _echoMatched = new();
@@ -31,10 +34,19 @@ internal sealed class TerminalTextFilter
     public void ExpectEcho(string line)
     {
         ArgumentNullException.ThrowIfNull(line);
-        if (line.Length > 0)
+        if (line.Length == 0)
         {
-            _expectedEcho.Enqueue(line + "\n");
+            return;
         }
+
+        if (_expectedEcho.Count == MaxPending)
+        {
+            _expectedEcho.Dequeue();
+            _echoMatched.Clear();
+            _echoPosition = 0;
+        }
+
+        _expectedEcho.Enqueue(line + "\n");
     }
 
     /// <summary>The text of a chunk of output.</summary>
@@ -131,11 +143,19 @@ internal sealed class TerminalTextFilter
             return;
         }
 
-        // Not the echo (the program printed first, or the terminal does not echo): show what was held, stop expecting this line.
+        // Not the echo: output of the program that came first (the echo of a line follows what the
+        // guest printed before it). Show what was held and keep waiting for the echo; a line whose
+        // echo never comes (a program that turned echo off) stops being expected after MaxPending lines.
+        bool wasMatching = _echoPosition > 0;
         output.Append(_echoMatched);
         _echoMatched.Clear();
         _echoPosition = 0;
-        _expectedEcho.Dequeue();
-        Emit(c, output);
+        if (wasMatching)
+        {
+            Emit(c, output);
+            return;
+        }
+
+        output.Append(c);
     }
 }
