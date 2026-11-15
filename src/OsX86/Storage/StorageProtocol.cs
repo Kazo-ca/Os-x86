@@ -65,6 +65,9 @@ internal sealed class StorageMessage
     /// <summary><c>verified</c>: the chunks that do not hash to the manifest.</summary>
     public List<int>? Bad { get; set; }
 
+    /// <summary><c>layers</c>: the write layers of a layer set.</summary>
+    public List<StoredLayerEntry>? Layers { get; set; }
+
     /// <summary><c>done</c> of a download: what the version directory occupies.</summary>
     public long BytesOnDisk { get; set; }
 }
@@ -86,6 +89,30 @@ internal sealed class StoredImageEntry
     public int Format { get; set; }
 
     public Dictionary<string, string>? Engine { get; set; }
+}
+
+/// <summary>A write layer as the worker lists it (<c>layers</c> message).</summary>
+internal sealed class StoredLayerEntry
+{
+    public string Disk { get; set; } = string.Empty;
+
+    /// <summary>Null while a running engine holds the layer.</summary>
+    public long? Bytes { get; set; }
+
+    public bool InUse { get; set; }
+
+    /// <summary>The text of the metadata sidecar, null when it is missing.</summary>
+    public string? Metadata { get; set; }
+}
+
+/// <summary>A command on the layers of a layer set: <c>list-layers</c>, <c>delete-layers</c>.</summary>
+internal sealed class LayerSetCommand(string type, int id, string set)
+{
+    public string Type { get; } = type;
+
+    public int Id { get; } = id;
+
+    public string Set { get; } = set;
 }
 
 /// <summary>A command without arguments beyond the id: <c>list</c>, <c>estimate</c>.</summary>
@@ -182,6 +209,7 @@ internal sealed class CancelCommand
 [JsonSerializable(typeof(DownloadCommand))]
 [JsonSerializable(typeof(VerifyCommand))]
 [JsonSerializable(typeof(CancelCommand))]
+[JsonSerializable(typeof(LayerSetCommand))]
 internal sealed partial class StorageJsonContext : JsonSerializerContext
 {
 }
@@ -200,6 +228,7 @@ internal static class StorageProtocol
         public const string Images = "images";
         public const string Estimate = "estimate";
         public const string Verified = "verified";
+        public const string Layers = "layers";
         public const string Error = "error";
     }
 
@@ -215,6 +244,10 @@ internal static class StorageProtocol
     public static string ReadManifest(int id, string image, string version) => Serialize(new ImageCommand("read-manifest", id, image, version), StorageJsonContext.Default.ImageCommand);
 
     public static string Delete(int id, string image, string version) => Serialize(new ImageCommand("delete", id, image, version), StorageJsonContext.Default.ImageCommand);
+
+    public static string ListLayers(int id, string set) => Serialize(new LayerSetCommand("list-layers", id, set), StorageJsonContext.Default.LayerSetCommand);
+
+    public static string DeleteLayers(int id, string set) => Serialize(new LayerSetCommand("delete-layers", id, set), StorageJsonContext.Default.LayerSetCommand);
 
     public static string Download(DownloadCommand command) => Serialize(command, StorageJsonContext.Default.DownloadCommand);
 

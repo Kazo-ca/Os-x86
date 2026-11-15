@@ -15,7 +15,8 @@ tests. Le registre des VM, le stockage des images et l'agent invité viennent av
 | --- | --- |
 | `src/OsX86/Engine/` | `IEngine`, `EngineState`, `EngineStateMachine`, `EngineStartOptions`, `ConsoleId`, `IEngineConsole`, `LineFramer`, les exceptions |
 | `src/OsX86/Engine/V86/` | `V86Engine` (l'implémentation), `IEngineWorkerChannel` et `JsEngineWorkerChannel` (l'interop JS), `V86Console`, le protocole |
-| `src/OsX86/wwwroot/engine/` | `v86-host.js` (module importé par le C#, crée le worker) et `v86-worker.js` (héberge v86) |
+| `src/OsX86/wwwroot/engine/` | `v86-host.js` (module importé par le C#, crée le worker), `v86-worker.js` (héberge v86), `zstd-seekable.js` (table de recherche zstd) et `disk.js` (disques, cache de trames, couches d'écriture), chantier 6a |
+| `src/OsX86/Engine/ImageBoot.cs`, `EngineDisk.cs` | le démarrage décrit par le manifeste et la règle de la version majeure (169) ; sources, disques et couches des options de démarrage (chantier 6a) |
 | `src/OsX86/wwwroot/v86/` | v86 vendorisé : `libv86.js` (corrigé), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
 | `tools/v86/` | `vendor-v86.py` (télécharge, vérifie, applique les correctifs) et `patches/` |
 | `images/alpine-test/` | `build-alpine-test.py` et `init.sh` : l'image Alpine de test (jamais commise) |
@@ -82,6 +83,128 @@ rapporte les changements de mode VGA (colonnes et lignes en mode texte, pixels s
 texte : le signal « DOS graphique » de 164 A, essai E14). Dans ce chantier le worker ne fait que
 redimensionner et noircir le canvas ; le rendu arrive avec les invités graphiques du jalon 1.
 
+## Disques et démarrage décrit par le manifeste (chantier 6a)
+
+Le chantier 6a (`j0/6a-disk`) fait démarrer les images publiées telles que le stockage les garde :
+tout vient de `osx86/images/<image>/<version>/image.bin` dans l'OPFS, sans fichier extrait.
+
+### Démarrer une image
+
+```csharp
+ImageManifest manifest = await store.ReadManifestAsync("linux-base", "0.1.0", ct);
+EngineStartOptions options = ImageBoot.CreateStartOptions(manifest, new ImageBootOptions
+{
+    LayerMode = EngineWriteLayerMode.Persistent,   // Discard par défaut : rien n'est gardé
+    LayerSet = "vm-1",                             // osx86/layers/vm-1/
+});
+await engine.StartAsync(options, ct);
+```
+
+- `ImageBoot` lit la section `boot` du manifeste (`kind`, `cmdline`, `disks`, `memoryMiB`) :
+  `linux` donne le noyau et l'initramfs comme intervalles de `image.bin`
+  (`EngineFileSource.Seekable` : position, taille, `rawSize`, `blockSize`), `dos` démarre `hda`
+  par le BIOS. Les disques de `boot.disks` (`hda`, `hdb`) reçoivent leur couche d'écriture.
+- **Règle « même version majeure » (169)** : l'image doit être faite pour la même version majeure
+  de v86 que le moteur (`V86Engine.V86Version`, égale à `VENDOR.json`, vérifié par un test ; avant
+  1.0 la mineure fait foi, 0.5.x et 0.6.x diffèrent). Sinon `EngineException` de code
+  `engine-version-mismatch`, avant toute lecture ou écriture. Un manifeste sans `boot`, d'un type
+  inconnu, avec un disque inconnu ou sans le fichier nommé donne `boot-unsupported`.
+- `EngineStartOptions` gagne `Kind`, `Kernel`, `Initrd`, `Disks` et `FrameCacheMiB` ; les chemins
+  `KernelPath` et `InitrdPath` du chantier 2 restent (fichier entier). `IEngine` ne change pas.
+
+### Le disque en lecture
+
+`V86Disk` (`disk.js`) est le tampon que v86 reçoit comme `hda` : un `FileSystemSyncAccessHandle`
+sur `image.bin`, ouvert une fois pour tous les fichiers logiques. À l'ouverture, la table de
+recherche de l'entrée est lue en deux lectures (le pied de 9 octets, puis la table qu'il
+dimensionne) et comparée à `rawSize` et `blockSize` du manifeste ; une table abîmée ou en
+désaccord donne `image-corrupt`. Une lecture de secteurs est découpée en trames, chaque trame
+manquante est lue dans `image.bin` et décompressée, puis gardée dans un **cache LRU borné**,
+partagé par les disques : 32 Mio par défaut, de 2 à 512 Mio (`FrameCacheMiB`), avec ses
+compteurs (octets, trames, succès, échecs, évictions). Le noyau et l'initramfs sont décompressés
+entiers en mémoire avant la création de l'émulateur.
+
+**Décodeur zstd : celui de v86.** `v86.wasm` exporte le décodeur que v86 emploie pour ses propres
+images `.zst` (`zstd_create_ctx`, `zstd_read`, …). `disk.js` instancie `v86.wasm` une seconde
+fois dans le worker, avec des importations factices, comme le fait le `zstd_decompress_worker`
+de v86. Rien n'est ajouté au dépôt : ni code, ni licence, ni empreinte (le `v86.wasm` est déjà
+épinglé par `vendor-v86.py`). L'instance est à part parce que le noyau doit être décompressé
+avant que l'émulateur existe, et pour qu'une lecture de disque ne rentre jamais dans le wasm du
+processeur en marche. Ce décodeur s'arrête net (trap) sur une trame invalide au lieu de le dire :
+l'en-tête de trame est donc vérifié avant (nombre magique, taille annoncée égale à celle de la
+table) et l'instance est jetée après un trap. Coût : 13 Mio de mémoire wasm (mesuré).
+
+### La couche d'écriture
+
+L'image publiée n'est jamais écrite. Les blocs que l'invité écrit vont dans une couche :
+
+- **Jetable** (`EngineWriteLayer.Discard`, par défaut) : les blocs restent en mémoire et
+  disparaissent à l'arrêt. Pour les tests et les VM sans état.
+- **Persistante** : un fichier `osx86/layers/<ensemble>/<disque>.layer`. Un en-tête de 4 Kio
+  (`OSX86-LAYER`, format 1, blocs de 4 Kio, taille du disque, nombre de blocs, positions), une
+  **table de blocs** (un u32 par bloc : 0 = non écrit, n = emplacement n − 1), puis les blocs
+  écrits, ajoutés dans l'ordre de leur première écriture. Choisi plutôt qu'un fichier creux de la
+  taille du disque : l'OPFS n'expose pas les trous, un `truncate` à la taille du disque se compte
+  dans le quota et ne dit pas ce qui a été écrit ; la table le dit, et le fichier ne pèse que les
+  blocs écrits plus 0,1 % de table (124 Kio pour les 130 Mio de linux-base). Un bloc partiel est
+  lu entier (couche ou image), modifié et écrit entier ; un bloc est écrit avant son entrée de
+  table, donc la table n'est jamais en avance sur les données.
+- **Formats versionnés** : `<disque>.layer.meta.json` est un `StoredObjectMetadata` de type
+  `layer` (format, image, version de l'image, `engine.v86`), écrit à la création. À la
+  réouverture : autre version d'image ou autre taille de disque → `layer-mismatch`, autre
+  version majeure de v86 → `engine-version-mismatch`, autre format → `format-unsupported` ;
+  rien n'est écrit (169).
+- **Un seul écrivain** (E11) : verrou `navigator.locks` `osx86:layer:osx86/layers/<ensemble>`,
+  attendu 2 s puis `layer-locked`, plus l'exclusivité du `SyncAccessHandle`.
+- **`flush()`** toutes les 5 s tant que la couche est ouverte, à la pause et à l'arrêt (177 A).
+- **Taille et suppression** : `ImageStore.ListLayersAsync(ensemble)` et
+  `ImageStore.DeleteLayersAsync(ensemble)` (voir [`stockage.md`](stockage.md)) ; pendant la marche,
+  `V86Engine.GetDiskStatisticsAsync` donne les compteurs des disques, de la couche et du cache.
+
+### Protocole et C#
+
+La commande `start` porte `kind`, `kernel` et `initrd` (sources), `disks` (source et couche par
+disque) et `cacheMiB`. Trois commandes s'ajoutent : `read-screen` (l'écran texte VGA, tenu par le
+worker à partir des événements `screen-put-char`, CP437 vers Unicode, comme l'essai E14),
+`query-disks` (les compteurs) et `disk-benchmark` (lectures hors invité, pour les mesures).
+`V86Engine.ReadTextScreenAsync` et `GetDiskStatisticsAsync` les exposent. Nouveaux codes
+d'erreur : `image-corrupt`, `disk-io-failed`, `quota-exceeded`, `layer-locked`, `layer-mismatch`,
+`format-unsupported`, `engine-version-mismatch`, `boot-unsupported`.
+
+**Correctif du canal** : `JsEngineWorkerChannel` installe son rappel avant `createHost`, comme
+`JsStorageWorkerChannel` ; un `ready` posté par un worker rapide n'est plus perdu (test
+`A_ready_posted_before_createHost_returns_is_not_lost`).
+
+### Mesures
+
+Chrome sans tête (Playwright), Windows 11, Ryzen 7 3700X, linux-base 0.1.0 avec 256 Mio, cache
+de 32 Mio.
+
+| Mesure | Valeur |
+| --- | --- |
+| Copie du pack linux-base (73 Mo) dans l'OPFS par la page de test | 0,3 à 0,6 s |
+| linux-base : démarrage jusqu'à `OSX86-READY` | 19 à 27 s (quatre démarrages : 24, 25, 26, 27 s ; 19 s sur un autre passage) |
+| `ping` de l'agent, aller-retour | médiane 4,4 à 5,8 ms |
+| Lecture séquentielle de `hda` hors invité (128 Mio) | 358 Mo/s |
+| Lecture aléatoire de 4 Kio hors invité (4 000 lectures sur 130 Mio) | 465 lectures/s (presque chaque lecture décompresse une trame de 1 Mio) |
+| Démarrage de linux-base : lectures de l'invité sur `hda` | 438 lectures, 10,5 Mo lus, 16,4 Mo compressés lus dans `image.bin`, 61 trames décodées en 154 ms |
+| Mémoire : cache de trames, décodeur | 32 Mio (plein après le démarrage), 13 Mio |
+| Couche après l'écriture d'un fichier | 217 Kio (en-tête, table de 124 Kio, blocs écrits) |
+| FreeDOS : démarrage jusqu'à `C:\>` | 3,2 s |
+
+La lecture aléatoire est le point faible : une lecture de 4 Kio qui tombe hors du cache coûte la
+décompression d'une trame de 1 Mio. Pour l'invité, qui lit surtout près de ce qu'il vient de lire,
+le cache suffit (402 succès pour 48 échecs au démarrage). Si un usage montre le contraire, des
+trames plus petites (`--block-size` de `pack-image.py`) ou un cache plus grand règlent la chose
+sans changer le format.
+
+### Ce que le démarrage réel a trouvé
+
+Démarrer linux-base et rejouer `verify-console.sh` dans la VM a trouvé deux défauts d'image,
+corrigés dans les recettes (voir [`images.md`](images.md)) : une extraction Git Windows en CRLF
+qui privait l'initramfs de `sd_mod` et `ext4`, et `/dev` laissé en 0660 par le `mdev` de
+l'initramfs (aucun usager ne pouvait ouvrir `/dev/null`).
+
 ## v86 vendorisé
 
 v86 0.5.473 (paquet npm, commit `315b2b0`), licence BSD 2 clauses, avis conservé dans `LICENSE` ;
@@ -140,6 +263,24 @@ remplace `/init` par `images/alpine-test/init.sh` (un shell busybox sur `ttyS0`,
 | Noyau Linux `linux-virt`, BusyBox (image de test) | Alpine 3.22.8 x86, noyau 6.12.115-0-virt | GPL-2.0 | `https://gitlab.alpinelinux.org/alpine/aports` (branche `3.22-stable`, `main/linux-lts`, `main/busybox`) ; ISO `https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86/alpine-virt-3.22.8-x86.iso` |
 
 L'image de test n'est jamais publiée ; les images réelles et leurs sources suivent le chantier 4.
+
+### Tests du chantier 6a
+
+- `unit` : `DiskScriptTests` lance `tests/OsX86.Tests/Engine/disk-tests.js` sous Node 22.15 ou
+  plus (table de recherche, plan de lecture, en-tête de trame, décodeur de `v86.wasm` et trame
+  invalide, cache, entrées, couche jetable et persistante sur un faux OPFS, un seul écrivain,
+  refus d'une autre version d'image, d'une autre version majeure ou d'un autre format sans rien
+  écrire, quota, entrée faite par `pack-image.py`) ; `ImageBootTests` (options, commande `start`,
+  règle 169, requêtes de `V86Engine`) ; `ImageBootSectionTests` et `LayerStoreTests` côté stockage ;
+  le `ready` de `JsEngineWorkerChannel`.
+- `guest` : `FreeDosGuestTests` (le pack copié dans l'OPFS, `hda` jusqu'à l'invite, écran texte
+  lu) et `LinuxBaseGuestTests` : quatre démarrages, couche persistante puis jetable ; `OSX86-READY`,
+  l'agent répond à `ping` par `AgentClient`, `verify-console.sh` lancé depuis une console de
+  l'agent d'un usager ordinaire tient ses 22 contrôles R134.5, une écriture survit à un arrêt
+  propre avec la couche et disparaît en mode jetable. linux-base n'a pas encore d'usager de
+  préfixe (chantiers 9 et 10) : le test en ajoute deux en mémoire depuis le shell série root.
+  Le job `guest` d'`images.yml` les lance sur les packs construits dans le même flux, sans les
+  reconstruire.
 
 ## Décisions prises dans ce chantier
 

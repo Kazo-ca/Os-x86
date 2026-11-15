@@ -9,8 +9,8 @@ downloads them, verifies them (SHA-256) and writes them into the origin private 
 versioned-format structure of plan section 13. Decisions 169, 177 A, 188, 202 A, 203 A, E11;
 trials [E2](../essais/e2-stockage.md) (OPFS) and [E3](../essais/e3-distribution.md)
 (distribution), whose code this work item turns into a product (both in French). The recipes
-that produce the images and their manifests are work item 4; opening an image in the engine,
-work item 6.
+that produce the images and their manifests are work item 4; opening an image in the engine
+and the write layers of the disks, work item 6a (see "Write layers" below and [`engine.md`](engine.md)).
 
 ## Where things are
 
@@ -45,7 +45,8 @@ The schema is the reference for the recipes of work item 4 as for this reader. F
 - `image`: identifier in lowercase letters, digits and dashes (1 to 64 characters); `version`:
   a semantic version. They are also the OPFS directory names.
 - `engine`: the engine versions the image is built for, `v86` at least. The reader exposes it;
-  the "same major version" rule (169) is applied by work item 6.
+  the "same major version" rule (169) is applied by `ImageBoot.CreateStartOptions` since work
+  item 6a, before anything is read or written.
 - `size`: payload size in bytes (100,000 chunks of 64 MiB at most); `chunkSize`: the size of
   every chunk but the last (64 KiB to 64 MiB, because the worker keeps one chunk in memory per
   parallel stream; the recipes use 32 MiB, the right size according to E3).
@@ -142,10 +143,25 @@ format and its engine versions; `IsSupported` says whether this version of Os-x8
 an unknown format or a modified copy is refused), `VerifyAsync` (every chunk re-read and hashed
 in place under the lock, 1 s for 800 MiB according to E3), and
 `ImageStore.Locate(manifest, "kernel")` which gives the OPFS path of `image.bin` with the
-offset and size of the logical file: what work item 6 will hand to the engine. `IEngine` and
-the v86 worker are unchanged in this work item; the v86 worker reads whole files today and
-will take an offset and a size (or work item 6 will extract the file) when it reads an image
-from the repository.
+offset and size of the logical file. Since work item 6a the manifest also reads the `rawSize`
+and `blockSize` of each file (`ImageFileEntry.IsCompressed`) and the `boot` section
+(`ImageBootSection`: `kind`, `cmdline`, `disks`, `readyMarker`, `prompt`, `memoryMiB`), and the
+engine reads the kernel, the initramfs and the disks at their offset in `image.bin`, with no
+extraction.
+
+### Write layers (work item 6a)
+
+The writes to a disk never touch `image.bin`: they go to one layer per disk,
+`osx86/layers/<set>/<disk>.layer`, with its versioned metadata `<disk>.layer.meta.json`
+(`StoredObjectMetadata.ForLayer`, kind `layer`). The engine writes them (format described in
+[`engine.md`](engine.md)); the storage measures and deletes them:
+
+- `ImageStore.ListLayersAsync(set)`: one `StoredLayer` per disk (size, metadata); a layer an
+  engine holds open is returned with `InUse` and no size (the engine reports it).
+- `ImageStore.DeleteLayersAsync(set)`: deletes the set under the lock
+  `osx86:layer:osx86/layers/<set>` the engine also takes; `locked` while an engine runs on it.
+- `StorageLayout.LayerDirectory` and `LayerPath` give the paths; the set name follows the rule of
+  image identifiers (a VM identifier, in work item 6).
 
 ### Write lock (E11) and `flush()` (177 A)
 

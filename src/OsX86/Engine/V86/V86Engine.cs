@@ -9,9 +9,13 @@ namespace OsX86.Engine.V86;
 /// </summary>
 public sealed class V86Engine : IEngine
 {
+    /// <summary>The version of the vendored v86 (<c>wwwroot/v86/VENDOR.json</c>): images and layers of another major version are refused (decision 169).</summary>
+    public const string V86Version = "0.5.473";
+
     private readonly IEngineWorkerChannel _channel;
     private readonly Lock _lock = new();
     private readonly Dictionary<ConsoleId, V86Console> _consoles = [];
+    private readonly Dictionary<string, Queue<TaskCompletionSource<WorkerMessage>>> _queries = new(StringComparer.Ordinal);
     private PendingOperation? _pending;
     private Task? _channelStart;
     private bool _disposed;
@@ -126,6 +130,82 @@ public sealed class V86Engine : IEngine
         await _channel.DetachCanvasAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The VGA text screen of the guest as the worker keeps it (blank until the guest writes, frozen in a graphical mode).</summary>
+    public async ValueTask<EngineTextScreen> ReadTextScreenAsync(CancellationToken cancellationToken)
+    {
+        WorkerMessage answer = await QueryAsync(WorkerProtocol.Types.Screen, WorkerProtocol.ReadScreen(), cancellationToken).ConfigureAwait(false);
+        return new EngineTextScreen(answer.Cols, answer.Rows, answer.Lines ?? []);
+    }
+
+    /// <summary>The counters of the open disks (reads, writes, layer) and of the frame cache.</summary>
+    public async ValueTask<EngineDiskStatistics> GetDiskStatisticsAsync(CancellationToken cancellationToken)
+    {
+        WorkerMessage answer = await QueryAsync(WorkerProtocol.Types.Disks, WorkerProtocol.QueryDisks(), cancellationToken).ConfigureAwait(false);
+        var disks = new Dictionary<string, EngineDiskCounters>(StringComparer.Ordinal);
+        foreach ((string name, DiskCountersMessage counters) in answer.Disks ?? [])
+        {
+            LayerCountersMessage layer = counters.Layer ?? new LayerCountersMessage();
+            disks[name] = new EngineDiskCounters(counters.Bytes, counters.Reads, counters.BytesRead, counters.Writes, counters.BytesWritten, counters.CompressedBytesRead,
+                layer.Mode == "persistent" ? EngineWriteLayerMode.Persistent : EngineWriteLayerMode.Discard, layer.BlocksWritten, layer.LayerBytes);
+        }
+
+        CacheCountersMessage? cache = answer.Cache;
+        return new EngineDiskStatistics(disks, cache is null ? null : new EngineFrameCacheCounters(cache.CacheBytes, cache.CacheMaxBytes, cache.CacheFrames, cache.Hits, cache.Misses, cache.Evictions));
+    }
+
+    /// <summary>
+    /// Posts a query and waits for its answer. The worker answers queries of a type in the order it
+    /// received them, so a query stays in its queue once posted, even cancelled: its answer is then
+    /// consumed and dropped instead of reaching the next caller.
+    /// </summary>
+    private async ValueTask<WorkerMessage> QueryAsync(string answerType, string command, CancellationToken cancellationToken)
+    {
+        await EnsureChannelAsync(cancellationToken).ConfigureAwait(false);
+        var answer = new TaskCompletionSource<WorkerMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!_queries.TryGetValue(answerType, out Queue<TaskCompletionSource<WorkerMessage>>? queue))
+            {
+                queue = new Queue<TaskCompletionSource<WorkerMessage>>();
+                _queries.Add(answerType, queue);
+            }
+
+            queue.Enqueue(answer);
+        }
+
+        try
+        {
+            await _channel.PostAsync(command, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            lock (_lock)
+            {
+                Queue<TaskCompletionSource<WorkerMessage>> queue = _queries[answerType];
+                _queries[answerType] = new Queue<TaskCompletionSource<WorkerMessage>>(queue.Where(pending => !ReferenceEquals(pending, answer)));
+            }
+
+            throw;
+        }
+
+        return await answer.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void CompleteQuery(WorkerMessage message)
+    {
+        TaskCompletionSource<WorkerMessage>? answer = null;
+        lock (_lock)
+        {
+            if (_queries.TryGetValue(message.Type, out Queue<TaskCompletionSource<WorkerMessage>>? queue))
+            {
+                queue.TryDequeue(out answer);
+            }
+        }
+
+        answer?.TrySetResult(message); // an answer nobody asked for is dropped
+    }
+
     /// <summary>
     /// Ends the engine: the worker is terminated (no clean stop: call <see cref="StopAsync"/> first
     /// when the guest matters), the pending operation fails with <see cref="EngineErrorCodes.Disposed"/>,
@@ -137,6 +217,7 @@ public sealed class V86Engine : IEngine
         PendingOperation? pending;
         EngineStateChangedEventArgs? change;
         V86Console[] consoles;
+        TaskCompletionSource<WorkerMessage>[] queries;
         lock (_lock)
         {
             if (_disposed)
@@ -150,9 +231,15 @@ public sealed class V86Engine : IEngine
             _pending = null;
             SetStateUnsafe(EngineState.Stopped, "disposed", out change);
             consoles = [.. _consoles.Values];
+            queries = [.. _queries.Values.SelectMany(static queue => queue)];
+            _queries.Clear();
         }
 
         pending?.Completion.TrySetException(new EngineException(EngineErrorCodes.Disposed, "The engine was disposed."));
+        foreach (TaskCompletionSource<WorkerMessage> query in queries)
+        {
+            query.TrySetException(new EngineException(EngineErrorCodes.Disposed, "The engine was disposed."));
+        }
         foreach (V86Console console in consoles)
         {
             console.Complete();
@@ -242,6 +329,11 @@ public sealed class V86Engine : IEngine
 
                 break;
             case WorkerProtocol.Types.Event:
+            case WorkerProtocol.Types.Benchmark:
+                break;
+            case WorkerProtocol.Types.Screen:
+            case WorkerProtocol.Types.Disks:
+                CompleteQuery(message);
                 break;
             default:
                 ReportError(EngineErrorCodes.Protocol, $"The worker sent an unknown message type '{message.Type}'.", fatal: false, fromWorker: false);

@@ -29,6 +29,10 @@ jobs:
         with:
           python-version: "3.14" # compression.zstd for images/tools/pack-image.py (work item 4)
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24" # zlib zstd for the fixtures of tests/OsX86.Tests/Engine/disk-tests.js (work item 6a)
+
       - name: Check the Kazo OS submodule
         run: bash .github/scripts/check-kazoos-submodule.sh
 

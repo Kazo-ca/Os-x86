@@ -63,6 +63,38 @@ public static partial class StorageLayout
     /// <summary>The OPFS path of the payload of one version of one image.</summary>
     public static string PayloadPath(string image, string version) => $"{ImageDirectory(image, version)}/{PayloadFileName}";
 
+    /// <summary>The write layers of the disks (work item 6a): one directory per layer set (a VM, later), one layer file per disk.</summary>
+    public const string LayersDirectory = Root + "/layers";
+
+    /// <summary>The extension of a layer file; its versioned metadata is the same name plus <see cref="LayerMetadataSuffix"/>.</summary>
+    public const string LayerExtension = ".layer";
+
+    /// <summary>What follows the name of a layer file to name its metadata.</summary>
+    public const string LayerMetadataSuffix = ".meta.json";
+
+    /// <summary>The OPFS directory of a layer set (an identifier like an image's).</summary>
+    /// <exception cref="ArgumentException">The name is not an identifier.</exception>
+    public static string LayerDirectory(string set)
+    {
+        if (!IsValidImageId(set))
+        {
+            throw new ArgumentException($"'{set}' is not a layer set name (lowercase letters, digits and dashes).", nameof(set));
+        }
+
+        return $"{LayersDirectory}/{set}";
+    }
+
+    /// <summary>The OPFS path of the layer of disk <paramref name="disk"/> (<c>hda</c>) in a layer set.</summary>
+    public static string LayerPath(string set, string disk)
+    {
+        if (!IsValidFileName(disk))
+        {
+            throw new ArgumentException($"'{disk}' is not a disk name.", nameof(disk));
+        }
+
+        return $"{LayerDirectory(set)}/{disk}{LayerExtension}";
+    }
+
     [GeneratedRegex(@"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z")]
     private static partial Regex ImageIdPattern();
 

@@ -293,9 +293,9 @@ Held and checked here:
 
 Known limits:
 
-- **Not verified**: X and `list-windows` (a stub), Wine, booting linux-base (the worker does not
-  handle `hda` yet: the agent is installed there, checked in the export, never run); the full 22
-  R134.5 checks at run time (`verify-console.sh`) wait for that boot; Firefox and Safari.
+- **Not verified**: X and `list-windows` (a stub), Wine, Firefox and Safari. Since work item 6a,
+  linux-base boots and its agent answers (`ping` in 4.4 to 5.8 ms), and `verify-console.sh` run
+  from an agent console holds its 22 R134.5 checks in the VM (`LinuxBaseGuestTests`).
 - No encryption or authentication on the port: it is `0600` root in the guest and only the worker
   reaches it on the page side.
 - The agent is not restarted when it dies; its tables (launches, consoles) do not survive a
@@ -316,8 +316,9 @@ Known limits:
   `StartAsync`, treat `not-ready` as "image without agent" (212 A: serial console fallback).
 - Register every `LaunchResult` as a Kazo process child of the VM and remove it at `Exited`
   (207 A); `x86 shell` = `OpenConsoleAsync` wired to the terminal.
-- Handle `hda` in the worker to boot linux-base, then replay `verify-console.sh` from a console
-  of the agent.
+- ~~Handle `hda` in the worker to boot linux-base, then replay `verify-console.sh` from a console
+  of the agent.~~ Done in work item 6a ([`engine.md`](engine.md)): 22 checks out of 22, once users
+  could open `/dev/null` and the agent's pid was given to the script (third argument).
 - Decide how the agent is watched (periodic ping) and what happens when it stops answering.
 - Create the `osx86-<prefix>` users with the prefixes (work items 9 and 10); the agent has no
   operation for that.

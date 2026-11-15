@@ -27,9 +27,13 @@ mount -t cgroup2 -o nodev,noexec,nosuid cgroup2 /sys/fs/cgroup 2>/dev/null
 # 210 A: the root of the tree is 0755 even if the medium said otherwise; the serial console, the
 # virtio-console ports, the framebuffer and the input devices belong to root alone until the
 # agent hands a port to a user.
-chmod 755 /
+chmod 755 / 2>/dev/null  # the ext4 root is read-only and already 0755; this covers another medium
 chmod 600 /dev/ttyS0 /dev/hvc0 /dev/hvc1 /dev/hvc2 /dev/hvc3 2>/dev/null
 chmod 600 /dev/fb0 /dev/input/* 2>/dev/null
+# The mdev of the Alpine initramfs leaves every node of /dev in 0660 (its default) and there is
+# no udev here to fix them: the nodes every program opens get their usual modes back (found by
+# running verify-console.sh in the guest, work item 6a: a user could not write to /dev/null).
+chmod 666 /dev/null /dev/zero /dev/full /dev/random /dev/urandom /dev/tty /dev/ptmx 2>/dev/null
 
 # R134.5 (trial E7): no user namespaces (unshare -U, unshare -n), no ptrace across users, no
 # kernel addresses or log for users, protected links in sticky directories.

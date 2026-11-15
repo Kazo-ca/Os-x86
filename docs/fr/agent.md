@@ -294,10 +294,10 @@ Tenu et vérifié ici :
 
 Limites connues :
 
-- **Non vérifié** : X et `list-windows` (squelette), Wine, le démarrage de linux-base (le worker
-  ne gère pas encore `hda` : l'agent y est installé, vérifié dans l'export, jamais exécuté) ; les
-  22 contrôles R134.5 complets à l'exécution (`verify-console.sh`) attendent ce démarrage ;
-  Firefox et Safari.
+- **Non vérifié** : X et `list-windows` (squelette), Wine, Firefox et Safari. Depuis le chantier
+  6a, linux-base démarre et son agent répond (`ping` en 4,4 à 5,8 ms), et `verify-console.sh`
+  lancé depuis une console de l'agent tient ses 22 contrôles R134.5 dans la VM
+  (`LinuxBaseGuestTests`).
 - Pas de chiffrement ni d'authentification sur le port : il est `0600` root dans l'invité et seul
   le worker y accède côté page.
 - L'agent n'est pas relancé s'il meurt ; ses tables (lancements, consoles) ne survivent pas à un
@@ -319,8 +319,10 @@ Limites connues :
   `StartAsync`, traiter `not-ready` comme « image sans agent » (212 A : repli console série).
 - Enregistrer chaque `LaunchResult` comme processus Kazo enfant de la VM et le retirer à
   `Exited` (207 A) ; `x86 shell` = `OpenConsoleAsync` relié au terminal.
-- Prendre en charge `hda` dans le worker pour démarrer linux-base, puis rejouer
-  `verify-console.sh` depuis une console de l'agent.
+- ~~Prendre en charge `hda` dans le worker pour démarrer linux-base, puis rejouer
+  `verify-console.sh` depuis une console de l'agent.~~ Fait au chantier 6a ([`moteur.md`](moteur.md)) :
+  22 contrôles sur 22, une fois `/dev/null` rendu ouvrable aux usagers et le pid de l'agent passé
+  au script (troisième argument).
 - Décider de la surveillance de l'agent (ping périodique) et de ce qu'on fait s'il ne répond plus.
 - Créer les usagers `osx86-<préfixe>` avec les préfixes (chantiers 9 et 10) ; l'agent n'a pas
   d'opération pour cela.

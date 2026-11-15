@@ -10,6 +10,9 @@
 set -u
 OTHER="${1:-1}"
 OTHER_HOME="${2:-/root}"
+# Argument 3: the pid of the agent. /proc is mounted with hidepid=invisible, so a user cannot find
+# it with pgrep; the host gives it (the agent lists every process as root).
+AGENT_PID="${3:-}"
 PROBES=/usr/lib/osx86
 held=0
 leak=0
@@ -18,6 +21,8 @@ check() {
   echo "RES check $1 $2 $(printf '%s' "$3" | tr '\n' ' ' | cut -c1-160)"
 }
 denied() { printf '%s' "$1" | grep -qi 'denied\|permission\|not permitted\|refused'; }
+# A process of another user is invisible under hidepid=invisible: its /proc entry does not exist.
+hidden() { printf '%s' "$1" | grep -qi 'no such file'; }
 # A target that does not exist is reported, never counted as held.
 present() { [ -e "$1" ] && return 0; check "$2" INFO "$1 absent"; return 1; }
 
@@ -47,11 +52,11 @@ touch "$HOME/.osx86-chown-probe" 2>/dev/null; o=$(chown 0 "$HOME/.osx86-chown-pr
 # 16-22. ptrace, environment, signals, cgroups of another user, of init and of the agent
 check other_pid_info INFO "pid $OTHER: $(grep -E '^(Name|Uid):' /proc/$OTHER/status 2>/dev/null | tr '\n' ' ')"
 o=$("$PROBES/osx86-ptrace" "$OTHER" 2>&1); denied "$o" && check ptrace_other HELD "$o" || check ptrace_other LEAK "$o"
-o=$(cat /proc/$OTHER/environ 2>&1 | head -c 200); denied "$o" && check proc_environ_other HELD "$o" || check proc_environ_other LEAK "$o"
+o=$(cat /proc/$OTHER/environ 2>&1 | head -c 200); { denied "$o" || hidden "$o"; } && check proc_environ_other HELD "$o" || check proc_environ_other LEAK "$o"
 o=$(kill -0 "$OTHER" 2>&1); denied "$o" && check kill_other HELD "$o" || check kill_other LEAK "kill -0 accepted: $o"
 o=$(kill -9 "$OTHER" 2>&1); denied "$o" && check kill9_other HELD "$o" || check kill9_other LEAK "$o"
 o=$(kill -9 1 2>&1); denied "$o" && check kill_init HELD "$o" || check kill_init LEAK "$o"
-agent_pid=$(pgrep -x agent 2>/dev/null | head -1)
+agent_pid="${AGENT_PID:-$(pgrep -x agent 2>/dev/null | head -1)}"
 if [ -n "$agent_pid" ]; then
   o=$(kill -9 "$agent_pid" 2>&1); denied "$o" && check kill_agent HELD "$o" || check kill_agent LEAK "$o"
 else

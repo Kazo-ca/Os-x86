@@ -9,7 +9,8 @@ dépôt d'images par identifiant et version, un état de reprise, un verrou d'é
 structure des formats versionnés de la section 13 du plan. Décisions 169, 177 A, 188, 202 A,
 203 A, E11 ; essais [E2](../essais/e2-stockage.md) (OPFS) et [E3](../essais/e3-distribution.md)
 (distribution), dont ce chantier industrialise le code. Les recettes qui produisent les images et
-leurs manifestes sont le chantier 4 ; l'ouverture d'une image par le moteur, le chantier 6.
+leurs manifestes sont le chantier 4 ; l'ouverture d'une image par le moteur et les couches
+d'écriture des disques, le chantier 6a (voir « Couches d'écriture » plus bas et [`moteur.md`](moteur.md)).
 
 ## Où sont les choses
 
@@ -44,7 +45,8 @@ Le schéma fait foi pour les recettes du chantier 4 comme pour ce lecteur. Forma
 - `image` : identifiant en minuscules, chiffres et tirets (1 à 64 caractères) ; `version` :
   version sémantique. Ce sont aussi les noms des dossiers OPFS.
 - `engine` : les versions de moteur pour lesquelles l'image est construite, `v86` au moins. Le
-  lecteur l'expose ; la règle « même version majeure » (169) s'appliquera au chantier 6.
+  lecteur l'expose ; la règle « même version majeure » (169) est appliquée par
+  `ImageBoot.CreateStartOptions` depuis le chantier 6a, avant toute lecture ou écriture.
 - `size` : taille de la charge utile en octets (au plus 100 000 morceaux de 64 Mio) ; `chunkSize` :
   taille de chaque morceau sauf le dernier (64 Kio à 64 Mio, parce que le worker garde un morceau
   en mémoire par flux parallèle ; les recettes utilisent 32 Mio, la bonne taille d'après E3).
@@ -144,10 +146,25 @@ l'ouvrir), `DeleteAsync` (refusé par `locked` pendant un téléchargement), `Es
 enregistrée : un format inconnu ou une copie modifiée est refusée), `VerifyAsync` (relecture et
 hachage de chaque morceau sur place sous le verrou, 1 s pour 800 Mio d'après E3), et
 `ImageStore.Locate(manifeste, "kernel")` qui rend le chemin OPFS de `image.bin` avec la position et
-la taille du fichier logique : c'est ce que le chantier 6 donnera au moteur. `IEngine` et le worker
-v86 ne changent pas dans ce chantier ; le worker v86 lit aujourd'hui des fichiers entiers, il
-prendra une position et une taille (ou le chantier 6 extraira le fichier) quand il lira une image
-du dépôt.
+la taille du fichier logique. Depuis le chantier 6a, le manifeste lit aussi `rawSize` et
+`blockSize` de chaque fichier (`ImageFileEntry.IsCompressed`) et la section `boot`
+(`ImageBootSection` : `kind`, `cmdline`, `disks`, `readyMarker`, `prompt`, `memoryMiB`), et le
+moteur lit le noyau, l'initramfs et les disques à leur position dans `image.bin`, sans extraction.
+
+### Couches d'écriture (chantier 6a)
+
+Les écritures d'un disque ne touchent jamais `image.bin` : elles vont dans une couche par disque,
+`osx86/layers/<ensemble>/<disque>.layer`, avec ses métadonnées versionnées
+`<disque>.layer.meta.json` (`StoredObjectMetadata.ForLayer`, type `layer`). Le moteur les écrit
+(format décrit dans [`moteur.md`](moteur.md)) ; le stockage les mesure et les supprime :
+
+- `ImageStore.ListLayersAsync(ensemble)` : une `StoredLayer` par disque (taille, métadonnées) ; une
+  couche qu'un moteur tient ouverte est rendue avec `InUse` et sans taille (le moteur la donne).
+- `ImageStore.DeleteLayersAsync(ensemble)` : supprime l'ensemble sous le verrou
+  `osx86:layer:osx86/layers/<ensemble>` que le moteur prend aussi ; `locked` tant qu'un moteur
+  tourne dessus.
+- `StorageLayout.LayerDirectory` et `LayerPath` donnent les chemins ; le nom d'ensemble suit la
+  règle des identifiants d'image (un identifiant de VM, au chantier 6).
 
 ### Verrou d'écriture (E11) et `flush()` (177 A)
 

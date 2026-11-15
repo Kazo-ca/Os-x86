@@ -56,10 +56,24 @@ read-only (`root=/dev/sda rootfstype=ext4 ro`), the writable places are tmpfs mo
 deduplicated by hash; the block compression below makes up for it, since the OPFS keeps the
 compressed bytes.
 
-**Booting linux-base for real is not possible yet**: the worker of work item 2 reads only the
-kernel and the initramfs from the OPFS; `hda` support (a v86 buffer backed by a
-`SyncAccessHandle`, decompressing frames on demand) is work item 6. The Alpine test pack, on the
-other hand, boots in the `guest` test of this work item.
+**linux-base boots from the OPFS since work item 6a**: the worker reads the kernel, the initramfs
+and the `hda` root from `image.bin` and decompresses frames on demand (see
+[`engine.md`](engine.md), "Disks and the boot described by the manifest"); `OSX86-READY` in 19 to
+27 s, the agent answers, and `verify-console.sh` holds its 22 checks in the VM.
+
+### Two defects found by booting the image (work item 6a)
+
+- **Line endings.** A Git checkout on Windows wrote `osx86.modules` and `modules.keep` in CRLF;
+  `mkinitfs` then read `sd_mod.ko*\r` and found nothing: the initramfs had neither `sd_mod` nor
+  `ext4`, and the root did not mount. The CI builds on Linux and was not affected; the 70.67 MB
+  pack measured in work item 5 was that broken build. `.gitattributes` now forces LF on all of
+  `images/**`.
+- **Modes of `/dev`.** The `mdev` of the Alpine initramfs leaves every node of `/dev` in 0660 and
+  linux-base has no udev: no user could open `/dev/null`, which also silently broke the commands
+  of `verify-console.sh` written with `2>/dev/null`. `init.sh` sets `/dev/null`, `zero`, `full`,
+  `random`, `urandom`, `tty` and `ptmx` back to 0666. `verify-console.sh` counts a process hidden
+  by `hidepid` as protected and takes the agent's pid as its third argument (a user cannot see it
+  under `hidepid=invisible`).
 
 ## The published form and the manifest
 
@@ -166,7 +180,7 @@ otherwise the image is made without it), `/usr/bin/osx86-open-url` and two prefi
 (`osx86-test`, `osx86-other`). The init mounts cgroup v2 and `/tmp`, makes `/` 0755 (the root of
 the initramfs is 0700), closes `ttyS0` and `hvc0` to `hvc3` (0600), creates the homes as 0700
 and starts the agent on `hvc0`; `hvc2` and `hvc3` stay free for the engine tests. This is the
-image of the agent's `guest` test, until linux-base boots (work item 6).
+image of the agent's `guest` test of work item 5; linux-base has its own since work item 6a.
 
 ### freedos (214 A, E14)
 
@@ -253,7 +267,7 @@ linux-base (Docker on the runner, native i386) and the tool tests, and keep ever
 | --- | --- | --- | --- | --- |
 | alpine-test | kernel 7.70 MB + initramfs 7.66 MB | **15.21 MB** | 1 | the bzImage is already compressed; with the agent (+73 kB) |
 | freedos | disk 33.55 MB | **17.25 MB** | 1 | the disk holds 17 MiB of zip packages |
-| linux-base | kernel 8.11 MB + initramfs 4.60 MB + ext4 130.02 MB (export 97.55 MB) | **70.67 MB** | 3 | no Wine; 56 kernel modules; with the agent (141 kB); measured again in work item 5 (work item 4: 73.05 MB); slimming: see `measurements.json` |
+| linux-base | kernel 8.11 MB + initramfs 5.06 MB + ext4 138.41 MB (export 102.49 MB) | **73.07 MB** | 3 | no Wine; 56 kernel modules; with the agent; measured again in work item 6a (the 70.67 MB of work item 5 came from a CRLF build, an initramfs without `sd_mod` nor `ext4`); slimming: see `measurements.json` |
 
 The 250 MiB objective of 201 A is about the Wine image (work item 9), which starts from the
 `base` stage; E17 had measured 380 MiB with a full Debian, 130 MiB of modules and `apt`. The
