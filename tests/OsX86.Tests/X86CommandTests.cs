@@ -28,7 +28,7 @@ public sealed class X86CommandTests
         }
     }
 
-    internal static async Task<(int ExitCode, string Out, string Err)> RunAsync(VmTestRig rig, FakeFiles? files, string[] args, TextReader? stdin = null, string userId = TestAppContext.DefaultUserId, CancellationToken cancellationToken = default)
+    internal static async Task<(int ExitCode, string Out, string Err)> RunAsync(VmTestRig rig, FakeFiles? files, string[] args, TextReader? stdin = null, string userId = TestAppContext.DefaultUserId, CancellationToken cancellationToken = default, CancellationToken process = default)
     {
         var stdout = new StringWriter();
         var stderr = new StringWriter();
@@ -37,7 +37,7 @@ public sealed class X86CommandTests
         try
         {
             var command = new X86Command();
-            int code = await command.ExecuteAsync(TestAppContext.Terminal(args, stdout, stderr, stdin, userId), cancellationToken);
+            int code = await command.ExecuteAsync(TestAppContext.Terminal(args, stdout, stderr, stdin, userId, process), cancellationToken);
             return (code, stdout.ToString().Replace("\r\n", "\n"), stderr.ToString().Replace("\r\n", "\n"));
         }
         finally
@@ -387,6 +387,47 @@ public sealed class X86CommandTests
     }
 
     [Fact]
+    public async Task Shell_returns_when_the_guest_exits_even_if_reading_the_terminal_ignores_cancellation()
+    {
+        await using var rig = new VmTestRig();
+        var received = new List<byte[]>();
+        rig.Engines.Configure = engine =>
+        {
+            VmTestRig.ScriptConsole(engine, 3);
+            SimulatedAgentFixtures.PlayShell(engine.Agent!, 3, received);
+        };
+        await rig.CreateAsync("Alpine");
+
+        // "exit 3" is read, then the terminal blocks forever, deaf to cancellation, as a real stdin can.
+        Task<(int, string, string)> run = RunAsync(rig, null, ["shell"], new StubbornReader("exit 3"));
+        await VmTestRig.WaitUntilAsync(() => Received(received).Any(b => Encoding.UTF8.GetString(b) == "exit 3\n"), "the exit line");
+        rig.Engines.Last.Agent!.SendConsoleBytes(VmTestRig.Closed(3, 3, 0)); // the guest shell ends by itself
+
+        var (code, output, _) = await run.WaitAsync(VmTestRig.Soon);
+
+        Assert.Equal(3, code);
+        Assert.EndsWith("bye\n", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Shell_closes_the_console_when_the_commands_process_is_stopped()
+    {
+        await using var rig = new VmTestRig();
+        rig.Engines.Configure = engine => VmTestRig.ScriptConsole(engine, 3);
+        VmInstance vm = await rig.CreateAsync("Alpine");
+        using var process = new CancellationTokenSource();
+        Task<(int, string, string)> run = RunAsync(rig, null, ["shell"], new QueueTextReader(), process: process.Token);
+        await VmTestRig.WaitUntilAsync(() => vm.Children.Count == 1, "the console");
+
+        await process.CancelAsync(); // the tab is closed: the process ends, not just its command
+        var (code, _, _) = await run.WaitAsync(VmTestRig.Soon);
+
+        Assert.Equal(129, code);
+        Assert.Single(rig.Engines.Last.Agent!.Requests("close-console"));
+        Assert.Equal(0, vm.Applications);
+    }
+
+    [Fact]
     public async Task Shell_falls_back_to_the_serial_console_of_an_image_without_agent()
     {
         await using var rig = new VmTestRig();
@@ -514,4 +555,21 @@ internal sealed class QueueTextReader : TextReader
     public void End() => _lines.Writer.TryWrite(null);
 
     public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken) => await _lines.Reader.ReadAsync(cancellationToken);
+}
+
+/// <summary>A standard input that gives a few lines, then blocks forever without honouring cancellation.</summary>
+internal sealed class StubbornReader(params string[] lines) : TextReader
+{
+    private int _next;
+
+    public override async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
+    {
+        if (_next < lines.Length)
+        {
+            return lines[_next++];
+        }
+
+        await Task.Delay(Timeout.Infinite, CancellationToken.None);
+        return null;
+    }
 }

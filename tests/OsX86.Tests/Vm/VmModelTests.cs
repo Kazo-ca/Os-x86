@@ -174,6 +174,9 @@ public sealed class VmModelTests
     [InlineData("""{"format": 1, "user": "0000000000000000000000000000a001", "profiles": [{"format": 1, "name": "p", "kind": "linux", "image": "a", "imageVersion": "1"}, {"format": 1, "name": "P", "kind": "linux", "image": "a", "imageVersion": "1"}]}""")]
     [InlineData("""{"format": 1, "user": "0000000000000000000000000000a001", "vms": "many"}""")]
     [InlineData("""{"format": 1}""")]
+    [InlineData("""{"format": 1, "user": "0000000000000000000000000000a001", "vms": null}""")]
+    [InlineData("""{"format": 1, "user": "0000000000000000000000000000a001", "vms": [null]}""")]
+    [InlineData("""{"format": 1, "user": "0000000000000000000000000000a001", "profiles": [null]}""")]
     public void An_inconsistent_registry_is_refused(string json)
     {
         Assert.Throws<X86Exception>(() => VmRegistryDocument.Parse(json, User));
@@ -194,6 +197,32 @@ public sealed class VmModelTests
         Assert.Equal(96, (await registry.FindProfileAsync(User, "ALPINE-TEST", None))!.MemoryMiB);
         Assert.Null(await registry.FindProfileAsync(User, "none", None));
         Assert.Equal(2, (await registry.ListProfilesAsync(OtherUser, None)).Count); // another user sees only the built-in ones
+    }
+
+    [Fact]
+    public async Task The_registry_never_writes_a_document_it_could_not_read_back()
+    {
+        var store = new InMemoryVmRegistryStore();
+        var registry = new VmRegistry(store);
+        using JsonDocument big = JsonDocument.Parse("\"" + new string('x', 240 * 1024) + "\"");
+        int imported = 0;
+        X86Exception? refused = null;
+        while (refused is null)
+        {
+            try
+            {
+                await registry.ImportProfileAsync(User, BuiltInProfiles.AlpineTest with { Name = $"big-{imported}", Programs = big.RootElement.Clone() }, None);
+                imported++;
+            }
+            catch (X86Exception exception)
+            {
+                refused = exception;
+            }
+        }
+
+        Assert.Equal(X86ErrorCodes.InvalidProfile, refused.Code);
+        Assert.InRange(imported, 10, 20);
+        Assert.Equal(imported, (await registry.LoadAsync(User, None)).Profiles.Count); // what was written is still readable
     }
 
     [Fact]
@@ -304,7 +333,7 @@ public sealed class VmModelTests
 
         Assert.Equal(X86ErrorCodes.VmBusy, (await Assert.ThrowsAsync<X86Exception>(async () => await rig.Manager.RemoveAsync(User, vm.Id, force: false, None))).Code);
         await rig.Manager.RemoveAsync(User, vm.Id, force: true, None);
-        Assert.Equal(VmState.Stopped, rig.Manager.StateOf(vm.Id));
+        Assert.Equal(VmState.Stopped, rig.Manager.StateOf(User, vm.Id));
         Assert.Equal(X86ErrorCodes.VmNotFound, (await Assert.ThrowsAsync<X86Exception>(async () => await rig.Manager.GetInstanceAsync(User, vm.Id, None))).Code);
     }
 

@@ -84,8 +84,16 @@ internal sealed class FakeEngine : IEngine
         Move(EngineState.Running, null);
     }
 
+    /// <summary>When set, <see cref="StopAsync"/> fails with it (not an engine error: a bug of the worker bridge).</summary>
+    public Exception? StopException { get; set; }
+
     public ValueTask StopAsync(CancellationToken cancellationToken)
     {
+        if (StopException is not null)
+        {
+            throw StopException;
+        }
+
         if (State != EngineState.Stopped)
         {
             Stops++;

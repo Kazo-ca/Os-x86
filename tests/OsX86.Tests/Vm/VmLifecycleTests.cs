@@ -336,6 +336,68 @@ public sealed class VmLifecycleTests
     }
 
     [Fact]
+    public async Task A_teardown_that_fails_still_leaves_the_vm_stopped_and_keeps_the_start_error()
+    {
+        await using var rig = new VmTestRig();
+        rig.Engines.Configure = engine => engine.StopException = new InvalidOperationException("bridge broken");
+        VmInstance vm = await rig.CreateAsync();
+        using (await vm.AcquireAsync("shell", None))
+        {
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await vm.StopAsync(force: true, None));
+        Assert.Equal(VmState.Stopped, vm.State); // never left Stopping: the budget no longer counts it
+        Assert.True(rig.Engines.Last.Disposed);
+
+        rig.Engines.Configure = engine =>
+        {
+            engine.StartException = new EngineException(EngineErrorCodes.V86InitFailed, "no cpu");
+            engine.StopException = new InvalidOperationException("bridge broken");
+        };
+        X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await vm.AcquireAsync("shell", None));
+        Assert.Equal(X86ErrorCodes.StartFailed, error.Code);
+        Assert.Contains("v86-init-failed", error.Message, StringComparison.Ordinal);
+        Assert.Equal(VmState.Stopped, vm.State);
+        Assert.Contains(rig.BackgroundErrors, e => e is InvalidOperationException);
+    }
+
+    [Fact]
+    public async Task A_removed_vm_cannot_be_started_again_through_an_old_instance()
+    {
+        await using var rig = new VmTestRig();
+        VmInstance vm = await rig.CreateAsync();
+        await vm.HoldAsync(None);
+
+        await rig.Manager.RemoveAsync(User, vm.Id, force: true, None);
+
+        Assert.Equal(VmState.Stopped, vm.State);
+        Assert.Equal(X86ErrorCodes.VmNotFound, (await Assert.ThrowsAsync<X86Exception>(async () => await vm.AcquireAsync("shell", None))).Code);
+        Assert.Equal(X86ErrorCodes.VmNotFound, (await Assert.ThrowsAsync<X86Exception>(async () => await vm.HoldAsync(None))).Code);
+        Assert.Single(rig.Engines.Created);
+    }
+
+    [Fact]
+    public async Task A_guid_copied_into_another_users_registry_never_reaches_the_owners_vm()
+    {
+        await using var rig = new VmTestRig();
+        VmInstance mine = await rig.CreateAsync("mine");
+        await mine.HoldAsync(None);
+
+        // The other user edits their own registry file and puts the GUID of this user's VM in it.
+        string json = (await rig.Store.ReadAsync(User, None))!;
+        await rig.Store.WriteAsync(OtherUser, json.Replace(User.ToString("D"), OtherUser.ToString("D"), StringComparison.Ordinal), None);
+        VmInstance theirs = await rig.Manager.GetInstanceAsync(OtherUser, mine.Id, None);
+
+        Assert.NotSame(mine, theirs);
+        Assert.Equal(OtherUser, theirs.OwnerId);
+        Assert.Equal(VmState.Stopped, theirs.State);
+        Assert.Equal(VmState.Stopped, rig.Manager.StateOf(OtherUser, mine.Id));
+        Assert.Equal(VmState.Running, rig.Manager.StateOf(User, mine.Id));
+        Assert.Equal(User, mine.OwnerId);
+        Assert.Equal("mine", mine.Record.Name);
+    }
+
+    [Fact]
     public async Task A_host_without_engine_or_without_the_image_refuses_the_start()
     {
         await using var rig = new VmTestRig();
@@ -348,7 +410,7 @@ public sealed class VmLifecycleTests
         VmSummary vm = await manager.CreateAsync(User, "x", BuiltInProfiles.AlpineTest, None);
         X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await manager.HoldAsync(User, vm.Id, None));
         Assert.Equal(X86ErrorCodes.EngineUnavailable, error.Code);
-        Assert.Equal(VmState.Stopped, manager.StateOf(vm.Id));
+        Assert.Equal(VmState.Stopped, manager.StateOf(User, vm.Id));
     }
 
     [Fact]

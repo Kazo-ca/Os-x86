@@ -27,6 +27,8 @@ public sealed class VmInstance
     private int _applications;
     private bool _held;
     private long _generation;
+    private long _graceSequence;
+    private bool _retired;
     private ITimer? _graceTimer;
     private IEngine? _engine;
     private AgentClient? _agent;
@@ -189,6 +191,7 @@ public sealed class VmInstance
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            ThrowIfRetired();
             if (State != VmState.Running)
             {
                 await StartUnderLockAsync(cancellationToken).ConfigureAwait(false);
@@ -210,19 +213,71 @@ public sealed class VmInstance
     /// <summary>Starts the VM by hand and keeps it up until <see cref="StopAsync"/> (72.6). A no-op when already held.</summary>
     public async ValueTask HoldAsync(CancellationToken cancellationToken)
     {
-        VmApplication application = await AcquireAsync("manual", cancellationToken).ConfigureAwait(false);
-        lock (_lock)
+        await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            if (_held)
+            ThrowIfRetired();
+            if (State != VmState.Running)
             {
-                _applications--; // the hold is counted once
-                return;
+                await StartUnderLockAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            _held = true;
+            // One step with the start: a stop cannot slip in between and leave a hold on another run.
+            lock (_lock)
+            {
+                CancelGraceUnsafe();
+                if (!_held)
+                {
+                    _held = true;
+                    _applications++; // the hold counts as one application, released by StopAsync
+                }
+            }
         }
+        finally
+        {
+            _lifecycle.Release();
+        }
+    }
 
-        GC.KeepAlive(application); // the hold is released by StopAsync, not by disposing this handle
+    /// <summary>
+    /// Stops the VM for good before it is removed or its manager disposed: refused while it runs
+    /// unless <paramref name="force"/>; afterwards every acquisition fails with <see cref="X86ErrorCodes.VmNotFound"/>.
+    /// </summary>
+    internal async ValueTask RetireAsync(bool force)
+    {
+        await _lifecycle.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (State != VmState.Stopped)
+            {
+                if (!force)
+                {
+                    throw new X86Exception(X86ErrorCodes.VmBusy, "The virtual machine is running; stop it first, or remove it with --force.");
+                }
+
+                await StopUnderLockAsync("removed").ConfigureAwait(false);
+            }
+
+            lock (_lock)
+            {
+                _retired = true;
+            }
+        }
+        finally
+        {
+            _lifecycle.Release();
+        }
+    }
+
+    private void ThrowIfRetired()
+    {
+        lock (_lock)
+        {
+            if (_retired)
+            {
+                throw new X86Exception(X86ErrorCodes.VmNotFound, "This virtual machine was removed.");
+            }
+        }
     }
 
     /// <summary>
@@ -315,7 +370,7 @@ public sealed class VmInstance
                     _serialConsoles.Add(serial);
                 }
 
-                _ = serial.Exited.ContinueWith(_ => { lock (_lock) { _serialConsoles.Remove(serial); } }, TaskScheduler.Default);
+                _ = serial.Exited.ContinueWith(task => { _ = task.Exception; lock (_lock) { _serialConsoles.Remove(serial); } }, TaskScheduler.Default);
                 return serial;
             }
 
@@ -425,18 +480,19 @@ public sealed class VmInstance
 
             CancelGraceUnsafe();
             long generation = _generation;
+            long sequence = _graceSequence;
             if (_options.StopGrace == TimeSpan.Zero)
             {
-                _ = StopIfIdleAsync(generation);
+                _ = Task.Run(() => StopIfIdleAsync(generation, sequence)); // never under _lock: the stop raises events
             }
             else
             {
-                _graceTimer = _time.CreateTimer(_ => _ = StopIfIdleAsync(generation), null, _options.StopGrace, Timeout.InfiniteTimeSpan);
+                _graceTimer = _time.CreateTimer(_ => _ = StopIfIdleAsync(generation, sequence), null, _options.StopGrace, Timeout.InfiniteTimeSpan);
             }
         }
     }
 
-    private async Task StopIfIdleAsync(long generation)
+    private async Task StopIfIdleAsync(long generation, long sequence)
     {
         try
         {
@@ -445,7 +501,7 @@ public sealed class VmInstance
             {
                 lock (_lock)
                 {
-                    if (_generation != generation || _applications > 0 || _held || _state != VmState.Running)
+                    if (_generation != generation || _graceSequence != sequence || _applications > 0 || _held || _state != VmState.Running)
                     {
                         return;
                     }
@@ -526,7 +582,15 @@ public sealed class VmInstance
         }
         catch (Exception exception)
         {
-            await TearDownAsync("start failed").ConfigureAwait(false);
+            try
+            {
+                await TearDownAsync("start failed").ConfigureAwait(false);
+            }
+            catch (Exception teardown)
+            {
+                _manager.ReportBackgroundError(this, teardown); // the start error is the one the caller needs
+            }
+
             if (exception is OperationCanceledException or X86Exception)
             {
                 throw;
@@ -724,34 +788,41 @@ public sealed class VmInstance
             CancelGraceUnsafe();
         }
 
-        runStop?.Cancel();
-        foreach (SerialVmConsole serial in serials)
+        try
         {
-            serial.Fail(new X86Exception(X86ErrorCodes.ConsoleClosed, $"The virtual machine stopped ({reason})."));
-        }
-
-        if (agent is not null)
-        {
-            await agent.DisposeAsync().ConfigureAwait(false);
-        }
-
-        if (engine is not null)
-        {
-            engine.StateChanged -= OnEngineStateChanged;
-            try
+            runStop?.Cancel();
+            foreach (SerialVmConsole serial in serials)
             {
-                await engine.StopAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (EngineException)
-            {
-                // Already stopped or dead: what we want.
+                serial.Fail(new X86Exception(X86ErrorCodes.ConsoleClosed, $"The virtual machine stopped ({reason})."));
             }
 
-            await engine.DisposeAsync().ConfigureAwait(false);
-        }
+            if (agent is not null)
+            {
+                await agent.DisposeAsync().ConfigureAwait(false);
+            }
 
-        runStop?.Dispose();
-        SetState(VmState.Stopped);
+            if (engine is not null)
+            {
+                engine.StateChanged -= OnEngineStateChanged;
+                try
+                {
+                    await engine.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (EngineException)
+                {
+                    // Already stopped or dead: what we want.
+                }
+                finally
+                {
+                    await engine.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            runStop?.Dispose();
+            SetState(VmState.Stopped); // whatever failed above, the run is over: never left Starting or Stopping
+        }
     }
 
     private void RegisterChild(LaunchId launch, VmChildKind kind, Task<ProcessExit> exited)
@@ -763,8 +834,9 @@ public sealed class VmInstance
         }
 
         _ = exited.ContinueWith(
-            _ =>
+            task =>
             {
+                _ = task.Exception; // observed: the end of the child is all that matters here
                 lock (_lock)
                 {
                     _children.Remove(child);
@@ -792,6 +864,7 @@ public sealed class VmInstance
 
     private void CancelGraceUnsafe()
     {
+        _graceSequence++;
         _graceTimer?.Dispose();
         _graceTimer = null;
     }

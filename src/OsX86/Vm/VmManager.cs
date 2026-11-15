@@ -12,7 +12,8 @@ namespace OsX86.Vm;
 /// </summary>
 public sealed class VmManager : IAsyncDisposable
 {
-    private readonly Dictionary<Guid, VmInstance> _instances = [];
+    // Keyed by owner and VM: a GUID copied into another user's registry never reaches this user's instance (190 A).
+    private readonly Dictionary<(Guid User, Guid Vm), VmInstance> _instances = [];
     private readonly Lock _lock = new();
     private readonly TimeProvider _time;
     private bool _disposed;
@@ -70,15 +71,15 @@ public sealed class VmManager : IAsyncDisposable
     public async ValueTask<IReadOnlyList<VmSummary>> ListAsync(Guid userId, CancellationToken cancellationToken)
     {
         IReadOnlyList<VmRecord> records = await Registry.ListAsync(userId, cancellationToken).ConfigureAwait(false);
-        return [.. records.Select(record => record.ToSummary(StateOf(record.Id)))];
+        return [.. records.Select(record => record.ToSummary(StateOf(userId, record.Id)))];
     }
 
-    /// <summary>The state of a VM: stopped when it never ran.</summary>
-    public VmState StateOf(Guid vmId)
+    /// <summary>The state of a VM of a user: stopped when it never ran.</summary>
+    public VmState StateOf(Guid userId, Guid vmId)
     {
         lock (_lock)
         {
-            return _instances.TryGetValue(vmId, out VmInstance? instance) ? instance.State : VmState.Stopped;
+            return _instances.TryGetValue((userId, vmId), out VmInstance? instance) ? instance.State : VmState.Stopped;
         }
     }
 
@@ -112,12 +113,12 @@ public sealed class VmManager : IAsyncDisposable
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (!_instances.TryGetValue(vmId, out VmInstance? instance))
+            if (!_instances.TryGetValue((userId, vmId), out VmInstance? instance))
             {
                 instance = new VmInstance(userId, record, this, Options, _time);
                 instance.StateChanged += (sender, e) => InstanceStateChanged?.Invoke(this, new VmInstanceEventArgs<VmStateChangedEventArgs>((VmInstance)sender!, e));
                 instance.AgentLost += (sender, e) => AgentLost?.Invoke(this, new VmInstanceEventArgs<VmAgentLostEventArgs>((VmInstance)sender!, e));
-                _instances[vmId] = instance;
+                _instances[(userId, vmId)] = instance;
             }
             else
             {
@@ -134,13 +135,13 @@ public sealed class VmManager : IAsyncDisposable
         VmRecord renamed = await Registry.RenameAsync(userId, vmId, name, cancellationToken).ConfigureAwait(false);
         lock (_lock)
         {
-            if (_instances.TryGetValue(vmId, out VmInstance? instance))
+            if (_instances.TryGetValue((userId, vmId), out VmInstance? instance))
             {
                 instance.Record = renamed;
             }
         }
 
-        return renamed.ToSummary(StateOf(vmId));
+        return renamed.ToSummary(StateOf(userId, vmId));
     }
 
     /// <summary>Removes a VM; a running one is refused unless <paramref name="force"/>, which stops it first.</summary>
@@ -150,23 +151,26 @@ public sealed class VmManager : IAsyncDisposable
         VmInstance? instance;
         lock (_lock)
         {
-            _instances.TryGetValue(vmId, out instance);
+            _instances.TryGetValue((userId, vmId), out instance);
         }
 
-        if (instance is not null && instance.State != VmState.Stopped)
+        // Stopped for good under its own lifecycle lock: no application can start it again between
+        // the stop and the removal, which would leave an engine the budget no longer sees.
+        if (instance is not null)
         {
-            if (!force)
+            await instance.RetireAsync(force).ConfigureAwait(false);
+        }
+
+        try
+        {
+            await Registry.RemoveAsync(userId, vmId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_lock)
             {
-                throw new X86Exception(X86ErrorCodes.VmBusy, "The virtual machine is running; stop it first, or remove it with --force.");
+                _instances.Remove((userId, vmId));
             }
-
-            await StopAsync(userId, vmId, force: true, cancellationToken).ConfigureAwait(false);
-        }
-
-        await Registry.RemoveAsync(userId, vmId, cancellationToken).ConfigureAwait(false);
-        lock (_lock)
-        {
-            _instances.Remove(vmId);
         }
     }
 
@@ -194,7 +198,8 @@ public sealed class VmManager : IAsyncDisposable
         List<VmInstance> running;
         lock (_lock)
         {
-            running = [.. _instances.Values.Where(instance => !ReferenceEquals(instance, starting) && instance.State is VmState.Starting or VmState.Running)];
+            // A VM that is stopping still holds its engine: it is counted until it is stopped.
+            running = [.. _instances.Values.Where(instance => !ReferenceEquals(instance, starting) && instance.State is VmState.Starting or VmState.Running or VmState.Stopping)];
         }
 
         int runningMiB = running.Sum(instance => instance.Record.Profile.MemoryMiB);
@@ -231,7 +236,7 @@ public sealed class VmManager : IAsyncDisposable
         {
             try
             {
-                await instance.StopAsync(force: true, CancellationToken.None).ConfigureAwait(false);
+                await instance.RetireAsync(force: true).ConfigureAwait(false); // and no start after it
             }
             catch (Exception exception)
             {

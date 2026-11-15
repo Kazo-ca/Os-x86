@@ -62,8 +62,10 @@ public sealed partial class X86Command
     /// goes to standard output as text (<see cref="TerminalTextFilter"/>); each line read from standard
     /// input goes to the guest with LF; a line <c>^C</c> and the command's own interruption (Ctrl+C in
     /// the Kazo terminal) send Ctrl+C to the guest program (216 A); a line <c>~.</c> closes the console;
-    /// the end of input sends Ctrl+D. Returns the exit code of the console's program; the console is
-    /// closed and its VM released on return (166 A).
+    /// the end of input sends Ctrl+D. When the command's process itself is stopped (its tab closed,
+    /// <see cref="Kazo.Os.AppSdk.IAppExecutionContext.CancellationToken"/>), the console is closed.
+    /// Returns the exit code of the console's program; the console is closed and its VM released on
+    /// return (166 A).
     /// </summary>
     internal static async Task<int> RelayAsync(TerminalExecutionContext context, IVmConsole console, CancellationToken cancellationToken)
     {
@@ -73,6 +75,10 @@ public sealed partial class X86Command
             var filterLock = new Lock();
             using var stop = new CancellationTokenSource();
             using CancellationTokenRegistration interrupt = cancellationToken.Register(() => _ = SendQuietlyAsync(() => console.SendInterruptAsync(CancellationToken.None)));
+            CancellationToken process = context.App.CancellationToken;
+            using CancellationTokenRegistration killed = process.CanBeCanceled && process != cancellationToken
+                ? process.Register(() => _ = Quietly(console.DisposeAsync().AsTask()))
+                : default;
             Task output = PumpOutputAsync(console, filter, filterLock, context.StandardOutput, stop.Token);
             Task input = PumpInputAsync(console, filter, filterLock, context.StandardInput, stop.Token);
             int code;
@@ -83,14 +89,14 @@ public sealed partial class X86Command
             catch (X86Exception exception)
             {
                 await stop.CancelAsync().ConfigureAwait(false);
-                await Task.WhenAll(Quietly(output), Quietly(input)).ConfigureAwait(false);
+                await EndPumpsAsync(output, input).ConfigureAwait(false);
                 await context.StandardError.WriteLineAsync($"x86: {exception.Message}".AsMemory(), CancellationToken.None).ConfigureAwait(false);
                 return X86ExitCodes.Failed;
             }
 
             await Task.WhenAny(output, Task.Delay(OutputDrain, CancellationToken.None)).ConfigureAwait(false);
             await stop.CancelAsync().ConfigureAwait(false);
-            await Task.WhenAll(Quietly(output), Quietly(input)).ConfigureAwait(false);
+            await EndPumpsAsync(output, input).ConfigureAwait(false);
             string rest;
             lock (filterLock)
             {
@@ -119,8 +125,9 @@ public sealed partial class X86Command
 
             if (text.Length > 0)
             {
-                await output.WriteAsync(text.AsMemory(), stop).ConfigureAwait(false);
-                await output.FlushAsync(stop).ConfigureAwait(false);
+                // Not cancelled by the stop: text already read is written, even during the final drain.
+                await output.WriteAsync(text.AsMemory(), CancellationToken.None).ConfigureAwait(false);
+                await output.FlushAsync(CancellationToken.None).ConfigureAwait(false);
             }
         }
     }
@@ -165,32 +172,38 @@ public sealed partial class X86Command
         }
     }
 
-    /// <summary>Writes to a console that may have closed meanwhile: its end is reported by <see cref="IVmConsole.Exited"/>, not here.</summary>
-    private static async Task SendQuietlyAsync(Func<ValueTask> send)
+    /// <summary>
+    /// Waits for the output pump (already told to stop) and leaves the input pump: a read on the
+    /// terminal's standard input may not honour cancellation, and the shell must not wait for the
+    /// user to press Enter once the guest program ended.
+    /// </summary>
+    private static async Task EndPumpsAsync(Task output, Task input)
     {
-        try
-        {
-            await send().ConfigureAwait(false);
-        }
-        catch (X86Exception)
-        {
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await Quietly(output).ConfigureAwait(false);
+        _ = Quietly(input); // observed in the background; whatever it reads next is dropped
+        await Task.WhenAny(input, Task.Delay(InputGiveUp, CancellationToken.None)).ConfigureAwait(false);
     }
 
+    /// <summary>How long the input pump is given to notice the end before it is left behind.</summary>
+    private static readonly TimeSpan InputGiveUp = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>Writes to a console that may have closed meanwhile: its end is reported by <see cref="IVmConsole.Exited"/>, not here.</summary>
+    private static Task SendQuietlyAsync(Func<ValueTask> send) => Quietly(Task.Run(async () => await send().ConfigureAwait(false)));
+
+    /// <summary>
+    /// Awaits a pump or a write whose failure is not the command's result: the console's end, and any
+    /// error of the VM under it, are reported by <see cref="IVmConsole.Exited"/>; a write to a closed
+    /// console or a terminal that went away changes nothing to that.
+    /// </summary>
     private static async Task Quietly(Task task)
     {
         try
         {
             await task.ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (Exception)
         {
-        }
-        catch (X86Exception)
-        {
+            // See the summary: reported through Exited, or irrelevant once the console ended.
         }
     }
 

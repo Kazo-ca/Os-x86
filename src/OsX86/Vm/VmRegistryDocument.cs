@@ -91,11 +91,17 @@ public sealed class VmRegistryDocument
             throw new X86Exception(X86ErrorCodes.InvalidProfile, "The VM registry is empty or belongs to another user.");
         }
 
+        // Untrusted text (a user can edit their own file): null lists or entries are refused, never a NullReferenceException.
+        if (document.Vms is null || document.Profiles is null || document.Vms.Any(vm => vm is null) || document.Profiles.Any(profile => profile is null))
+        {
+            throw new X86Exception(X86ErrorCodes.InvalidProfile, "The VM registry is invalid: a list or an entry is null.");
+        }
+
         var ids = new HashSet<Guid>();
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (VmRecord vm in document.Vms)
         {
-            if (vm.Id == Guid.Empty || !ids.Add(vm.Id) || !VmProfile.IsValidName(vm.Name) || !names.Add(vm.Name) || vm.Profile is null)
+            if (vm.Id == Guid.Empty || !ids.Add(vm.Id) || !VmProfile.IsValidName(vm.Name) || !names.Add(vm.Name!) || vm.Profile is null)
             {
                 throw new X86Exception(X86ErrorCodes.InvalidProfile, "The VM registry is invalid: a VM has no identifier, a duplicate identifier or name, or no profile.");
             }
@@ -106,7 +112,7 @@ public sealed class VmRegistryDocument
         var profileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (VmProfile profile in document.Profiles)
         {
-            if (profile is null || !profileNames.Add(profile.Name ?? string.Empty))
+            if (!profileNames.Add(profile.Name ?? string.Empty))
             {
                 throw new X86Exception(X86ErrorCodes.InvalidProfile, "The VM registry is invalid: a profile is missing or duplicated.");
             }

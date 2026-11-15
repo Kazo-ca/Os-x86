@@ -169,8 +169,17 @@ public sealed class VmRegistry
         return json is null ? VmRegistryDocument.Empty(userId) : VmRegistryDocument.Parse(json, userId);
     }
 
-    private ValueTask WriteAsync(VmRegistryDocument document, CancellationToken cancellationToken) =>
-        _store.WriteAsync(document.User, document.ToJson(), cancellationToken);
+    private ValueTask WriteAsync(VmRegistryDocument document, CancellationToken cancellationToken)
+    {
+        string json = document.ToJson();
+        if (System.Text.Encoding.UTF8.GetByteCount(json) > VmRegistryDocument.MaxBytes)
+        {
+            // Never write what could not be read back: the user would be locked out of their registry.
+            throw new X86Exception(X86ErrorCodes.InvalidProfile, $"The VM registry would exceed {VmRegistryDocument.MaxBytes} bytes; remove imported profiles or VMs first.");
+        }
+
+        return _store.WriteAsync(document.User, json, cancellationToken);
+    }
 
     private static void RequireName(string name)
     {

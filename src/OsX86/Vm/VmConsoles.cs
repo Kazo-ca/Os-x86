@@ -101,7 +101,26 @@ internal sealed class AgentVmConsole : VmConsoleBase
     public LaunchId Launch => _handle.Launch;
 
     /// <inheritdoc />
-    public override IAsyncEnumerable<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken cancellationToken) => _handle.ReadOutputAsync(cancellationToken);
+    public override async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadOutputAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using IAsyncEnumerator<ReadOnlyMemory<byte>> enumerator = _handle.ReadOutputAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+        while (true)
+        {
+            try
+            {
+                if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+                {
+                    yield break;
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                throw Translate(exception); // the agent closed or the VM stopped mid-read: a contract error, not an internal one
+            }
+
+            yield return enumerator.Current;
+        }
+    }
 
     /// <inheritdoc />
     public override async ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
@@ -169,6 +188,7 @@ internal sealed class SerialVmConsole : VmConsoleBase
 {
     private readonly IEngineConsole _port;
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly CancellationTokenSource _closed = new(); // ends the readers when the console closes; never disposed (its token outlives readers)
 
     public SerialVmConsole(Guid vmId, VmApplication application, IEngineConsole port)
         : base(vmId, application)
@@ -185,8 +205,7 @@ internal sealed class SerialVmConsole : VmConsoleBase
     /// <inheritdoc />
     public override async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadOutputAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _ = _exited.Task.ContinueWith(_ => linked.Cancel(), TaskScheduler.Default);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closed.Token);
         IAsyncEnumerable<ReadOnlyMemory<byte>> bytes = _port.ReadRawAsync(linked.Token);
         await using IAsyncEnumerator<ReadOnlyMemory<byte>> enumerator = bytes.GetAsyncEnumerator(linked.Token);
         while (true)
@@ -233,12 +252,23 @@ internal sealed class SerialVmConsole : VmConsoleBase
     }
 
     /// <summary>The VM stopped under the console.</summary>
-    internal void Fail(X86Exception exception) => _exited.TrySetException(exception);
+    internal void Fail(X86Exception exception)
+    {
+        if (_exited.TrySetException(exception))
+        {
+            _ = _exited.Task.Exception; // observed here: Exited reports it to whoever awaits it
+            _closed.Cancel();
+        }
+    }
 
     /// <inheritdoc />
     protected override ValueTask CloseAsync()
     {
-        _exited.TrySetResult(0);
+        if (_exited.TrySetResult(0))
+        {
+            _closed.Cancel();
+        }
+
         return ValueTask.CompletedTask;
     }
 }

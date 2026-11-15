@@ -28,7 +28,7 @@ internal sealed class TestAppContext(string userId) : IAppExecutionContext
     public IReadOnlySet<string> GrantedCapabilities { get; } = new HashSet<string>(StringComparer.Ordinal);
     public SessionId SessionId { get; } = SessionId.FromGuid(Guid.NewGuid());
     public ProcessId ProcessId { get; } = ProcessId.FromInt64(100);
-    public CancellationToken CancellationToken => CancellationToken.None;
+    public CancellationToken CancellationToken { get; init; } = CancellationToken.None;
     public ICapabilityChecker Capabilities => throw new NotSupportedException();
     public IAppFileSystemGateway FileSystem => throw new NotSupportedException();
     public IAppEventGateway Events => throw new NotSupportedException();
@@ -38,7 +38,7 @@ internal sealed class TestAppContext(string userId) : IAppExecutionContext
     public IAppProcessGateway Processes => throw new NotSupportedException();
 
     /// <summary>Builds a terminal context on this app context, with captured output.</summary>
-    public static TerminalExecutionContext Terminal(IReadOnlyList<string> arguments, TextWriter stdout, TextWriter stderr, TextReader? stdin = null, string userId = DefaultUserId) =>
-        new(new TestAppContext(userId), arguments, stdin ?? new StringReader(string.Empty), stdout, stderr, "/home/user-1",
+    public static TerminalExecutionContext Terminal(IReadOnlyList<string> arguments, TextWriter stdout, TextWriter stderr, TextReader? stdin = null, string userId = DefaultUserId, CancellationToken process = default) =>
+        new(new TestAppContext(userId) { CancellationToken = process }, arguments, stdin ?? new StringReader(string.Empty), stdout, stderr, "/home/user-1",
             new Dictionary<string, string>(StringComparer.Ordinal) { ["USER"] = "user-1", ["HOME"] = "/home/user-1" });
 }
