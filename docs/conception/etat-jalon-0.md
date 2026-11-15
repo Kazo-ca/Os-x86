@@ -1,4 +1,4 @@
-# Jalon 0 — où on en est (2026-11-14)
+# Jalon 0 — où on en est (2026-11-15)
 
 **Repris le 2026-11-14**, après une pause du 12 au 14 novembre. Les sessions de travail tournent sur Opus 5.5 ; Fable est réservé aux analyses.
 
@@ -9,10 +9,12 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Conception** : terminée. 262 décisions numérotées, 17 séries de questions répondues, plan et registre validés.
 
 **Kazo (dépôt Kazo-ca/Os, série `feature/base`)**
-- 13 ADR (0243 à 0255) écrites et fusionnées.
-- Code de l'ADR 0243, le type d'app « Feature » : fusionné (PR #449).
+- 13 ADR écrites et fusionnées (les trois premières renumérotées 0260 à 0262 par Kazo, les autres 0246 à 0255), plus l'ajustement 0256.
+- Code de l'ADR 0260 (ex-0243), le type d'app « Feature » : fusionné (PR #449).
 - Catalogue du Store avec le champ `kind` (256 B) : documentation fusionnée (Os-AppMarketPlace #20), code fusionné avec #450.
-- Code de l'ADR 0244, bibliothèques partagées, avec l'ADR d'ajustement 0256 (série 17) : fusionné (PR #450, 2026-11-12), avec le code du champ `kind`.
+- Code de l'ADR 0261 (ex-0244), bibliothèques partagées, avec l'ADR d'ajustement 0256 (série 17) : fusionné (PR #450), avec le code du champ `kind`.
+- Code de l'ADR 0262 (ex-0245), services des Features et `GetServiceAsync<T>()` : fusionné (PR #541).
+- Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
 - Chantier 1, squelette : solution, projets, hôte de développement, CI, identifiant `ca.kazo.x86`.
@@ -25,7 +27,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 - **Chantier 6a**, disque `hda` lu depuis l'OPFS, couche d'écriture, démarrage de `linux-base` et de FreeDOS dans le moteur : repris le 2026-11-14.
 - **Chantier 6**, registre des VM, cycle de vie, budget de mémoire, profils, `x86 vm`, `x86 shell` : repris le 2026-11-14.
-- **Kazo, code de l'ADR 0245**, registre d'interfaces et résolution `GetServiceAsync<T>()` : lancé le 2026-11-14, branche `feature/16-feature-service-registry-code`.
+- **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : lancé le 2026-11-15, branche `feature/17-provider-declared-permissions-code`.
 
 ## Reste à faire
 
@@ -41,9 +43,10 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 12, réseau privé et relais, fenêtre de permission.
 - Chantier 13, BoxedWine minimal (autre dépôt).
 
-**Kazo** : le code des ADR 0246 à 0255, un chantier par ADR, dans l'ordre 0246, 0248, 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
+**Kazo** : le code des ADR 0248 à 0255, un chantier par ADR, dans l'ordre 0248, 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
+- Répondre à la série 18 (263 à 266), dont l'épinglage de Kazo dans Os-x86.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
