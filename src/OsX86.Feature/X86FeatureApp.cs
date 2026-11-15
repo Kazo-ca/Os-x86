@@ -6,7 +6,7 @@ namespace OsX86.Feature;
 /// The manifest of Os-x86 (<c>ca.kazo.x86</c>, decision 222 A, replacing 172 A). The build generates
 /// <c>manifest.json</c> from this class; it is never instantiated at run time. Packaged as the
 /// terminal command <c>x86</c> until Kazo OS has the Feature app kind (ADR 0243); the capabilities
-/// stay empty until the work items that need them (storage, network) land.
+/// are those of the work items that landed (private files for the VM registry, work item 6).
 /// </summary>
 [AppManifest]
 public sealed class X86FeatureApp : AppDefinition
@@ -31,6 +31,12 @@ public sealed class X86FeatureApp : AppDefinition
 
     /// <inheritdoc />
     public override string Description => "Runs x86 virtual machines (Linux, DOS, Windows programs through Wine) inside Kazo OS.";
+
+    /// <summary>
+    /// The VM registry and the imported profiles live in the app's private settings directory of
+    /// each user, <c>~/.config/ca.kazo.x86/</c> (work item 6, ADR 0044 of Kazo).
+    /// </summary>
+    public override IReadOnlyList<string> Capabilities => [AppCapabilities.FileSystemPrivateRead, AppCapabilities.FileSystemPrivateWrite];
 
     /// <inheritdoc />
     public override TerminalCommand? Terminal => new("x86", "Manages x86 virtual machines and runs their programs", []);

@@ -17,7 +17,9 @@ namespace OsX86.Vm;
 internal sealed partial class VmJsonContext : JsonSerializerContext
 {
     /// <summary>The same context with indented output, for files a user reads (<c>.x86profile</c>, the registry).</summary>
-    public static VmJsonContext Indented { get; } = new(new JsonSerializerOptions(Default.Options!) { WriteIndented = true });
+    public static VmJsonContext Indented => s_indented ??= new(new JsonSerializerOptions(Default!.Options) { WriteIndented = true });
+
+    private static VmJsonContext? s_indented;
 }
 
 /// <summary>What every versioned document shares (plan §13): a <c>format</c> number read before anything else.</summary>
