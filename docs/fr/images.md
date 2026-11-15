@@ -56,10 +56,24 @@ préfixes vient avec les chantiers 9 et 10 (211 A). Coût : la racine décompres
 ext4 (138 Mio pour linux-base) et non des fichiers dédoublonnés par hachage ; c'est ce que la
 compression par blocs ci-dessous rattrape, puisque l'OPFS garde les octets compressés.
 
-**Le démarrage réel de linux-base n'est pas encore possible** : le worker du chantier 2 ne lit que
-le noyau et l'initramfs de l'OPFS ; la prise en charge de `hda` (un tampon v86 adossé à un
-`SyncAccessHandle`, qui décompresse les trames à la demande) est le chantier 6. Le pack Alpine de
-test, lui, démarre dans le test `guest` de ce chantier.
+**linux-base démarre depuis l'OPFS depuis le chantier 6a** : le worker lit le noyau, l'initramfs
+et la racine `hda` dans `image.bin` et décompresse les trames à la demande (voir
+[`moteur.md`](moteur.md), « Disques et démarrage décrit par le manifeste ») ; `OSX86-READY` en 19 à
+27 s, l'agent répond, et `verify-console.sh` tient ses 22 contrôles dans la VM.
+
+### Deux défauts trouvés en démarrant l'image (chantier 6a)
+
+- **Fins de ligne.** Une extraction Git sous Windows écrivait `osx86.modules` et `modules.keep` en
+  CRLF ; `mkinitfs` lisait alors `sd_mod.ko*\r` et ne trouvait rien : l'initramfs n'avait ni
+  `sd_mod` ni `ext4`, la racine ne se montait pas. La CI construit sous Linux et n'était pas
+  touchée ; le pack de 70,67 Mo mesuré au chantier 5 était cette construction cassée.
+  `.gitattributes` impose désormais LF à tout `images/**`.
+- **Modes de `/dev`.** Le `mdev` de l'initramfs Alpine laisse chaque nœud de `/dev` en 0660 et
+  linux-base n'a pas d'udev : aucun usager ne pouvait ouvrir `/dev/null`, ce qui faisait aussi
+  échouer en silence les commandes de `verify-console.sh` écrites avec `2>/dev/null`. `init.sh`
+  remet `/dev/null`, `zero`, `full`, `random`, `urandom`, `tty` et `ptmx` en 0666.
+  `verify-console.sh` compte un processus caché par `hidepid` comme protégé et reçoit le pid de
+  l'agent en troisième argument (un usager ne le voit pas sous `hidepid=invisible`).
 
 ## La forme publiée et le manifeste
 
@@ -168,7 +182,7 @@ manque, sinon l'image est faite sans lui), `/usr/bin/osx86-open-url` et deux usa
 (`osx86-test`, `osx86-other`). L'init monte cgroup v2 et `/tmp`, passe `/` en 0755 (la racine de
 l'initramfs est en 0700), ferme `ttyS0` et `hvc0` à `hvc3` (0600), crée les homes en 0700 et
 lance l'agent sur `hvc0` ; `hvc2` et `hvc3` restent libres pour les tests du moteur. C'est
-l'image du test `guest` de l'agent, en attendant le démarrage de linux-base (chantier 6).
+l'image du test `guest` de l'agent du chantier 5 ; linux-base a le sien depuis le chantier 6a.
 
 ### freedos (214 A, E14)
 
@@ -256,7 +270,7 @@ freedos, linux-base (Docker sur le runner, i386 natif) et les tests des outils, 
 | --- | --- | --- | --- | --- |
 | alpine-test | noyau 7,70 Mo + initramfs 7,66 Mo | **15,21 Mo** | 1 | le bzImage est déjà compressé ; avec l'agent (+73 Ko) |
 | freedos | disque 33,55 Mo | **17,25 Mo** | 1 | le disque contient 17 Mio de paquets zip |
-| linux-base | noyau 8,11 Mo + initramfs 4,60 Mo + ext4 130,02 Mo (export 97,55 Mo) | **70,67 Mo** | 3 | sans Wine ; 56 modules noyau ; avec l'agent (141 Ko) ; remesuré au chantier 5 (chantier 4 : 73,05 Mo) ; dégraissage : voir `measurements.json` |
+| linux-base | noyau 8,11 Mo + initramfs 5,06 Mo + ext4 138,41 Mo (export 102,49 Mo) | **73,07 Mo** | 3 | sans Wine ; 56 modules noyau ; avec l'agent ; remesuré au chantier 6a (les 70,67 Mo du chantier 5 venaient d'une construction en CRLF, initramfs sans `sd_mod` ni `ext4`) ; dégraissage : voir `measurements.json` |
 
 L'objectif de 250 Mio de 201 A porte sur l'image Wine (chantier 9), qui part de l'étape `base` ;
 E17 avait mesuré 380 Mio avec Debian complet, 130 Mio de modules et `apt`. Les mesures sont dans
