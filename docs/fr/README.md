@@ -8,6 +8,7 @@
 | [`changelog.md`](changelog.md) | Les changements par version |
 | [`images.md`](images.md) | Les images invitées : recettes (linux-base, Alpine de test, FreeDOS), format de paquetage et manifeste, test d'image, sources et licences, publication, tailles |
 | [`agent.md`](agent.md) | L'agent invité et son client C# : protocole (JSON par ligne, événements), cycle de vie d'un lancement (cgroup), consoles par pty multiplexées, délais, mesures, garanties et limites |
+| [`vm.md`](vm.md) | Les VM : registre par usager, cycle de vie et délai de grâce, limite de mémoire, surveillance de l'agent, profils `.x86profile`, commandes `x86 vm`, `x86 shell`, `x86 profile` et leurs codes de sortie, ce qu'`Ix86` expose |
 | [`moteur.md`](moteur.md) | Le moteur v86 dans un Web Worker : `IEngine`, protocole, v86 vendorisé et correctifs, image Alpine de test, tests, sources et licences |
 | [`../conception/`](../conception/) | La conception : plan approuvé, registre des décisions, séries de questions, ordre du jalon 0 (français seulement) |
 | [`../essais/`](../essais/) | Les rapports des prototypes de mesure (français seulement) |

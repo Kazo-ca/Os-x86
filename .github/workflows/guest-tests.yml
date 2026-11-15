@@ -3,7 +3,9 @@
 # 800 MiB image (generated on the fly, never committed) through 503s and cut connections, verifies
 # it and resumes it after a page reload. The guest agent of work item 5 is built (Docker, an
 # Alpine i386 stage), put in the Alpine image, and driven from the C# client: ping, launch,
-# process list, kill by launch, mounts, consoles. Run when the engine, the storage layer, the
+# process list, kill by launch, mounts, consoles. The VM layer of work item 6 then runs the x86
+# command on it: x86 vm create, x86 shell through the agent, Ctrl+C, exit code, stop after the
+# grace. Run when the engine, the storage layer, the
 # agent or its client, their assets, the image recipes or the guest tests change, every night,
 # and on demand. The Alpine image is built from the official Alpine release (verified SHA-256),
 # never committed, like the agent's binary.
@@ -15,12 +17,16 @@ on:
       - "src/OsX86/Engine/**"
       - "src/OsX86/Storage/**"
       - "src/OsX86/Agent/**"
+      - "src/OsX86/Vm/**"
+      - "src/OsX86/Profiles/**"
+      - "src/OsX86.Feature/**"
       - "src/OsX86/wwwroot/**"
       - "tools/v86/**"
       - "images/**"
       - "tests/OsX86.Tests/Guest/**"
       - "tests/OsX86.Tests/Storage/**"
       - "tests/OsX86.Tests/Agent/**"
+      - "tests/OsX86.Tests/Vm/**"
       - "tests/OsX86.Tests/Images/**"
       - ".github/scripts/repair-i386-seccomp.sh"
       - ".github/workflows/guest-tests.yml"
@@ -30,12 +36,16 @@ on:
       - "src/OsX86/Engine/**"
       - "src/OsX86/Storage/**"
       - "src/OsX86/Agent/**"
+      - "src/OsX86/Vm/**"
+      - "src/OsX86/Profiles/**"
+      - "src/OsX86.Feature/**"
       - "src/OsX86/wwwroot/**"
       - "tools/v86/**"
       - "images/**"
       - "tests/OsX86.Tests/Guest/**"
       - "tests/OsX86.Tests/Storage/**"
       - "tests/OsX86.Tests/Agent/**"
+      - "tests/OsX86.Tests/Vm/**"
       - "tests/OsX86.Tests/Images/**"
       - ".github/scripts/repair-i386-seccomp.sh"
   schedule:

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Os-x86 VM guest test</title>
+</head>
+<body>
+<!--
+  Test page of the VM layer (milestone 0, work item 6). It copies the Alpine test image into the
+  OPFS, then lets the C# side drive real engine workers: each window.vm.createHost() starts a
+  worker through the engine's own host module and hands every message it posts to the binding
+  osx86WorkerMessage(host, sequence, json); window.vm.post(host, json) writes to it. The C#
+  V86Engine runs unchanged on top (PlaywrightEngineWorkerChannel). Driven by VmShellGuestTests.
+
+  Query parameters: host=<url of v86-host.js>, image=<url of the directory that holds manifest.json>.
+-->
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const hostUrl = new URL(params.get("host"), location.href).href;
+  const imageUrl = new URL(params.get("image"), location.href).href;
+  const OPFS_DIRECTORY = "osx86-test";
+  const hosts = new Map();
+  let nextHost = 1;
+
+  async function copyImageToOpfs() {
+    const response = await fetch(new URL("manifest.json", imageUrl), { cache: "no-store" });
+    if (!response.ok) throw new Error(`manifest.json: HTTP ${response.status}`);
+    const manifest = await response.json();
+    const root = await navigator.storage.getDirectory();
+    const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: true });
+    for (const entry of [manifest.kernel, manifest.initrd]) {
+      const bytes = await (await fetch(new URL(entry.file, imageUrl), { cache: "no-store" })).arrayBuffer();
+      if (bytes.byteLength !== entry.size) throw new Error(`${entry.file}: ${bytes.byteLength} bytes, expected ${entry.size}`);
+      const file = await directory.getFileHandle(entry.file, { create: true });
+      const writable = await file.createWritable();
+      await writable.write(bytes);
+      await writable.close();
+    }
+    return {
+      kernelPath: `${OPFS_DIRECTORY}/${manifest.kernel.file}`,
+      initrdPath: `${OPFS_DIRECTORY}/${manifest.initrd.file}`,
+      cmdline: manifest.cmdline,
+    };
+  }
+
+  window.vm = {
+    prepare: copyImageToOpfs,
+
+    /** Starts an engine worker; its messages go to the binding, numbered without gaps. */
+    async createHost() {
+      const { createHost } = await import(hostUrl);
+      const id = nextHost++;
+      let sequence = 0;
+      const callback = { invokeMethodAsync: async (method, json) => { if (method === "OnWorkerMessage") window.osx86WorkerMessage(id, sequence++, json); } };
+      hosts.set(id, createHost(callback, {}));
+      return id;
+    },
+
+    post(id, json) { hosts.get(id).post(json); },
+
+    disposeHost(id) {
+      const host = hosts.get(id);
+      if (host) { host.dispose(); hosts.delete(id); }
+    },
+
+    get hostCount() { return hosts.size; },
+  };
+</script>
+</body>
+</html>
