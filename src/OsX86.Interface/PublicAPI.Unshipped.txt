@@ -1,31 +1,95 @@
 #nullable enable
+OsX86.Interface.IVmConsole
+OsX86.Interface.IVmConsole.Exited.get -> System.Threading.Tasks.Task<int>!
+OsX86.Interface.IVmConsole.IsSerial.get -> bool
+OsX86.Interface.IVmConsole.ReadOutputAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<System.ReadOnlyMemory<byte>>!
+OsX86.Interface.IVmConsole.ResizeAsync(int columns, int rows, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+OsX86.Interface.IVmConsole.SendInterruptAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+OsX86.Interface.IVmConsole.VmId.get -> System.Guid
+OsX86.Interface.IVmConsole.WriteAsync(System.ReadOnlyMemory<byte> data, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
 OsX86.Interface.Ix86
-OsX86.Interface.Ix86.Version.get -> string!
 OsX86.Interface.Ix86.GetVmsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<OsX86.Interface.VmSummary!>!>
+OsX86.Interface.Ix86.OpenConsoleAsync(System.Guid vmId, OsX86.Interface.VmConsoleOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<OsX86.Interface.IVmConsole!>
+OsX86.Interface.Ix86.StartVmAsync(System.Guid vmId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+OsX86.Interface.Ix86.StopVmAsync(System.Guid vmId, bool force, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+OsX86.Interface.Ix86.Version.get -> string!
+OsX86.Interface.Ix86.VmStateChanged -> System.EventHandler<OsX86.Interface.VmStateChangedEventArgs!>?
+OsX86.Interface.VmConsoleOptions
+OsX86.Interface.VmConsoleOptions.<Clone>$() -> OsX86.Interface.VmConsoleOptions!
+OsX86.Interface.VmConsoleOptions.Columns.get -> int
+OsX86.Interface.VmConsoleOptions.Columns.init -> void
+OsX86.Interface.VmConsoleOptions.Equals(OsX86.Interface.VmConsoleOptions? other) -> bool
+override OsX86.Interface.VmConsoleOptions.Equals(object? obj) -> bool
+override OsX86.Interface.VmConsoleOptions.GetHashCode() -> int
+OsX86.Interface.VmConsoleOptions.Prefix.get -> string?
+OsX86.Interface.VmConsoleOptions.Prefix.init -> void
+OsX86.Interface.VmConsoleOptions.Rows.get -> int
+OsX86.Interface.VmConsoleOptions.Rows.init -> void
+override OsX86.Interface.VmConsoleOptions.ToString() -> string!
+OsX86.Interface.VmConsoleOptions.VmConsoleOptions() -> void
+static OsX86.Interface.VmConsoleOptions.operator !=(OsX86.Interface.VmConsoleOptions? left, OsX86.Interface.VmConsoleOptions? right) -> bool
+static OsX86.Interface.VmConsoleOptions.operator ==(OsX86.Interface.VmConsoleOptions? left, OsX86.Interface.VmConsoleOptions? right) -> bool
+OsX86.Interface.VmKind
+OsX86.Interface.VmKind.Dos = 1 -> OsX86.Interface.VmKind
+OsX86.Interface.VmKind.Linux = 0 -> OsX86.Interface.VmKind
+OsX86.Interface.VmKind.WindowsPrograms = 2 -> OsX86.Interface.VmKind
+OsX86.Interface.VmMemoryBudgetExceededException
+OsX86.Interface.VmMemoryBudgetExceededException.Compatible.get -> System.Collections.Generic.IReadOnlyList<OsX86.Interface.VmSummary!>!
+OsX86.Interface.VmMemoryBudgetExceededException.LimitMiB.get -> int
+OsX86.Interface.VmMemoryBudgetExceededException.RequestedMiB.get -> int
+OsX86.Interface.VmMemoryBudgetExceededException.Running.get -> System.Collections.Generic.IReadOnlyList<OsX86.Interface.VmSummary!>!
+OsX86.Interface.VmMemoryBudgetExceededException.RunningMiB.get -> int
+OsX86.Interface.VmMemoryBudgetExceededException.VmMemoryBudgetExceededException(int requestedMiB, int runningMiB, int limitMiB, System.Collections.Generic.IReadOnlyList<OsX86.Interface.VmSummary!>! running, System.Collections.Generic.IReadOnlyList<OsX86.Interface.VmSummary!>! compatible) -> void
+OsX86.Interface.VmState
+OsX86.Interface.VmState.Running = 2 -> OsX86.Interface.VmState
+OsX86.Interface.VmState.Starting = 1 -> OsX86.Interface.VmState
+OsX86.Interface.VmState.Stopped = 0 -> OsX86.Interface.VmState
+OsX86.Interface.VmState.Stopping = 3 -> OsX86.Interface.VmState
+OsX86.Interface.VmStateChangedEventArgs
+OsX86.Interface.VmStateChangedEventArgs.Current.get -> OsX86.Interface.VmState
+OsX86.Interface.VmStateChangedEventArgs.Previous.get -> OsX86.Interface.VmState
+OsX86.Interface.VmStateChangedEventArgs.VmId.get -> System.Guid
+OsX86.Interface.VmStateChangedEventArgs.VmStateChangedEventArgs(System.Guid vmId, OsX86.Interface.VmState previous, OsX86.Interface.VmState current) -> void
 OsX86.Interface.VmSummary
-OsX86.Interface.VmSummary.VmSummary(System.Guid Id, string! Name, OsX86.Interface.VmKind Kind, OsX86.Interface.VmState State) -> void
-OsX86.Interface.VmSummary.Id.get -> System.Guid
-OsX86.Interface.VmSummary.Id.init -> void
-OsX86.Interface.VmSummary.Name.get -> string!
-OsX86.Interface.VmSummary.Name.init -> void
-OsX86.Interface.VmSummary.Kind.get -> OsX86.Interface.VmKind
-OsX86.Interface.VmSummary.Kind.init -> void
-OsX86.Interface.VmSummary.State.get -> OsX86.Interface.VmState
-OsX86.Interface.VmSummary.State.init -> void
 OsX86.Interface.VmSummary.<Clone>$() -> OsX86.Interface.VmSummary!
-OsX86.Interface.VmSummary.Deconstruct(out System.Guid Id, out string! Name, out OsX86.Interface.VmKind Kind, out OsX86.Interface.VmState State) -> void
+OsX86.Interface.VmSummary.Deconstruct(out System.Guid Id, out string! Name, out OsX86.Interface.VmKind Kind, out OsX86.Interface.VmState State, out string! Image, out string! ImageVersion, out int MemoryMiB) -> void
 OsX86.Interface.VmSummary.Equals(OsX86.Interface.VmSummary? other) -> bool
 override OsX86.Interface.VmSummary.Equals(object? obj) -> bool
 override OsX86.Interface.VmSummary.GetHashCode() -> int
+OsX86.Interface.VmSummary.Id.get -> System.Guid
+OsX86.Interface.VmSummary.Id.init -> void
+OsX86.Interface.VmSummary.Image.get -> string!
+OsX86.Interface.VmSummary.Image.init -> void
+OsX86.Interface.VmSummary.ImageVersion.get -> string!
+OsX86.Interface.VmSummary.ImageVersion.init -> void
+OsX86.Interface.VmSummary.Kind.get -> OsX86.Interface.VmKind
+OsX86.Interface.VmSummary.Kind.init -> void
+OsX86.Interface.VmSummary.MemoryMiB.get -> int
+OsX86.Interface.VmSummary.MemoryMiB.init -> void
+OsX86.Interface.VmSummary.Name.get -> string!
+OsX86.Interface.VmSummary.Name.init -> void
+OsX86.Interface.VmSummary.State.get -> OsX86.Interface.VmState
+OsX86.Interface.VmSummary.State.init -> void
 override OsX86.Interface.VmSummary.ToString() -> string!
+OsX86.Interface.VmSummary.VmSummary(System.Guid Id, string! Name, OsX86.Interface.VmKind Kind, OsX86.Interface.VmState State, string! Image, string! ImageVersion, int MemoryMiB) -> void
 static OsX86.Interface.VmSummary.operator !=(OsX86.Interface.VmSummary? left, OsX86.Interface.VmSummary? right) -> bool
 static OsX86.Interface.VmSummary.operator ==(OsX86.Interface.VmSummary? left, OsX86.Interface.VmSummary? right) -> bool
-OsX86.Interface.VmKind
-OsX86.Interface.VmKind.Linux = 0 -> OsX86.Interface.VmKind
-OsX86.Interface.VmKind.Dos = 1 -> OsX86.Interface.VmKind
-OsX86.Interface.VmKind.WindowsPrograms = 2 -> OsX86.Interface.VmKind
-OsX86.Interface.VmState
-OsX86.Interface.VmState.Stopped = 0 -> OsX86.Interface.VmState
-OsX86.Interface.VmState.Starting = 1 -> OsX86.Interface.VmState
-OsX86.Interface.VmState.Running = 2 -> OsX86.Interface.VmState
-OsX86.Interface.VmState.Stopping = 3 -> OsX86.Interface.VmState
+OsX86.Interface.X86ErrorCodes
+const OsX86.Interface.X86ErrorCodes.AgentError = "agent-error" -> string!
+const OsX86.Interface.X86ErrorCodes.AgentLost = "agent-lost" -> string!
+const OsX86.Interface.X86ErrorCodes.ConsoleClosed = "console-closed" -> string!
+const OsX86.Interface.X86ErrorCodes.EngineUnavailable = "engine-unavailable" -> string!
+const OsX86.Interface.X86ErrorCodes.ImageUnavailable = "image-unavailable" -> string!
+const OsX86.Interface.X86ErrorCodes.InvalidName = "invalid-name" -> string!
+const OsX86.Interface.X86ErrorCodes.InvalidProfile = "invalid-profile" -> string!
+const OsX86.Interface.X86ErrorCodes.InvalidUser = "invalid-user" -> string!
+const OsX86.Interface.X86ErrorCodes.MemoryBudgetExceeded = "memory-budget-exceeded" -> string!
+const OsX86.Interface.X86ErrorCodes.NoConsole = "no-console" -> string!
+const OsX86.Interface.X86ErrorCodes.NoPrefix = "no-prefix" -> string!
+const OsX86.Interface.X86ErrorCodes.StartFailed = "start-failed" -> string!
+const OsX86.Interface.X86ErrorCodes.UnsupportedFormat = "unsupported-format" -> string!
+const OsX86.Interface.X86ErrorCodes.VmBusy = "vm-busy" -> string!
+const OsX86.Interface.X86ErrorCodes.VmNotFound = "vm-not-found" -> string!
+OsX86.Interface.X86Exception
+OsX86.Interface.X86Exception.Code.get -> string!
+OsX86.Interface.X86Exception.X86Exception(string! code, string! message, System.Exception? innerException = null) -> void
