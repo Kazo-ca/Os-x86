@@ -22,13 +22,13 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 3, stockage : manifeste d'image, téléchargement vérifié par morceaux de 32 Mio avec reprise, dépôt dans l'OPFS, verrou, formats versionnés.
 - Chantier 4, images : outil de paquetage zstd, recettes `linux-base` (Debian i386, 73 Mo), Alpine de test (15 Mo), FreeDOS (17 Mo), durcissement et son test, publication préparée.
 - Chantier 5, agent : agent invité en C statique dans l'image, client C# du protocole, consoles, tests dans l'image Alpine.
+- Chantier 1c, Kazo épinglé sur `v3.4.0` stable (266 A) : fusionné (PR #10).
+- Chantier 6a, disque `hda` depuis l'OPFS : `linux-base` démarre avec son agent (22 contrôles sur 22), couche d'écriture, FreeDOS démarre : fusionné (PR #8).
 
 ## En cours
 
-- **Chantier 6a**, disque `hda` lu depuis l'OPFS, couche d'écriture, démarrage de `linux-base` et de FreeDOS dans le moteur : repris le 2026-11-14.
-- **Chantier 6**, registre des VM, cycle de vie, budget de mémoire, profils, `x86 vm`, `x86 shell` : repris le 2026-11-14.
-- **Épinglage de Kazo** sur `v3.4.0-preview.4` (266 A) : petit chantier `j0/1c-kazo-pin` lancé le 2026-11-15.
-- **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : lancé le 2026-11-15, branche `feature/17-provider-declared-permissions-code`.
+- **Chantier 6**, registre des VM, cycle de vie, budget de mémoire, profils, `x86 vm`, `x86 shell` : PR #9, mise à jour sur `j0/base` en cours, fusion par moi sur ton mandat.
+- **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : PR Kazo #570 ouverte, CI en cours ; ses questions sont la série 19 (267 à 269).
 
 ## Reste à faire
 
@@ -47,6 +47,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0248 à 0255, un chantier par ADR, dans l'ordre 0248, 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
+- Répondre à la série 19 (267 à 269), puis fusionner Kazo #570.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
