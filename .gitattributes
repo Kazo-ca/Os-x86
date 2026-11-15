@@ -1,7 +1,7 @@
 # Vendored v86 and its patches are byte-exact (tools/v86/vendor-v86.py --check compares them).
 src/OsX86/wwwroot/v86/** -text
 tools/v86/patches/*.patch -text
-# Guest scripts run inside Linux: LF only.
-images/**/*.sh text eol=lf
-# The agent is compiled inside Linux containers and hashed by its recipe: LF only.
-images/agent/** text eol=lf
+# Everything of the image recipes is read inside Linux (Docker stages, mkinitfs, the guest
+# itself): LF only. A CRLF checkout on Windows turned the globs of linux-base/osx86.modules into
+# "sd_mod.ko*\r", and mkinitfs built an initramfs without sd_mod nor ext4 (work item 6a).
+images/** text eol=lf

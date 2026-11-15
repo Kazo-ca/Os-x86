@@ -25,6 +25,11 @@ on:
       - "tests/OsX86.Tests/Images/**"
       - ".github/workflows/images.yml"
       - ".github/scripts/repair-i386-seccomp.sh"
+      # The guest job below boots linux-base and FreeDOS: the engine and its tests trigger it too.
+      - "src/OsX86/Engine/**"
+      - "src/OsX86/Storage/**"
+      - "src/OsX86/wwwroot/engine/**"
+      - "tests/OsX86.Tests/Guest/**"
   push:
     branches: [j0/base, main]
     paths:
@@ -32,6 +37,10 @@ on:
       - "tests/OsX86.Tests/Images/**"
       - ".github/workflows/images.yml"
       - ".github/scripts/repair-i386-seccomp.sh"
+      - "src/OsX86/Engine/**"
+      - "src/OsX86/Storage/**"
+      - "src/OsX86/wwwroot/engine/**"
+      - "tests/OsX86.Tests/Guest/**"
   workflow_dispatch:
 
 permissions:
@@ -121,6 +130,40 @@ jobs:
           name: image-linux-base
           path: images/build/linux-base/pack
           if-no-files-found: error
+
+  guest:
+    # Work item 6a: the packs built above, downloaded as they are (never built twice), booted in
+    # the engine worker of a headless Chromium from the OPFS: linux-base to OSX86-READY with its
+    # agent, the 22 R134.5 checks at run time, the write layer persistent then discarded; FreeDOS
+    # to its prompt. OSX86_REQUIRE_PACKS makes a missing pack a failure, not a skip.
+    needs: [linux-base, freedos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-linux-base
+          path: images/build/linux-base/pack
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-freedos
+          path: images/build/freedos/pack
+      - name: Build (Release, packages)
+        run: dotnet build OsX86.sln -c Release
+      - name: Install the Playwright browser
+        run: pwsh tests/OsX86.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+      - name: Guest tests of the packed images (linux-base, FreeDOS)
+        env:
+          OSX86_REQUIRE_PACKS: "1"
+        run: >
+          dotnet test OsX86.sln -c Release --no-build --logger "console;verbosity=normal"
+          --filter "Category=guest&(FullyQualifiedName~LinuxBaseGuestTests|FullyQualifiedName~FreeDosGuestTests)"
 
   image-tool-tests:
     runs-on: ubuntu-latest

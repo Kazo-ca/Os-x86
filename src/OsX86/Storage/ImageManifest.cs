@@ -8,7 +8,13 @@ namespace OsX86.Storage;
 /// <summary>A logical file inside the image payload: <c>kernel</c>, <c>initramfs</c>, <c>rootfs</c>, ...</summary>
 /// <param name="Offset">Where the file starts in the payload, in bytes.</param>
 /// <param name="Size">Its length, in bytes.</param>
-public sealed record ImageFileEntry(long Offset, long Size);
+/// <param name="RawSize">Its decompressed length when it is a zstd "seekable" stream (<c>pack-image.py</c>), else null.</param>
+/// <param name="BlockSize">The decompressed size of its frames when it is a zstd "seekable" stream, else null.</param>
+public sealed record ImageFileEntry(long Offset, long Size, long? RawSize = null, int? BlockSize = null)
+{
+    /// <summary>Whether the file is stored as a zstd "seekable" stream.</summary>
+    public bool IsCompressed => RawSize is not null;
+}
 
 /// <summary>
 /// The manifest published next to the chunks of an image (<c>manifest.json</c>, the schema shared
@@ -48,8 +54,9 @@ public sealed class ImageManifest
     /// <summary>The largest manifest text accepted, in bytes.</summary>
     public const int MaxManifestBytes = 1024 * 1024;
 
-    private ImageManifest(string json, string sha256, int format, string image, string version, IReadOnlyDictionary<string, string> engine, long size, int chunkSize, IReadOnlyList<string> chunkHashes, IReadOnlyDictionary<string, ImageFileEntry> files)
+    private ImageManifest(string json, string sha256, int format, string image, string version, IReadOnlyDictionary<string, string> engine, long size, int chunkSize, IReadOnlyList<string> chunkHashes, IReadOnlyDictionary<string, ImageFileEntry> files, ImageBootSection? boot)
     {
+        Boot = boot;
         Json = json;
         Sha256 = sha256;
         Format = format;
@@ -91,6 +98,9 @@ public sealed class ImageManifest
 
     /// <summary>The logical files of the payload.</summary>
     public IReadOnlyDictionary<string, ImageFileEntry> Files { get; }
+
+    /// <summary>How the engine starts the image (the <c>boot</c> section), null when the manifest has none.</summary>
+    public ImageBootSection? Boot { get; }
 
     /// <summary>How many chunks the payload has.</summary>
     public int ChunkCount => ChunkHashes.Count;
@@ -164,7 +174,8 @@ public sealed class ImageManifest
         int chunkSize = (int)ReadInteger(root, "chunkSize", MinChunkSize, MaxChunkSize);
         IReadOnlyList<string> chunks = ReadChunks(root, size, chunkSize);
         IReadOnlyDictionary<string, ImageFileEntry> files = ReadFiles(root, size);
-        return new ImageManifest(json, sha256, format, image, version, engine, size, chunkSize, chunks, files);
+        ImageBootSection? boot = ImageBootSection.Read(root, files);
+        return new ImageManifest(json, sha256, format, image, version, engine, size, chunkSize, chunks, files, boot);
     }
 
     private static JsonDocument ParseDocument(string json)
@@ -316,13 +327,34 @@ public sealed class ImageManifest
                 throw Invalid($"'files.{property.Name}' ends at {offset + length}, beyond the payload size {size}");
             }
 
-            if (!files.TryAdd(property.Name, new ImageFileEntry(offset, length)))
+            (long? rawSize, int? blockSize) = ReadCompression(property);
+            if (!files.TryAdd(property.Name, new ImageFileEntry(offset, length, rawSize, blockSize)))
             {
                 throw Invalid($"'files.{property.Name}' appears twice");
             }
         }
 
         return new ReadOnlyDictionary<string, ImageFileEntry>(files);
+    }
+
+    /// <summary>The optional <c>rawSize</c> and <c>blockSize</c> of a file entry: both or neither.</summary>
+    private static (long? RawSize, int? BlockSize) ReadCompression(JsonProperty property)
+    {
+        bool hasRaw = property.Value.TryGetProperty("rawSize", out _);
+        bool hasBlock = property.Value.TryGetProperty("blockSize", out _);
+        if (!hasRaw && !hasBlock)
+        {
+            return (null, null);
+        }
+
+        if (hasRaw != hasBlock)
+        {
+            throw Invalid($"'files.{property.Name}' must give both 'rawSize' and 'blockSize', or neither");
+        }
+
+        long rawSize = ReadInteger(property.Value, "rawSize", 0, long.MaxValue / 2);
+        int blockSize = (int)ReadInteger(property.Value, "blockSize", 1, 1 << 30);
+        return (rawSize, blockSize);
     }
 
     /// <summary>Whether <paramref name="value"/> is a SHA-256 in lowercase hex.</summary>

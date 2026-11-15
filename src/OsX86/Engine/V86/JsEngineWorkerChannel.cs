@@ -50,16 +50,17 @@ public sealed class JsEngineWorkerChannel : IEngineWorkerChannel
         {
             IJSObjectReference module = await _js.InvokeAsync<IJSObjectReference>("import", cancellationToken, _modulePath).ConfigureAwait(false);
             DotNetObjectReference<JsEngineWorkerChannel> self = DotNetObjectReference.Create(this);
+            _onMessage = onMessage; // before createHost: a fast worker posts "ready" before the call returns
             try
             {
                 IJSObjectReference host = await module.InvokeAsync<IJSObjectReference>("createHost", cancellationToken, self).ConfigureAwait(false);
-                _onMessage = onMessage;
                 _module = module;
                 _self = self;
                 _host = host;
             }
             catch (Exception)
             {
+                _onMessage = null;
                 self.Dispose();
                 await DisposeQuietlyAsync(module).ConfigureAwait(false);
                 throw;

@@ -42,6 +42,15 @@ internal sealed class WorkerMessage
 
     /// <summary><c>event</c>: the v86 event name.</summary>
     public string? Name { get; set; }
+
+    /// <summary><c>screen</c>: the rows of the VGA text screen.</summary>
+    public List<string>? Lines { get; set; }
+
+    /// <summary><c>disks</c>: the counters of each open disk.</summary>
+    public Dictionary<string, DiskCountersMessage>? Disks { get; set; }
+
+    /// <summary><c>disks</c>: the counters of the frame cache, null when no disk is open.</summary>
+    public CacheCountersMessage? Cache { get; set; }
 }
 
 /// <summary>The <c>start</c> command.</summary>
@@ -57,11 +66,23 @@ internal sealed class StartCommand
 /// <summary>The options of <see cref="StartCommand"/>, as the worker reads them.</summary>
 internal sealed class StartCommandOptions
 {
-    /// <summary>OPFS path of the kernel.</summary>
-    public required string KernelPath { get; init; }
+    /// <summary><c>linux</c> or <c>dos</c>.</summary>
+    public required string Kind { get; init; }
 
-    /// <summary>OPFS path of the initramfs.</summary>
-    public required string InitrdPath { get; init; }
+    /// <summary>OPFS path of a kernel read whole (the form of work item 2).</summary>
+    public string? KernelPath { get; init; }
+
+    /// <summary>OPFS path of an initramfs read whole.</summary>
+    public string? InitrdPath { get; init; }
+
+    /// <summary>The kernel as a source.</summary>
+    public SourceCommand? Kernel { get; init; }
+
+    /// <summary>The initramfs as a source.</summary>
+    public SourceCommand? Initrd { get; init; }
+
+    /// <summary>The disks by name.</summary>
+    public Dictionary<string, DiskCommand>? Disks { get; init; }
 
     /// <summary>Kernel command line.</summary>
     public required string Cmdline { get; init; }
@@ -72,19 +93,123 @@ internal sealed class StartCommandOptions
     /// <summary>VGA memory in MiB.</summary>
     public int VgaMemoryMiB { get; init; }
 
+    /// <summary>The bound of the frame cache in MiB.</summary>
+    public int CacheMiB { get; init; }
+
     /// <summary>Whether the virtio-console device is declared.</summary>
     public bool VirtioConsole { get; init; }
 
     /// <summary>Builds the command options from the public options.</summary>
     public static StartCommandOptions From(EngineStartOptions options) => new()
     {
+        Kind = options.Kind == EngineBootKind.Dos ? "dos" : "linux",
         KernelPath = options.KernelPath,
         InitrdPath = options.InitrdPath,
+        Kernel = SourceCommand.From(options.Kernel),
+        Initrd = SourceCommand.From(options.Initrd),
+        Disks = options.Disks.Count == 0 ? null : options.Disks.ToDictionary(static pair => pair.Key, static pair => DiskCommand.From(pair.Value), StringComparer.Ordinal),
         Cmdline = options.KernelCommandLine,
         MemoryMiB = options.MemoryMiB,
         VgaMemoryMiB = options.VgaMemoryMiB,
+        CacheMiB = options.FrameCacheMiB,
         VirtioConsole = options.VirtioConsole,
     };
+}
+
+/// <summary>A source of the start command: <c>{path, offset?, size?, rawSize?, blockSize?}</c>.</summary>
+internal sealed class SourceCommand
+{
+    public required string Path { get; init; }
+
+    public long? Offset { get; init; }
+
+    public long? Size { get; init; }
+
+    public long? RawSize { get; init; }
+
+    public int? BlockSize { get; init; }
+
+    public static SourceCommand? From(EngineFileSource? source) => source is null ? null : new SourceCommand
+    {
+        Path = source.Path,
+        Offset = source.Offset,
+        Size = source.Size,
+        RawSize = source.RawSize,
+        BlockSize = source.BlockSize,
+    };
+}
+
+/// <summary>A disk of the start command: its source and its layer.</summary>
+internal sealed class DiskCommand
+{
+    public required SourceCommand Source { get; init; }
+
+    public required LayerCommand Layer { get; init; }
+
+    public static DiskCommand From(EngineDiskOptions disk) => new()
+    {
+        Source = SourceCommand.From(disk.Source)!,
+        Layer = new LayerCommand
+        {
+            Mode = disk.Layer.Mode == EngineWriteLayerMode.Persistent ? "persistent" : "discard",
+            Path = disk.Layer.Path,
+            Metadata = disk.Layer.MetadataJson,
+        },
+    };
+}
+
+/// <summary>The layer of a disk: <c>{mode:"discard"}</c> or <c>{mode:"persistent", path, metadata}</c>.</summary>
+internal sealed class LayerCommand
+{
+    public required string Mode { get; init; }
+
+    public string? Path { get; init; }
+
+    public string? Metadata { get; init; }
+}
+
+/// <summary>The counters of one disk in the <c>disks</c> message.</summary>
+internal sealed class DiskCountersMessage
+{
+    public long Bytes { get; set; }
+
+    public long Reads { get; set; }
+
+    public long BytesRead { get; set; }
+
+    public long Writes { get; set; }
+
+    public long BytesWritten { get; set; }
+
+    public long CompressedBytesRead { get; set; }
+
+    public LayerCountersMessage? Layer { get; set; }
+}
+
+/// <summary>The counters of a write layer in the <c>disks</c> message.</summary>
+internal sealed class LayerCountersMessage
+{
+    public string? Mode { get; set; }
+
+    public long BlocksWritten { get; set; }
+
+    public long LayerBytes { get; set; }
+}
+
+/// <summary>The counters of the frame cache in the <c>disks</c> message.</summary>
+internal sealed class CacheCountersMessage
+{
+    public long CacheBytes { get; set; }
+
+    public long CacheMaxBytes { get; set; }
+
+    public int CacheFrames { get; set; }
+
+    public long Hits { get; set; }
+
+    public long Misses { get; set; }
+
+    public long Evictions { get; set; }
 }
 
 /// <summary>A command without arguments: <c>stop</c>, <c>pause</c>, <c>resume</c>, <c>query-state</c>.</summary>
@@ -129,7 +254,14 @@ internal static class WorkerProtocol
         public const string Console = "console";
         public const string ScreenSize = "screen-size";
         public const string Event = "event";
+        public const string Screen = "screen";
+        public const string Disks = "disks";
+        public const string Benchmark = "benchmark";
     }
+
+    public static string ReadScreen() => Serialize(new SimpleCommand("read-screen"));
+
+    public static string QueryDisks() => Serialize(new SimpleCommand("query-disks"));
 
     public static string Serialize(StartCommand command) => Serialize(command, WorkerJsonContext.Default.StartCommand);
 

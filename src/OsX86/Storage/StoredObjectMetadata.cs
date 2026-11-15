@@ -80,6 +80,26 @@ public sealed class StoredObjectMetadata
         };
     }
 
+    /// <summary>
+    /// Builds the metadata of a write layer over a disk of the image a manifest describes, made by
+    /// the engine <paramref name="engineV86Version"/>: the engine reopens the layer only for the same
+    /// image version and the same major version of v86 (decision 169).
+    /// </summary>
+    public static StoredObjectMetadata ForLayer(ImageManifest manifest, string engineV86Version, DateTimeOffset created)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        ArgumentException.ThrowIfNullOrEmpty(engineV86Version);
+        return new StoredObjectMetadata
+        {
+            Kind = StoredObjectKind.Layer,
+            Image = manifest.Image,
+            ImageVersion = manifest.Version,
+            Engine = new Dictionary<string, string>(StringComparer.Ordinal) { ["v86"] = engineV86Version },
+            Created = created,
+            Complete = true,
+        };
+    }
+
     /// <summary>The JSON text of the metadata, as written in the OPFS.</summary>
     public string ToJson() => JsonSerializer.Serialize(this, StorageJsonContext.Default.StoredObjectMetadata);
 

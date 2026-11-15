@@ -35,6 +35,30 @@ public static class EngineErrorCodes
 
     /// <summary>The operation was abandoned because the engine was disposed.</summary>
     public const string Disposed = "disposed";
+
+    /// <summary>A compressed entry of the image is damaged (seek table, frame) or disagrees with its manifest.</summary>
+    public const string ImageCorrupt = "image-corrupt";
+
+    /// <summary>A read or a write of a disk or its layer failed in the OPFS.</summary>
+    public const string DiskIoFailed = "disk-io-failed";
+
+    /// <summary>The browser refused a write to a layer for lack of storage quota.</summary>
+    public const string QuotaExceeded = "quota-exceeded";
+
+    /// <summary>Another engine holds the write layer (one writer per disk, E11).</summary>
+    public const string LayerLocked = "layer-locked";
+
+    /// <summary>The write layer belongs to another image version or another disk size.</summary>
+    public const string LayerMismatch = "layer-mismatch";
+
+    /// <summary>A stored object (a layer) has a format this version does not read: refused, nothing written (decision 169).</summary>
+    public const string FormatUnsupported = "format-unsupported";
+
+    /// <summary>The image or the layer was made for another major version of the engine (decision 169): refused, nothing written.</summary>
+    public const string EngineVersionMismatch = "engine-version-mismatch";
+
+    /// <summary>The manifest has no boot section the engine can follow (missing, unknown kind, missing file).</summary>
+    public const string BootUnsupported = "boot-unsupported";
 }
 
 /// <summary>An error reported by an engine, with the code of <see cref="EngineErrorCodes"/> that names it.</summary>

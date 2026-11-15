@@ -171,6 +171,95 @@
       return { manifest, state };
     },
 
+    /**
+     * Work item 6a: copies a published pack (manifest.json and its chunks, served at packUrl) into
+     * the OPFS where the storage of work item 3 keeps it, osx86/images/<image>/<version>/image.bin.
+     * Returns {image, version, size, ms}.
+     */
+    async installPack(packUrl) {
+      const started = performance.now();
+      const base = new URL(packUrl, location.href);
+      const packManifest = await (await fetch(new URL("manifest.json", base), { cache: "no-store" })).json();
+      let directory = await navigator.storage.getDirectory();
+      for (const part of ["osx86", "images", packManifest.image, packManifest.version]) {
+        directory = await directory.getDirectoryHandle(part, { create: true });
+      }
+      const writable = await (await directory.getFileHandle("image.bin", { create: true })).createWritable();
+      let size = 0;
+      for (let index = 0; index < packManifest.chunks.length; index++) {
+        const name = `chunk-${String(index).padStart(5, "0")}.bin`;
+        const bytes = await (await fetch(new URL(name, base), { cache: "no-store" })).arrayBuffer();
+        await writable.write(bytes);
+        size += bytes.byteLength;
+      }
+      await writable.close();
+      if (size !== packManifest.size) throw new Error(`image.bin is ${size} bytes, the manifest says ${packManifest.size}`);
+      return { image: packManifest.image, version: packManifest.version, size, ms: Math.round(performance.now() - started) };
+    },
+
+    /** Starts the engine with a start command built by the C# side (WorkerProtocol.Start); returns once running. */
+    async startWith(startJson, options = {}) {
+      if (!host) {
+        const { createHost } = await import(hostUrl);
+        host = createHost(callback, {});
+      }
+      const started = performance.now();
+      host.post(startJson);
+      await waitFor("state", null, "running", options.startTimeoutMs || 120000);
+      return { state, ms: Math.round(performance.now() - started) };
+    },
+
+    /** Posts a command and waits for the first answer of `answerType` after it (a non-fatal error rejects). */
+    async request(message, answerType, timeoutMs = 30000) {
+      const before = events.length;
+      post(message);
+      const deadline = performance.now() + timeoutMs;
+      for (;;) {
+        const answer = events.slice(before).find((event) => event.type === answerType || (event.type === "error" && !event.fatal));
+        if (answer) {
+          if (answer.type === "error") throw new Error(`${answer.code}: ${answer.message}`);
+          return answer;
+        }
+        if (performance.now() > deadline) throw new Error(`no ${answerType} within ${timeoutMs} ms`);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    },
+
+    readScreen() { return guest.request({ type: "read-screen" }, "screen"); },
+    queryDisks() { return guest.request({ type: "query-disks" }, "disks"); },
+    benchmark(disk, sequentialMiB, randomReads) { return guest.request({ type: "disk-benchmark", disk, sequentialMiB, randomReads }, "benchmark", 300000); },
+
+    /** Waits until the VGA text screen contains `needle`; returns the screen text. */
+    async waitForScreen(needle, timeoutMs = 60000) {
+      const deadline = performance.now() + timeoutMs;
+      for (;;) {
+        const screen = await guest.readScreen();
+        const text = screen.lines.join("\n");
+        if (text.includes(needle)) return text;
+        if (performance.now() > deadline) throw new Error(`timeout waiting for ${JSON.stringify(needle)} on the screen:\n${text}`);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    },
+
+    /** The size of an OPFS file, or -1 when it does not exist. */
+    async opfsFileSize(path) {
+      let directory = await navigator.storage.getDirectory();
+      const parts = path.split("/");
+      try {
+        for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part);
+        return (await (await directory.getFileHandle(parts[parts.length - 1])).getFile()).size;
+      } catch (error) {
+        if (error && error.name === "NotFoundError") return -1;
+        throw error;
+      }
+    },
+
+    /** Forgets what the consoles said (between two boots of the same page). */
+    clearTranscripts() {
+      for (const channel of Object.keys(transcripts)) transcripts[channel] = "";
+      serialElement.textContent = "";
+    },
+
     /** Writes a line on the serial console. */
     send(text, channel = "serial0") {
       post({ type: "write", channel, data: bytesToBase64(encoder.encode(text + "\n")) });

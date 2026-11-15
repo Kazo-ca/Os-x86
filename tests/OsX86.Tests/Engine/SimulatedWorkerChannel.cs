@@ -129,6 +129,21 @@ internal sealed class SimulatedWorkerChannel : IEngineWorkerChannel
             case "query-state":
                 await ReportStateAsync(_state, "query");
                 break;
+            case "read-screen":
+                await SendAsync(new { type = "screen", cols = 3, rows = 2, lines = new[] { "C:\\", "ok " } });
+                break;
+            case "query-disks":
+                await SendAsync(new
+                {
+                    type = "disks",
+                    disks = new Dictionary<string, object>
+                    {
+                        ["hda"] = new { bytes = 4096, reads = 2, bytesRead = 1024, writes = 1, bytesWritten = 512, compressedBytesRead = 300, layer = new { mode = "persistent", blocksWritten = 1, layerBytes = 8192 } },
+                        ["hdb"] = new { bytes = 8192, reads = 0, bytesRead = 0, writes = 0, bytesWritten = 0, compressedBytesRead = 0 },
+                    },
+                    cache = new { cacheBytes = 1024, cacheMaxBytes = 2048, cacheFrames = 1, hits = 3, misses = 1, evictions = 0 },
+                });
+                break;
             case "write":
                 // Loopback: the guest echoes what it receives on the same channel.
                 await SendAsync(new

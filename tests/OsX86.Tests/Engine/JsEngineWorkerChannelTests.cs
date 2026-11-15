@@ -8,7 +8,7 @@ namespace OsX86.Tests.Engine;
 [Trait("Category", "unit")]
 public sealed class JsEngineWorkerChannelTests
 {
-    private sealed class FakeJsObject(string name, List<string> calls, Func<bool> failCreateHost) : IJSObjectReference
+    private sealed class FakeJsObject(string name, List<string> calls, Func<bool> failCreateHost, Action<JsEngineWorkerChannel>? onCreateHost = null) : IJSObjectReference
     {
         public bool Disposed { get; private set; }
 
@@ -17,6 +17,11 @@ public sealed class JsEngineWorkerChannelTests
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
         {
             calls.Add($"{name}.{identifier}({string.Join(", ", (args ?? []).Select(Describe))})");
+            if (identifier == "createHost" && onCreateHost is not null && args?[0] is DotNetObjectReference<JsEngineWorkerChannel> reference)
+            {
+                onCreateHost(reference.Value); // the worker posts "ready" before createHost returns
+            }
+
             if (identifier == "createHost" && failCreateHost())
             {
                 throw new InvalidOperationException("createHost failed");
@@ -24,7 +29,7 @@ public sealed class JsEngineWorkerChannelTests
 
             if (typeof(TValue) == typeof(IJSObjectReference))
             {
-                return ValueTask.FromResult((TValue)(object)new FakeJsObject(identifier, calls, failCreateHost));
+                return ValueTask.FromResult((TValue)(object)new FakeJsObject(identifier, calls, failCreateHost, onCreateHost));
             }
 
             if (typeof(TValue) == typeof(IJSVoidResult))
@@ -57,13 +62,41 @@ public sealed class JsEngineWorkerChannelTests
 
         public bool FailCreateHost { get; set; }
 
+        public Action<JsEngineWorkerChannel>? OnCreateHost { get; set; }
+
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => InvokeAsync<TValue>(identifier, CancellationToken.None, args);
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
         {
             Calls.Add($"js.{identifier}({string.Join(", ", (args ?? []).Select(a => a is string s ? $"\"{s}\"" : a?.GetType().Name ?? "null"))})");
-            return ValueTask.FromResult((TValue)(object)new FakeJsObject("module", Calls, () => FailCreateHost));
+            return ValueTask.FromResult((TValue)(object)new FakeJsObject("module", Calls, () => FailCreateHost, OnCreateHost));
         }
+    }
+
+    [Fact]
+    public async Task A_ready_posted_before_createHost_returns_is_not_lost()
+    {
+        var js = new FakeJsRuntime { OnCreateHost = channel => channel.OnWorkerMessage("{\"type\":\"ready\"}").GetAwaiter().GetResult() };
+        var channel = new JsEngineWorkerChannel(js);
+        var received = new List<string>();
+
+        await channel.StartAsync(json => { received.Add(json); return ValueTask.CompletedTask; }, CancellationToken.None);
+
+        Assert.Equal(["{\"type\":\"ready\"}"], received);
+    }
+
+    [Fact]
+    public async Task A_failed_start_drops_the_callback()
+    {
+        JsEngineWorkerChannel? created = null;
+        var js = new FakeJsRuntime { FailCreateHost = true, OnCreateHost = channel => created = channel };
+        var channel = new JsEngineWorkerChannel(js);
+        var received = new List<string>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await channel.StartAsync(json => { received.Add(json); return ValueTask.CompletedTask; }, CancellationToken.None));
+        await created!.OnWorkerMessage("{\"type\":\"ready\"}");
+
+        Assert.Empty(received);
     }
 
     [Fact]
