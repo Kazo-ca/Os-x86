@@ -1,28 +1,41 @@
-// Os-x86 engine worker: hosts v86 in a Web Worker (milestone 0, work item 2; plan section 1.1,
-// decision D3, trials E1/E5/E14). Started by v86-host.js; the C# side (V86Engine) speaks the
+// Os-x86 engine worker: hosts v86 in a Web Worker (milestone 0, work items 2 and 6a; plan section
+// 1.1, decision D3, trials E1/E5/E14). Started by v86-host.js; the C# side (V86Engine) speaks the
 // protocol below through it. v86 (../v86/libv86.js, vendored with its patches) is loaded with
-// importScripts after the "init" message; the guest kernel and initramfs are read from the OPFS
-// (the only storage fast enough for a VM, trial E2) with a SyncAccessHandle, which only exists in
-// a worker.
+// importScripts after the "init" message, with zstd-seekable.js and disk.js next to this file.
+// Everything the guest boots comes from the image payload in the OPFS (the only storage fast
+// enough for a VM, trial E2), read with a SyncAccessHandle, which only exists in a worker: the
+// kernel and the initramfs are decompressed whole, the disks are read by frames on demand
+// (disk.js) and written through a copy-on-write layer; the published image is never modified.
 //
 // Protocol: every message to the C# side is a JSON string; messages from it are JSON strings too
 // (v86-host.js passes them through). The "init" and "attach-canvas" messages come from the host
 // module itself as objects.
 //
 //   host -> worker
-//     {type:"start", options:{kernelPath, initrdPath, cmdline, memoryMiB, vgaMemoryMiB, virtioConsole}}
+//     {type:"start", options:{kind:"linux"|"dos", kernel?:source, initrd?:source,
+//                             disks?:{hda:{source, layer:{mode:"discard"}|{mode:"persistent", path, metadata}}, hdb?:...},
+//                             cmdline, memoryMiB, vgaMemoryMiB, virtioConsole, cacheMiB}}
+//         source = {path, offset, size} (raw bytes) or {path, offset, size, rawSize, blockSize} (seekable zstd)
 //     {type:"stop"} {type:"pause"} {type:"resume"} {type:"query-state"}
 //     {type:"write", channel:"serial0"|"virtio0".."virtio3", data:<base64>}
+//     {type:"read-screen"}                             the VGA text screen (trial E14)
+//     {type:"query-disks"}                             the disk and cache counters
+//     {type:"disk-benchmark", disk, sequentialMiB, randomReads}   reads outside the guest, for the measures
 //   worker -> host
 //     {type:"ready"}                                   v86 loaded, the worker accepts commands
 //     {type:"state", state, reason?}                   stopped | starting | running | paused | stopping
 //     {type:"error", code, message, fatal}             fatal: the engine is stopped afterwards
 //     {type:"console", channel, data:<base64>}         bytes the guest wrote on that port
 //     {type:"screen-size", cols, rows, bpp}            VGA mode change (bpp 0 = text mode)
+//     {type:"screen", cols, rows, lines:[...]}         answer to read-screen (text mode; empty lines otherwise)
+//     {type:"disks", disks:{hda:{...}}, cache:{...}, decoder:{...}}   answer to query-disks
+//     {type:"benchmark", disk, sequential:{...}, random:{...}}        answer to disk-benchmark
 //     {type:"event", name}                             v86 events (emulator-ready, emulator-started, ...)
 //
-// Error codes: invalid-state, opfs-unavailable, image-not-found, image-read-failed,
-// v86-load-failed, v86-init-failed, download-error, protocol, worker-error (set by the host).
+// Error codes: invalid-state, opfs-unavailable, image-not-found, image-read-failed, image-corrupt,
+// disk-io-failed, quota-exceeded, layer-locked, layer-mismatch, format-unsupported,
+// engine-version-mismatch, v86-load-failed, v86-init-failed, download-error, protocol,
+// worker-error (set by the host).
 "use strict";
 
 const STATES = { stopped: "stopped", starting: "starting", running: "running", paused: "paused", stopping: "stopping" };
@@ -30,9 +43,16 @@ const VIRTIO_PORTS = 4;
 const VIRTIO_CHUNK = 1024;
 const SERIAL_FLUSH_MS = 4;
 const MAX_WRITE_BASE64_LENGTH = 2 * 1024 * 1024; // one write command carries at most ~1.5 MiB
-const MAX_IMAGE_FILE_BYTES = 512 * 1024 * 1024; // a kernel or an initramfs read whole into memory
 const MEMORY_MIB = { min: 16, max: 4096, default: 128 };
 const VGA_MIB = { min: 1, max: 64, default: 2 };
+const CACHE_MIB = { min: 2, max: 512, default: 32 };
+const DISK_NAMES = ["hda", "hdb"];
+const BOOT_KINDS = ["linux", "dos"];
+const MAX_TEXT_COLUMNS = 256;
+const MAX_TEXT_ROWS = 128;
+const BENCHMARK_MAX_MIB = 1024;
+const BENCHMARK_MAX_READS = 100000;
+const CP437 = "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u007fÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
 
 let urls = null;
 let emulator = null;
@@ -43,6 +63,10 @@ let canvas = null;
 let lastScreenSize = null;
 let serialBuffer = [];
 let serialFlushTimer = null;
+let decoderPromise = null; // the zstd decoder (disk.js), created once from v86.wasm
+let frameCache = null; // the frame cache of the running guest
+let disks = new Map(); // name -> V86Disk of the running guest
+let textScreen = { cols: 80, rows: 25, cells: new Uint16Array(80 * 25) };
 
 function send(message) {
   postMessage(JSON.stringify(message));
@@ -64,6 +88,8 @@ class EngineError extends Error {
   }
 }
 
+const errorCode = (error, fallback) => (error && typeof error.code === "string" ? error.code : fallback);
+
 // --- base64 (binary payloads inside JSON) ---------------------------------------------------
 
 function toBase64(bytes) {
@@ -81,48 +107,6 @@ function fromBase64(text) {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes;
-}
-
-// --- OPFS ------------------------------------------------------------------------------------
-
-async function readOpfsFile(path) {
-  if (!self.navigator || !navigator.storage || typeof navigator.storage.getDirectory !== "function") {
-    throw new EngineError("opfs-unavailable", "the origin private file system is not available in this worker");
-  }
-  const parts = String(path).split("/").filter((part) => part.length > 0);
-  if (parts.length === 0) {
-    throw new EngineError("image-not-found", "empty OPFS path");
-  }
-  let directory;
-  try {
-    directory = await navigator.storage.getDirectory();
-    for (const part of parts.slice(0, -1)) {
-      directory = await directory.getDirectoryHandle(part);
-    }
-  } catch (error) {
-    throw new EngineError(error && error.name === "NotFoundError" ? "image-not-found" : "opfs-unavailable", `${path}: ${error}`);
-  }
-  let handle;
-  try {
-    const file = await directory.getFileHandle(parts[parts.length - 1]);
-    handle = await file.createSyncAccessHandle();
-  } catch (error) {
-    throw new EngineError(error && error.name === "NotFoundError" ? "image-not-found" : "image-read-failed", `${path}: ${error}`);
-  }
-  try {
-    const size = handle.getSize();
-    if (size > MAX_IMAGE_FILE_BYTES) {
-      throw new EngineError("image-read-failed", `${path}: ${size} bytes is more than the ${MAX_IMAGE_FILE_BYTES} the engine loads in memory`);
-    }
-    const buffer = new ArrayBuffer(size);
-    const read = handle.read(new Uint8Array(buffer), { at: 0 });
-    if (read !== size) {
-      throw new EngineError("image-read-failed", `${path}: read ${read} of ${size} bytes`);
-    }
-    return buffer;
-  } finally {
-    handle.close();
-  }
 }
 
 // --- console ports ---------------------------------------------------------------------------
@@ -182,6 +166,9 @@ function writeToGuest(channel, data) {
 function applyScreenSize(size) {
   lastScreenSize = size;
   send({ type: "screen-size", cols: size[0], rows: size[1], bpp: size[2] });
+  if (size[2] === 0) {
+    resizeTextScreen(size[0], size[1]);
+  }
   if (!canvas) {
     return;
   }
@@ -200,7 +187,37 @@ function applyScreenSize(size) {
   }
 }
 
-// --- lifecycle -----------------------------------------------------------------------------------
+/** The VGA text screen, kept from v86's screen-put-char events (the way trial E14 read DOS). */
+function resizeTextScreen(cols, rows) {
+  const width = Math.min(MAX_TEXT_COLUMNS, Math.max(1, cols | 0));
+  const height = Math.min(MAX_TEXT_ROWS, Math.max(1, rows | 0));
+  if (textScreen.cols !== width || textScreen.rows !== height) {
+    textScreen = { cols: width, rows: height, cells: new Uint16Array(width * height) };
+  }
+}
+
+function putChar(event) {
+  const row = event[0];
+  const col = event[1];
+  if (row >= 0 && row < textScreen.rows && col >= 0 && col < textScreen.cols) {
+    textScreen.cells[row * textScreen.cols + col] = event[2] & 0xff;
+  }
+}
+
+function readScreen() {
+  const lines = [];
+  for (let row = 0; row < textScreen.rows; row++) {
+    let line = "";
+    for (let col = 0; col < textScreen.cols; col++) {
+      const code = textScreen.cells[row * textScreen.cols + col];
+      line += code === 0 ? " " : CP437[code];
+    }
+    lines.push(line);
+  }
+  return { type: "screen", cols: textScreen.cols, rows: textScreen.rows, lines };
+}
+
+// --- image sources and disks -------------------------------------------------------------------
 
 function clamp(value, range) {
   const number = Number(value);
@@ -210,7 +227,166 @@ function clamp(value, range) {
   return Math.min(range.max, Math.max(range.min, Math.floor(number)));
 }
 
-function buildConfig(options, kernel, initrd) {
+function decoder() {
+  if (!decoderPromise) {
+    decoderPromise = self.OsX86Disk.ZstdDecoder.create(urls.wasmUrl).catch((error) => {
+      decoderPromise = null; // the next start tries again
+      throw error;
+    });
+  }
+  return decoderPromise;
+}
+
+function checkStartOptions(options) {
+  // The form of work item 2 (whole files by path) is a source without offset and size.
+  if (!options.kernel && typeof options.kernelPath === "string") {
+    options.kernel = { path: options.kernelPath };
+  }
+  if (!options.initrd && typeof options.initrdPath === "string") {
+    options.initrd = { path: options.initrdPath };
+  }
+  const kind = options.kind === undefined ? "linux" : options.kind;
+  if (!BOOT_KINDS.includes(kind)) {
+    throw new EngineError("protocol", `unknown boot kind ${kind}`);
+  }
+  if (kind === "linux" && (!options.kernel || !options.initrd)) {
+    throw new EngineError("protocol", "a linux boot needs a kernel and an initrd");
+  }
+  const diskOptions = options.disks && typeof options.disks === "object" ? options.disks : {};
+  for (const name of Object.keys(diskOptions)) {
+    if (!DISK_NAMES.includes(name)) {
+      throw new EngineError("protocol", `unknown disk ${name} (${DISK_NAMES.join(", ")})`);
+    }
+    const disk = diskOptions[name];
+    self.OsX86Disk.checkSource(disk && disk.source, name);
+    const layer = disk.layer || {};
+    if (layer.mode === "persistent") {
+      if (typeof layer.path !== "string" || typeof layer.metadata !== "string") {
+        throw new EngineError("protocol", `${name}: a persistent layer needs a path and its metadata`);
+      }
+    } else if (layer.mode !== undefined && layer.mode !== "discard") {
+      throw new EngineError("protocol", `${name}: unknown layer mode ${layer.mode}`);
+    }
+  }
+  if (kind === "dos" && Object.keys(diskOptions).length === 0) {
+    throw new EngineError("protocol", "a dos boot needs a disk");
+  }
+  return { kind, diskOptions };
+}
+
+/** Opens what the start options name: the kernel and initrd whole, the disks on their layers. */
+async function openImage(options, kind, diskOptions) {
+  const sources = [options.kernel, options.initrd, ...Object.values(diskOptions).map((disk) => disk.source)];
+  const needsDecoder = sources.some((source) => source && source.rawSize !== undefined && source.rawSize !== null);
+  const zstd = needsDecoder ? await decoder() : null;
+  const cache = new self.OsX86Disk.FrameCache(clamp(options.cacheMiB, CACHE_MIB) * 1024 * 1024);
+  const files = new Map();
+  const opened = new Map();
+  try {
+    let kernel = null;
+    let initrd = null;
+    if (kind === "linux") {
+      kernel = (await self.OsX86Disk.openEntry(options.kernel, "kernel", files, zstd, cache)).readAll();
+      initrd = (await self.OsX86Disk.openEntry(options.initrd, "initrd", files, zstd, cache)).readAll();
+    }
+    for (const name of Object.keys(diskOptions)) {
+      const disk = diskOptions[name];
+      const base = await self.OsX86Disk.openEntry(disk.source, name, files, zstd, cache);
+      const layer = disk.layer && disk.layer.mode === "persistent"
+        ? await self.OsX86Disk.WriteLayer.open(disk.layer.path, base.rawSize, disk.layer.metadata)
+        : new self.OsX86Disk.MemoryWriteLayer(base.rawSize);
+      opened.set(name, new self.OsX86Disk.V86Disk(name, base, layer));
+    }
+    return { kernel, initrd, disks: opened, cache, files };
+  } catch (error) {
+    for (const disk of opened.values()) {
+      disk.close();
+    }
+    for (const file of files.values()) {
+      file.close();
+    }
+    throw error;
+  }
+}
+
+function closeDisks(reason) {
+  const open = disks;
+  disks = new Map();
+  const files = new Set();
+  for (const disk of open.values()) {
+    files.add(disk.base.file);
+    try {
+      disk.close(); // flushes the layer (177 A) and releases its lock
+    } catch (error) {
+      fail(errorCode(error, "disk-io-failed"), `${disk.name}: ${error && error.message ? error.message : error} (${reason})`, false);
+    }
+  }
+  for (const file of files) {
+    file.close();
+  }
+  if (frameCache) {
+    frameCache.clear();
+  }
+}
+
+function flushDisks() {
+  for (const disk of disks.values()) {
+    try {
+      disk.flush();
+    } catch (error) {
+      fail(errorCode(error, "disk-io-failed"), `${disk.name}: ${error && error.message ? error.message : error}`, false);
+    }
+  }
+}
+
+async function diskStats() {
+  const result = { type: "disks", disks: {}, cache: frameCache ? frameCache.stats() : null, decoder: null };
+  for (const [name, disk] of disks) {
+    result.disks[name] = disk.stats();
+  }
+  if (decoderPromise) {
+    try {
+      result.decoder = (await decoderPromise).stats();
+    } catch (error) {
+      result.decoder = null;
+    }
+  }
+  return result;
+}
+
+/** Reads a disk outside the guest, for the measures of the work item (sequential then random 4 KiB). */
+function benchmark(message) {
+  const disk = disks.get(String(message.disk || "hda"));
+  if (!disk) {
+    throw new EngineError("invalid-state", `no disk ${message.disk || "hda"} is open`);
+  }
+  const sequentialBytes = Math.min(disk.byteLength, clamp(message.sequentialMiB, { min: 1, max: BENCHMARK_MAX_MIB, default: 64 }) * 1024 * 1024);
+  const randomReads = clamp(message.randomReads, { min: 1, max: BENCHMARK_MAX_READS, default: 2000 });
+  const chunk = 1024 * 1024;
+  let started = performance.now();
+  for (let offset = 0; offset < sequentialBytes; offset += chunk) {
+    disk.read(offset, Math.min(chunk, sequentialBytes - offset));
+  }
+  const sequentialMs = performance.now() - started;
+  const blocks = Math.floor(disk.byteLength / 4096);
+  let seed = 0x2545f491;
+  started = performance.now();
+  for (let index = 0; index < randomReads; index++) {
+    seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+    disk.read((seed % blocks) * 4096, 4096);
+  }
+  const randomMs = performance.now() - started;
+  return {
+    type: "benchmark",
+    disk: disk.name,
+    sequential: { bytes: sequentialBytes, ms: Math.round(sequentialMs), mbPerSecond: Math.round((sequentialBytes / 1e6 / (sequentialMs / 1000)) * 10) / 10 },
+    random: { reads: randomReads, ms: Math.round(randomMs), readsPerSecond: Math.round(randomReads / (randomMs / 1000)) },
+  };
+}
+
+// --- lifecycle -----------------------------------------------------------------------------------
+
+function buildConfig(options, kind, image) {
   const memoryMiB = clamp(options.memoryMiB, MEMORY_MIB);
   const vgaMiB = clamp(options.vgaMemoryMiB, VGA_MIB);
   const config = {
@@ -219,14 +395,19 @@ function buildConfig(options, kernel, initrd) {
     vga_bios: { url: urls.vgaBiosUrl },
     memory_size: memoryMiB * 1024 * 1024,
     vga_memory_size: vgaMiB * 1024 * 1024,
-    bzimage: { buffer: kernel },
-    initrd: { buffer: initrd },
-    cmdline: options.cmdline || "console=ttyS0",
     autostart: true,
     disable_keyboard: true,
     disable_mouse: true,
     disable_speaker: true,
   };
+  if (kind === "linux") {
+    config.bzimage = { buffer: image.kernel };
+    config.initrd = { buffer: image.initrd };
+    config.cmdline = options.cmdline || "console=ttyS0";
+  }
+  for (const [name, disk] of image.disks) {
+    config[name] = disk;
+  }
   if (options.virtioConsole !== false) {
     config.virtio_console = true;
   }
@@ -273,6 +454,7 @@ function attachListeners(instance, myGeneration) {
     });
   }
   instance.add_listener("screen-set-size", (size) => live() && applyScreenSize(size));
+  instance.add_listener("screen-put-char", (event) => live() && putChar(event));
 }
 
 async function start(options) {
@@ -284,29 +466,50 @@ async function start(options) {
     fail("invalid-state", `cannot start: the engine is ${state}`, false);
     return;
   }
+  let kind;
+  let diskOptions;
+  try {
+    ({ kind, diskOptions } = checkStartOptions(options));
+  } catch (error) {
+    fail(errorCode(error, "protocol"), error.message || error, false);
+    return;
+  }
   const myGeneration = ++generation;
   setState(STATES.starting);
-  let kernel;
-  let initrd;
+  let image;
   try {
-    kernel = await readOpfsFile(options.kernelPath);
-    initrd = await readOpfsFile(options.initrdPath);
+    image = await openImage(options, kind, diskOptions);
   } catch (error) {
     if (myGeneration === generation) {
-      fail(error instanceof EngineError ? error.code : "image-read-failed", error.message || error, true);
+      fail(errorCode(error, "image-read-failed"), error.message || error, true);
       setState(STATES.stopped, "start-failed");
     }
     return;
   }
   if (myGeneration !== generation) {
+    for (const disk of image.disks.values()) {
+      disk.close();
+    }
+    for (const file of image.files.values()) {
+      file.close();
+    }
     return; // stopped while the image was being read
   }
+  disks = image.disks;
+  frameCache = image.cache;
+  if (disks.size === 0) {
+    for (const file of image.files.values()) {
+      file.close(); // the kernel and initrd are in memory: the payload is not needed any more
+    }
+  }
   try {
-    const instance = new V86(buildConfig(options, kernel, initrd));
+    textScreen.cells.fill(0);
+    const instance = new V86(buildConfig(options, kind, image));
     emulator = instance;
     attachListeners(instance, myGeneration);
   } catch (error) {
     emulator = null;
+    closeDisks("start-failed");
     fail("v86-init-failed", error && error.message ? error.message : error, true);
     setState(STATES.stopped, "start-failed");
   }
@@ -324,6 +527,7 @@ function destroyEmulator(reason) {
       // destroy() is best effort once the loop has stopped; the state is what matters.
     }
   }
+  closeDisks(reason);
   setState(STATES.stopped, reason);
 }
 
@@ -364,6 +568,7 @@ async function pause() {
   }
   if (emulator === instance && state === STATES.running) {
     flushSerial();
+    flushDisks();
     setState(STATES.paused);
   }
 }
@@ -396,7 +601,7 @@ function init(v86Urls) {
     }
   }
   try {
-    importScripts(candidate.libUrl);
+    importScripts(new URL("./zstd-seekable.js", self.location.href).href, new URL("./disk.js", self.location.href).href, candidate.libUrl);
   } catch (error) {
     fail("v86-load-failed", `${candidate.libUrl}: ${error && error.message ? error.message : error}`, true);
     return;
@@ -447,6 +652,15 @@ onmessage = async (event) => {
       case "write":
         writeToGuest(String(message.channel), String(message.data || ""));
         break;
+      case "read-screen":
+        send(readScreen());
+        break;
+      case "query-disks":
+        send(await diskStats());
+        break;
+      case "disk-benchmark":
+        send(benchmark(message));
+        break;
       case "attach-canvas":
         if (!fromHostModule) {
           fail("protocol", "attach-canvas is not a protocol command", false);
@@ -464,6 +678,6 @@ onmessage = async (event) => {
         fail("protocol", `unknown message type ${message.type}`, false);
     }
   } catch (error) {
-    fail("worker-error", error && error.stack ? error.stack : error, false);
+    fail(errorCode(error, "worker-error"), error && error.stack && !error.code ? error.stack : error.message || error, false);
   }
 };
