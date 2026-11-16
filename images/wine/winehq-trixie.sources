@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://dl.winehq.org/wine-builds/debian
+Suites: trixie
+Components: main
+Architectures: i386
+Signed-By: /etc/apt/keyrings/winehq-archive.key

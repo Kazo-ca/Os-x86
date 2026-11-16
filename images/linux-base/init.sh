@@ -42,12 +42,20 @@ sysctl -q -w user.max_user_namespaces=0 kernel.yama.ptrace_scope=1 kernel.dmesg_
   fs.protected_fifos=2 fs.protected_regular=2 2>/dev/null
 
 hostname -F /etc/hostname 2>/dev/null
-echo "OSX86-GUEST image=linux-base version=$(cat /etc/osx86-release) kernel=$(uname -r)" > $console
+image="$(cat /etc/osx86-image 2>/dev/null || echo linux-base)"
+echo "OSX86-GUEST image=$image version=$(cat /etc/osx86-release) kernel=$(uname -r)" > $console
 
 # The guest agent (work item 5): started as root when the image carries it; it owns hvc0.
 if [ -x /usr/lib/osx86/agent ]; then
   /usr/lib/osx86/agent > /dev/null 2>&1 &
 fi
+
+# Hooks of the images built on linux-base (work item 9: the preloading of the wine image), in
+# name order, as root, before the ready marker; a hook that works long goes to the background
+# itself. The kernel command line is passed as arguments ("osx86.preload=off" and the like).
+for hook in /usr/lib/osx86/init.d/*; do
+  [ -x "$hook" ] && "$hook" $(cat /proc/cmdline) < /dev/null > /dev/null 2>&1
+done
 
 echo "OSX86-READY" > $console
 
