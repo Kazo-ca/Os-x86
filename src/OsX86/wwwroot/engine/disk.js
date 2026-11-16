@@ -10,7 +10,8 @@
 // - OpfsFile: a FileSystemSyncAccessHandle on a file of the OPFS (worker only).
 // - SeekableEntry: a logical file of image.bin (offset, size, rawSize, blockSize of the manifest):
 //   the seek table is read once, frames are decompressed on demand into a bounded, measured
-//   cache (FrameCache). RawEntry: an uncompressed logical file.
+//   cache (FrameCache). RawEntry: an uncompressed logical file. InlineEntry: a small disk the C#
+//   side made and sent with the start options (the program disk of a DOS run, work item 11).
 // - WriteLayer: the copy-on-write layer of a disk, one file in the OPFS: a 4 KiB header (format
 //   1), a block map (u32 per 4 KiB block of the disk: 0 = not written, n = slot n - 1), then the
 //   written blocks appended in order of first write. The published image is never modified. One
@@ -38,6 +39,7 @@
   const OPEN_RETRY_MS = 200;
   const MAX_SEEK_TABLE_BYTES = 8 * seekable.MAX_FRAMES + 32;
   const MAX_WHOLE_ENTRY_BYTES = 512 * 1024 * 1024; // a kernel or an initramfs read whole into memory
+  const MAX_INLINE_BYTES = 64 * 1024 * 1024; // a disk sent inside the start options
   const DEFAULT_CACHE_BYTES = 32 * 1024 * 1024;
   const MIN_CACHE_BYTES = 2 * 1024 * 1024;
   const MAX_CACHE_BYTES = 512 * 1024 * 1024;
@@ -448,10 +450,61 @@
     }
   }
 
-  /** Validates a source {path, offset, size, rawSize?, blockSize?} of the start options. */
+  /** A disk sent whole in the start options (base64), never stored: it lives as long as the engine. */
+  class InlineEntry {
+    constructor(bytes) {
+      this.file = null;
+      this.bytes = bytes;
+      this.rawSize = bytes.length;
+      this.compressedBytesRead = 0;
+    }
+
+    static fromBase64(text, what) {
+      let binary;
+      try {
+        binary = atob(text);
+      } catch (error) {
+        throw new DiskError("protocol", `${what}: the inline disk is not base64`);
+      }
+      if (binary.length === 0 || binary.length > MAX_INLINE_BYTES) {
+        throw new DiskError("protocol", `${what}: an inline disk has 1 to ${MAX_INLINE_BYTES} bytes, not ${binary.length}`);
+      }
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index++) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return new InlineEntry(bytes);
+    }
+
+    read(offset, length, into) {
+      if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || offset < 0 || length < 0 || offset + length > this.rawSize) {
+        throw new DiskError("protocol", `read of ${length} bytes at ${offset} is outside the ${this.rawSize} bytes of the entry`);
+      }
+      const out = into || new Uint8Array(length);
+      out.set(this.bytes.subarray(offset, offset + length));
+      return out;
+    }
+
+    readAll() {
+      return this.bytes.slice().buffer;
+    }
+  }
+
+  /** Whether a source is an inline disk ({inline: base64} and nothing else). */
+  function isInline(source) {
+    return !!source && typeof source === "object" && source.inline !== undefined;
+  }
+
+  /** Validates a source {path, offset, size, rawSize?, blockSize?} or {inline} of the start options. */
   function checkSource(source, what) {
     if (!source || typeof source !== "object") {
       throw new DiskError("protocol", `${what}: a source is required`);
+    }
+    if (isInline(source)) {
+      if (typeof source.inline !== "string" || source.path !== undefined || source.offset !== undefined || source.size !== undefined || source.rawSize !== undefined) {
+        throw new DiskError("protocol", `${what}: an inline source is {inline: <base64>} alone`);
+      }
+      return false;
     }
     splitPath(source.path);
     const compressed = source.rawSize !== undefined && source.rawSize !== null;
@@ -476,6 +529,9 @@
   /** Opens a source as an entry; `files` caches the payload handles by path. */
   async function openEntry(source, what, files, decoder, cache) {
     const compressed = checkSource(source, what);
+    if (isInline(source)) {
+      return InlineEntry.fromBase64(source.inline, what);
+    }
     let file = files.get(source.path);
     if (!file) {
       file = await OpfsFile.open(source.path, false);
@@ -956,6 +1012,7 @@
     FrameCache,
     SeekableEntry,
     RawEntry,
+    InlineEntry,
     WriteLayer,
     MemoryWriteLayer,
     V86Disk,

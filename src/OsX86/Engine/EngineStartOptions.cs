@@ -61,6 +61,12 @@ public sealed record EngineStartOptions
     /// <summary>Whether the guest gets the virtio-console device (four ports, <c>hvc0</c> to <c>hvc3</c> under Linux).</summary>
     public bool VirtioConsole { get; init; } = true;
 
+    /// <summary>
+    /// Whether scancodes may be sent to the guest's PS/2 keyboard (<see cref="ITextModeEngine.SendScancodesAsync"/>):
+    /// the DOS way of work item 11 only (215 A); the other guests are reached through their consoles.
+    /// </summary>
+    public bool Keyboard { get; init; }
+
     /// <summary>The kernel to boot: <see cref="Kernel"/>, or the whole file of <see cref="KernelPath"/>.</summary>
     public EngineFileSource? EffectiveKernel => Kernel ?? (KernelPath is null ? null : EngineFileSource.WholeFile(KernelPath));
 

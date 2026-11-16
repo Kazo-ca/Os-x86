@@ -27,6 +27,18 @@ public sealed record EngineFileSource(string Path, long? Offset = null, long? Si
     /// <summary>The largest frame a seekable stream may have (<c>pack-image.py</c> refuses more).</summary>
     public const int MaxBlockSize = 1 << 30;
 
+    /// <summary>The largest disk sent whole with the start options (<see cref="InMemory"/>; <c>disk.js</c> refuses more).</summary>
+    public const int MaxInMemoryBytes = 64 * 1024 * 1024;
+
+    /// <summary>
+    /// The bytes of a small disk made on this side and sent with the start options instead of read
+    /// from the OPFS (work item 11: the program disk of a DOS run); <see langword="null"/> otherwise.
+    /// </summary>
+    public ReadOnlyMemory<byte>? Content { get; init; }
+
+    /// <summary>Whether the source is a disk sent whole with the start options.</summary>
+    public bool IsInMemory => Content is not null;
+
     /// <summary>A whole uncompressed file.</summary>
     public static EngineFileSource WholeFile(string path) => new(path);
 
@@ -36,12 +48,30 @@ public sealed record EngineFileSource(string Path, long? Offset = null, long? Si
     /// <summary>A range of a file stored as a seekable zstd stream.</summary>
     public static EngineFileSource Seekable(string path, long offset, long size, long rawSize, int blockSize) => new(path, offset, size, rawSize, blockSize);
 
+    /// <summary>A disk sent whole with the start options (never stored; it lives as long as the engine).</summary>
+    public static EngineFileSource InMemory(ReadOnlyMemory<byte> content) => new(string.Empty) { Content = content };
+
     /// <summary>Whether the range is a seekable zstd stream.</summary>
     public bool IsCompressed => RawSize is not null;
 
     /// <summary>Checks the source; throws <see cref="ArgumentException"/> naming <paramref name="name"/>.</summary>
     public void Validate(string name)
     {
+        if (Content is { } content)
+        {
+            if (Path.Length != 0 || Offset is not null || Size is not null || RawSize is not null || BlockSize is not null)
+            {
+                throw new ArgumentException("A disk sent with the start options has no path, range nor compression.", name);
+            }
+
+            if (content.Length is 0 or > MaxInMemoryBytes)
+            {
+                throw new ArgumentOutOfRangeException(name, content.Length, $"A disk sent with the start options has 1 to {MaxInMemoryBytes} bytes.");
+            }
+
+            return;
+        }
+
         OpfsPath.Validate(Path, name);
         if (Offset is null != Size is null)
         {

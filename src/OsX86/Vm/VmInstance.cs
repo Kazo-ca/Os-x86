@@ -531,7 +531,13 @@ public sealed partial class VmInstance
         }
     }
 
-    private async Task StartUnderLockAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Starts the run: the image resolved, the budget checked, the engine created and booted, the agent
+    /// connected (none for a DOS VM: FreeDOS has no agent, 212 A). <paramref name="adjust"/> changes the
+    /// start options of this run only (work item 11: the program disk and the keyboard of a DOS run);
+    /// <paramref name="created"/> sees the engine before it boots (to read its first console lines).
+    /// </summary>
+    private async Task StartUnderLockAsync(CancellationToken cancellationToken, Func<EngineStartOptions, EngineStartOptions>? adjust = null, Action<IEngine>? created = null)
     {
         VmRecord record = Record;
         BootImage boot = await _manager.Images.ResolveAsync(record.Profile.Image, record.Profile.ImageVersion, new SynchronousProgress(this, _manager), cancellationToken).ConfigureAwait(false);
@@ -540,6 +546,11 @@ public sealed partial class VmInstance
         {
             // Work item 6b: the disks of a stored image write to the VM's own persistent layer.
             options = boot.CreateStartOptions(record.Profile.MemoryMiB, record.EffectiveLayerSet);
+            if (adjust is not null)
+            {
+                options = adjust(options);
+                options.Validate();
+            }
         }
         catch (EngineException exception)
         {
@@ -589,8 +600,20 @@ public sealed partial class VmInstance
         engine.StateChanged += OnEngineStateChanged;
         try
         {
+            created?.Invoke(engine);
             await engine.StartAsync(options, cancellationToken).ConfigureAwait(false);
-            await ConnectAgentAsync(engine, runStop.Token, cancellationToken).ConfigureAwait(false);
+            if (record.Profile.Kind == VmKind.Dos)
+            {
+                lock (_lock)
+                {
+                    _hasAgent = false; // FreeDOS runs no agent (212 A): no connection to wait for
+                }
+            }
+            else
+            {
+                await ConnectAgentAsync(engine, runStop.Token, cancellationToken).ConfigureAwait(false);
+            }
+
             SetState(VmState.Running);
         }
         catch (Exception exception)

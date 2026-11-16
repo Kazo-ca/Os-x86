@@ -1,7 +1,8 @@
-// Os-x86 engine worker: hosts v86 in a Web Worker (milestone 0, work items 2 and 6a; plan section
+// Os-x86 engine worker: hosts v86 in a Web Worker (milestone 0, work items 2, 6a and 11; plan section
 // 1.1, decision D3, trials E1/E5/E14). Started by v86-host.js; the C# side (V86Engine) speaks the
 // protocol below through it. v86 (../v86/libv86.js, vendored with its patches) is loaded with
-// importScripts after the "init" message, with zstd-seekable.js and disk.js next to this file.
+// importScripts after the "init" message, with zstd-seekable.js, disk.js and vga-text.js next to
+// this file (vga-text.js: the only reader of v86's internal VGA fields, decision 218 A).
 // Everything the guest boots comes from the image payload in the OPFS (the only storage fast
 // enough for a VM, trial E2), read with a SyncAccessHandle, which only exists in a worker: the
 // kernel and the initramfs are decompressed whole, the disks are read by frames on demand
@@ -14,11 +15,14 @@
 //   host -> worker
 //     {type:"start", options:{kind:"linux"|"dos", kernel?:source, initrd?:source,
 //                             disks?:{hda:{source, layer:{mode:"discard"}|{mode:"persistent", path, metadata}}, hdb?:...},
-//                             cmdline, memoryMiB, vgaMemoryMiB, virtioConsole, cacheMiB}}
+//                             cmdline, memoryMiB, vgaMemoryMiB, virtioConsole, cacheMiB, keyboard?}}
 //         source = {path, offset, size} (raw bytes) or {path, offset, size, rawSize, blockSize} (seekable zstd)
+//                  or {inline:<base64>} (a small disk made by the C# side, e.g. the program disk of a DOS run)
+//         keyboard: true lets "keys" reach the guest's PS/2 keyboard (the DOS way, 215 A); otherwise refused
 //     {type:"stop"} {type:"pause"} {type:"resume"} {type:"query-state"}
 //     {type:"write", channel:"serial0"|"virtio0".."virtio3", data:<base64>}
 //     {type:"read-screen"}                             the VGA text screen (trial E14)
+//     {type:"keys", codes:[0..255,...]}                PS/2 scancodes (set 1) for the keyboard, when the start allowed it
 //     {type:"query-disks"}                             the disk and cache counters
 //     {type:"disk-benchmark", disk, sequentialMiB, randomReads}   reads outside the guest, for the measures
 //   worker -> host
@@ -27,7 +31,8 @@
 //     {type:"error", code, message, fatal}             fatal: the engine is stopped afterwards
 //     {type:"console", channel, data:<base64>}         bytes the guest wrote on that port
 //     {type:"screen-size", cols, rows, bpp}            VGA mode change (bpp 0 = text mode)
-//     {type:"screen", cols, rows, lines:[...]}         answer to read-screen (text mode; empty lines otherwise)
+//     {type:"screen", cols, rows, lines:[...], attributes:<base64>, cursor:{row, col, visible}|null,
+//      blink, graphical, source:"vga"|"events"}        answer to read-screen (vga-text.js)
 //     {type:"disks", disks:{hda:{...}}, cache:{...}, decoder:{...}}   answer to query-disks
 //     {type:"benchmark", disk, sequential:{...}, random:{...}}        answer to disk-benchmark
 //     {type:"event", name}                             v86 events (emulator-ready, emulator-started, ...)
@@ -50,9 +55,9 @@ const DISK_NAMES = ["hda", "hdb"];
 const BOOT_KINDS = ["linux", "dos"];
 const MAX_TEXT_COLUMNS = 256;
 const MAX_TEXT_ROWS = 128;
+const MAX_SCANCODES = 256; // one "keys" message
 const BENCHMARK_MAX_MIB = 1024;
 const BENCHMARK_MAX_READS = 100000;
-const CP437 = "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u007fÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
 
 let urls = null;
 let emulator = null;
@@ -67,6 +72,7 @@ let decoderPromise = null; // the zstd decoder (disk.js), created once from v86.
 let frameCache = null; // the frame cache of the running guest
 let disks = new Map(); // name -> V86Disk of the running guest
 let textScreen = { cols: 80, rows: 25, cells: new Uint16Array(80 * 25) };
+let keyboardEnabled = false; // set by the start options: only the DOS way sends keys (215 A)
 
 function send(message) {
   postMessage(JSON.stringify(message));
@@ -205,16 +211,24 @@ function putChar(event) {
 }
 
 function readScreen() {
-  const lines = [];
-  for (let row = 0; row < textScreen.rows; row++) {
-    let line = "";
-    for (let col = 0; col < textScreen.cols; col++) {
-      const code = textScreen.cells[row * textScreen.cols + col];
-      line += code === 0 ? " " : CP437[code];
-    }
-    lines.push(line);
+  return Object.assign({ type: "screen" }, self.OsX86VgaText.read(emulator, textScreen));
+}
+
+/** Sends PS/2 scancodes to the guest keyboard (set 1, as v86's keyboard_send_scancodes takes them). */
+function sendKeys(codes) {
+  if (!keyboardEnabled) {
+    fail("invalid-state", "the keyboard of this guest is not enabled (only the DOS way sends keys)", false);
+    return;
   }
-  return { type: "screen", cols: textScreen.cols, rows: textScreen.rows, lines };
+  if (!emulator || state !== STATES.running) {
+    fail("invalid-state", `cannot send keys: the engine is ${state}`, false);
+    return;
+  }
+  if (!Array.isArray(codes) || codes.length === 0 || codes.length > MAX_SCANCODES || !codes.every((code) => Number.isInteger(code) && code >= 0 && code <= 255)) {
+    fail("protocol", `keys takes 1 to ${MAX_SCANCODES} scancodes from 0 to 255`, false);
+    return;
+  }
+  emulator.keyboard_send_scancodes(codes);
 }
 
 // --- image sources and disks -------------------------------------------------------------------
@@ -314,7 +328,9 @@ function closeDisks(reason) {
   disks = new Map();
   const files = new Set();
   for (const disk of open.values()) {
-    files.add(disk.base.file);
+    if (disk.base.file) {
+      files.add(disk.base.file); // an inline disk has no payload file
+    }
     try {
       disk.close(); // flushes the layer (177 A) and releases its lock
     } catch (error) {
@@ -504,6 +520,7 @@ async function start(options) {
   }
   try {
     textScreen.cells.fill(0);
+    keyboardEnabled = options.keyboard === true;
     const instance = new V86(buildConfig(options, kind, image));
     emulator = instance;
     attachListeners(instance, myGeneration);
@@ -601,7 +618,11 @@ function init(v86Urls) {
     }
   }
   try {
-    importScripts(new URL("./zstd-seekable.js", self.location.href).href, new URL("./disk.js", self.location.href).href, candidate.libUrl);
+    importScripts(
+      new URL("./zstd-seekable.js", self.location.href).href,
+      new URL("./disk.js", self.location.href).href,
+      new URL("./vga-text.js", self.location.href).href,
+      candidate.libUrl);
   } catch (error) {
     fail("v86-load-failed", `${candidate.libUrl}: ${error && error.message ? error.message : error}`, true);
     return;
@@ -654,6 +675,9 @@ onmessage = async (event) => {
         break;
       case "read-screen":
         send(readScreen());
+        break;
+      case "keys":
+        sendKeys(message.codes);
         break;
       case "query-disks":
         send(await diskStats());
