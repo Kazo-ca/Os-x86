@@ -70,7 +70,9 @@ DEFAULT_OUTPUT = REPO_ROOT / "images" / "build" / IMAGE_ID
 
 # What the tools container runs on the exported tree: extraction with owners and modes, the
 # image test, then the ext4 root (no journal: the root is mounted read-only; fixed UUID and
-# hash seed and SOURCE_DATE_EPOCH for a reproducible image).
+# hash seed and SOURCE_DATE_EPOCH for a reproducible image: every time later than it is clamped to
+# it; 1 by default, the wine image passes the date of Wine's wine.inf, which Wine compares with its
+# prefix's .update-timestamp).
 TOOLS_SCRIPT = r"""
 set -eu
 cd /work
@@ -84,7 +86,7 @@ inodes=$(find rootfs | wc -l)
 size_kib=$(( used + used / 8 + inodes + 16384 ))
 size_mib=$(( (size_kib + 4095) / 4096 * 4 ))
 rm -f rootfs.ext4
-export E2FSPROGS_FAKE_TIME=1 SOURCE_DATE_EPOCH=1
+export E2FSPROGS_FAKE_TIME=1 SOURCE_DATE_EPOCH="${OSX86_SOURCE_DATE_EPOCH:-1}"
 mkfs.ext4 -q -F -d rootfs -L osx86-root -U 0b6f2a3c-4d5e-4f60-8172-839495a6b7c8 -m 0 -O ^has_journal \
   -E hash_seed=5d8c2e3a-6b7f-4c90-a1b2-c3d4e5f60718,lazy_itable_init=0,root_owner=0:0 rootfs.ext4 "${size_mib}M"
 e2fsck -fn rootfs.ext4 > /dev/null
@@ -212,8 +214,9 @@ def extract_from_tar(tar_path: Path, output: Path) -> dict:
     return found
 
 
-def run_tools(output: Path) -> None:
-    run(["docker", "run", "--rm", "-v", f"{docker_volume(output)}:/work", "-v", f"{docker_volume(TOOLS_DIR)}:/tools:ro",
+def run_tools(output: Path, source_date_epoch: int = 1) -> None:
+    run(["docker", "run", "--rm", "-e", f"OSX86_SOURCE_DATE_EPOCH={source_date_epoch}",
+         "-v", f"{docker_volume(output)}:/work", "-v", f"{docker_volume(TOOLS_DIR)}:/tools:ro",
          TOOLS_IMAGE, "sh", "-c", TOOLS_SCRIPT])
     report = json.loads((output / "image-check.json").read_text(encoding="utf-8"))
     if not report.get("ok"):

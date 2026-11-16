@@ -2,7 +2,8 @@
 # named osx86-tools, so that the host needs only Docker and Python. e2fsprogs makes the ext4 root
 # of linux-base from an exported tree (mkfs.ext4 -d, no root or loop device needed), mtools writes
 # into the FAT16 disk of FreeDOS, python3 runs image-check.py on the exported tree, tar extracts
-# the docker export with its owners and modes.
+# the docker export with its owners and modes, debugfs (e2fsprogs-extra) reads back what the ext4
+# holds (the wine image checks the dates Wine compares).
 FROM alpine:3.24
-RUN apk add --no-cache e2fsprogs mtools python3 tar
+RUN apk add --no-cache e2fsprogs e2fsprogs-extra mtools python3 tar
 WORKDIR /work

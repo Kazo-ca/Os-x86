@@ -236,7 +236,14 @@ l'usager. Ensuite :
 - `.update-timestamp` doit valoir la date de modification de
   `/opt/wine-stable/share/wine/wine.inf` (Wine compare les deux à chaque démarrage et relance un
   `wineboot -u` complet s'ils diffèrent ; `wineboot` écrit le nombre suivi de CR LF) : vérifié
-  dans le conteneur, dans l'export et dans la VM par le test `guest` ;
+  dans le conteneur, dans l'export, **dans l'ext4** (`debugfs`, ajouté au conteneur `osx86-tools`)
+  et dans la VM par le test `guest`. Premier essai dans la VM : `mkfs.ext4` avec
+  `SOURCE_DATE_EPOCH=1` (réglage de linux-base pour une image reproductible) ramenait toutes les
+  dates à 1970, Wine voyait un `wine.inf` « changé » et refaisait la bouteille au premier lancement
+  (`rundll32 setupapi,InstallHinfSection DefaultInstall … wine.inf`, plusieurs minutes). L'image
+  Wine passe donc à `mkfs.ext4` la date de `wine.inf` comme `SOURCE_DATE_EPOCH` : les dates plus
+  récentes y sont ramenées, celle de `wine.inf` et les plus anciennes restent ; la valeur change
+  avec chaque version de Wine, ce qui garde la détection d'une mise à jour de Wine ;
 - Mono est enregistré comme installation partagée (paquet de support seulement) ; Gecko est
   trouvé à la demande dans `/usr/share/wine/gecko`.
 - `winemenubuilder` est coupé dans le registre du gabarit (`DllOverrides`) : la trace du premier

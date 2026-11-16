@@ -228,8 +228,14 @@ Then:
   that would overwrite one gets `EACCES` (it belongs to the image);
 - `.update-timestamp` must equal the modification time of `/opt/wine-stable/share/wine/wine.inf`
   (Wine compares them at every start and runs a full `wineboot -u` when they differ; `wineboot`
-  writes the number followed by CR LF): checked in the container, in the export and in the VM by
-  the `guest` test;
+  writes the number followed by CR LF): checked in the container, in the export, **in the ext4**
+  (`debugfs`, added to the `osx86-tools` container) and in the VM by the `guest` test. First try in
+  the VM: `mkfs.ext4` with `SOURCE_DATE_EPOCH=1` (linux-base's setting for a reproducible image)
+  brought every date back to 1970, Wine saw a "changed" `wine.inf` and remade the prefix at the
+  first launch (`rundll32 setupapi,InstallHinfSection DefaultInstall … wine.inf`, minutes). The
+  wine image therefore gives `mkfs.ext4` the date of `wine.inf` as `SOURCE_DATE_EPOCH`: later dates
+  are brought back to it, that of `wine.inf` and earlier ones stay; the value changes with every
+  Wine version, which keeps the detection of a Wine update;
 - Mono is registered as a shared install (support package only); Gecko is found on demand in
   `/usr/share/wine/gecko`.
 - `winemenubuilder` is disabled in the registry of the template (`DllOverrides`): the trace of the

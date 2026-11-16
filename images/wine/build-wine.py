@@ -328,9 +328,23 @@ def inspect_export(tar_path: Path) -> dict:
         "geckoBytes": parts["usr/share/wine/gecko/"],
         "templateBytes": parts[TEMPLATE + "/"],
         "templateLinks": sum(1 for name in links if name.startswith(TEMPLATE + "/")),
+        "wineInfMtime": inf_mtime,
         "hotFiles": len(hot_list),
         "hotBytes": sum(regular[path.lstrip("/")] for path in hot_list),
     }
+
+
+def check_ext4_dates(output: Path, inf_mtime: int) -> None:
+    """Reads back, with debugfs in the tools container, the date of wine.inf and the timestamp of
+    the template as the VM will see them in rootfs.ext4."""
+    script = (r'debugfs -R "stat /opt/wine-stable/share/wine/wine.inf" /work/rootfs.ext4 2>/dev/null | sed -n "s/^ *mtime: *0x\([0-9a-f]*\).*/\1/p"; '
+              f'debugfs -R "cat /{TEMPLATE}/.update-timestamp" /work/rootfs.ext4 2>/dev/null')
+    result = subprocess.run(["docker", "run", "--rm", "-v", f"{volume(output)}:/work:ro", lb.TOOLS_IMAGE, "sh", "-c", script],
+                            capture_output=True, text=True, check=True)
+    lines = result.stdout.split()
+    if len(lines) < 2 or int(lines[0], 16) != inf_mtime or int(lines[1]) != inf_mtime:
+        raise SystemExit(f"rootfs.ext4: wine.inf mtime and template timestamp {lines} differ from {inf_mtime}")
+    print(f"  ext4: wine.inf mtime and template timestamp both {inf_mtime}")
 
 
 # --- sources (plan section 12) -----------------------------------------------------------------------
@@ -442,7 +456,10 @@ def main() -> int:
     with tarfile.open(tar_path, "r:") as archive:
         member = archive.getmember("./" + HOT_LIST) if "./" + HOT_LIST in archive.getnames() else archive.getmember(HOT_LIST)
         (output / "hot-files.list").write_bytes(archive.extractfile(member).read())  # type: ignore[union-attr]
-    lb.run_tools(output)
+    # The ext4 keeps wine.inf's date (SOURCE_DATE_EPOCH clamps later dates only): otherwise Wine sees
+    # a changed wine.inf and runs a full wineboot -u in the VM at the first start (152 A forbids it).
+    lb.run_tools(output, source_date_epoch=contents["wineInfMtime"])
+    check_ext4_dates(output, contents["wineInfMtime"])
     sizes = {
         "dockerWine": image_size(DOCKER_IMAGE),
         "exportTar": tar_path.stat().st_size,
