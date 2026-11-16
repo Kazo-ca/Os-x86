@@ -48,7 +48,11 @@ of every launch. **No operation blocks another** (correction 1 of 205 A): `exec-
 goes to the host passes through one queue per port: the agent never waits for a port to drain,
 and a line or a frame is queued whole or not at all, never written in part.
 
-## The protocol (version 2)
+## The protocol (version 3)
+
+Version 3 since work item 12: the `net` operation (the private network, [`network.md`](network.md));
+what the agent launches in a prefix enters the prefix's network namespace when it has one. The
+client still accepts versions 1 and 2 (without network).
 
 Request: `{"id":N,"op":"…", …}` followed by LF, 64 KiB at most; numbers out of range are brought
 back to their bound, `nan` and `inf` are not JSON and get the line refused. Reply:
@@ -76,6 +80,7 @@ byte of a program's output becomes U+FFFD).
 | `prefix-list` (v2) | — | `prefixes[]`: `prefix`, `uid`, `home`; `admin` (the script is there) |
 | `put-file` (v2) | `prefix`, `path` (relative to the home, no `.`, `..` or empty component), `data` (base64), `offset`, `truncate`, `mode` (0600 by default, never writable by others) | `size`, `ms`; written as the prefix's user (30 s at most) |
 | `sync` (v2) | — | `timedOut`, `ms` |
+| `net` (v3) | `action` = `vm-up` (`vmSlot`) \| `prefix-up` (`prefix`, `vmSlot`, `prefixSlot`) \| `prefix-down` (`prefix`) | `changed`, `ms`; runs `/usr/lib/osx86/net-admin` (60 s at most); without that script, `no-net-support` |
 
 ```json
 → {"id":12,"op":"launch","prefix":"test","program":"sleep","args":["300"]}
@@ -102,7 +107,7 @@ byte of a program's output becomes U+FFFD).
 `unknown-prefix`, `program-not-found`, `exec-failed`, `cgroup-failed`, `no-cgroup`,
 `unknown-launch`, `kill-pending`, `unknown-pid`, `root-process`, `kill-failed`, `no-x-server`,
 `no-console-port`, `unknown-console`, `pty-failed`, `too-many-launches`, `too-many-consoles`,
-`too-many-jobs`, and since version 2 `no-prefix-support`, `prefix-failed`, `put-failed`. The client adds its own: `timeout`, `not-ready`, `closed`, `protocol`,
+`too-many-jobs`, since version 2 `no-prefix-support`, `prefix-failed`, `put-failed`, and since version 3 `no-net-support`, `net-failed`. The client adds its own: `timeout`, `not-ready`, `closed`, `protocol`,
 `unsupported-version` (`AgentErrorCodes`).
 
 ## Life cycle of a launch (206 A)

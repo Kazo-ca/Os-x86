@@ -511,6 +511,17 @@ reached the program.
 - The 16 colours of the default VGA palette: a palette changed by the program (DAC) is not followed;
   blinking (bit 7 when it is on) is not rendered.
 
+## A prefix's network (work item 12)
+
+Each prefix has its network namespace in the guest (`osx86-<prefix>`) and its own address on the
+user's private network (`10.86.S.4P+2`), made on its first use in the run together with its guest
+user. Everything the agent launches there (the program of `x86 run`, the Wine session and so the
+`wineserver` that opens the sockets, a console of `x86 shell --prefix`) enters that namespace
+before becoming the prefix's user: a program's connections carry the identity of its prefix up to
+the gateway, where the decision (one per prefix, D20), the limits and the journal are. Two
+prefixes of a VM reach neither each other nor the other VMs (146). Deleting a prefix deletes its
+namespace and its rules. Details: [`network.md`](network.md).
+
 ## `Ix86`: what is added, and why
 
 | Addition | For whom |

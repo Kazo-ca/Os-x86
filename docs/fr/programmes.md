@@ -523,6 +523,17 @@ chaque programme. Le Ctrl+C tapé par l'outil d'automatisation du navigateur n'a
 - 16 couleurs de la palette VGA par défaut : une palette changée par le programme (DAC) n'est pas
   suivie ; le clignotement (bit 7 quand il est actif) n'est pas rendu.
 
+## Le réseau d'un préfixe (chantier 12)
+
+Chaque préfixe a son espace réseau dans l'invité (`osx86-<préfixe>`) et sa propre adresse sur le
+réseau privé de l'usager (`10.86.S.4P+2`), faits à son premier usage dans la marche avec son
+usager invité. Tout ce que l'agent y lance (le programme d'`x86 run`, la session Wine et donc le
+`wineserver` qui ouvre les sockets, une console d'`x86 shell --prefix`) entre dans cet espace
+avant de devenir l'usager du préfixe : les connexions d'un programme portent l'identité de son
+préfixe jusqu'à la passerelle, où se prennent la décision (une par préfixe, D20), les limites et
+le journal. Deux préfixes d'une même VM ne se joignent pas et ne joignent pas les autres VM (146).
+Supprimer un préfixe supprime son espace réseau et ses règles. Détails : [`reseau.md`](reseau.md).
+
 ## `Ix86` : ce qui est ajouté, et pourquoi
 
 | Ajout | Pour qui |
