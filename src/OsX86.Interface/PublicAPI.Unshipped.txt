@@ -149,9 +149,11 @@ static OsX86.Interface.ProgramDetection.operator !=(OsX86.Interface.ProgramDetec
 static OsX86.Interface.ProgramDetection.operator ==(OsX86.Interface.ProgramDetection? left, OsX86.Interface.ProgramDetection? right) -> bool
 OsX86.Interface.Ix86.DetectProgramAsync(System.ReadOnlyMemory<byte> header, string? fileName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<OsX86.Interface.ProgramDetection!>
 OsX86.Interface.Ix86.RunProgramAsync(OsX86.Interface.ProgramRunOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<OsX86.Interface.IVmConsole!>
+const OsX86.Interface.X86ErrorCodes.NetworkUnavailable = "network-unavailable" -> string!
 const OsX86.Interface.X86ErrorCodes.PrefixExists = "prefix-exists" -> string!
 const OsX86.Interface.X86ErrorCodes.PrefixNotFound = "prefix-not-found" -> string!
 const OsX86.Interface.X86ErrorCodes.ProgramNotSupported = "program-not-supported" -> string!
+const OsX86.Interface.X86ErrorCodes.RuleNotFound = "rule-not-found" -> string!
 const OsX86.Interface.ProgramRunOptions.MaxContentBytes = 268435456 -> int
 OsX86.Interface.ProgramRunOptions
 OsX86.Interface.ProgramRunOptions.<Clone>$() -> OsX86.Interface.ProgramRunOptions!
