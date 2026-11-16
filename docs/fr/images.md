@@ -444,15 +444,18 @@ copie du gabarit comprend l'ajout de l'usager en mémoire par la console série 
 
 | Démarrage | Invite | Gabarit copié | `wine cmd /c echo` (lui-même) | `osx86-hello.exe` (lui-même) | **Premier programme** |
 | --- | --- | --- | --- | --- | --- |
-| sans préchargement | 15,2 s | 2,5 s | 11,3 s (8,6 s) | 13,3 s (2,0 s) | **13,3 s** |
-| préchargement, programme tout de suite | 16,3 s | 3,1 s | 11,9 s (8,7 s) | 13,9 s (2,0 s) | **13,9 s** |
-| préchargement, programme après sa fin | 16,5 s | 2,7 s | 10,0 s (7,3 s) | 12,2 s (2,1 s) | **12,2 s** |
+| sans préchargement | 15,2 s | 4,3 s | 12,4 s (8,0 s) | 14,6 s (2,2 s) | **14,6 s** |
+| préchargement, programme tout de suite | 15,2 s | 5,5 s | 15,1 s (9,6 s) | 17,1 s (2,0 s) | **17,1 s** |
+| préchargement, programme après sa fin | 15,3 s | 4,2 s | 11,1 s (6,8 s) | 13,3 s (2,2 s) | **13,3 s** |
 
-- **Critère de 204 A atteint** : premier programme console 12 à 14 s après l'invite (objectif :
+Un passage précédent (copie du gabarit faite en place, sans dossier intermédiaire sous `/run`)
+donnait 13,3, 13,9 et 12,2 s ; l'écart d'une passe à l'autre est de l'ordre de 1 à 3 s.
+
+- **Critère de 204 A atteint** : premier programme console 12 à 17 s après l'invite (objectif :
   moins de 60 s), sans état gabarit ; 152 A n'a pas à être reposée.
-- **Le préchargement gagne peu** : ≈ 1,3 s sur `wine cmd` quand il a fini avant (224 fichiers,
-  108 Mo lus en 1,7 s d'uptime invité quand rien d'autre ne tourne), rien quand il tourne en même
-  temps que le premier programme (11 s de lecture en concurrence). Le coût de 62 à 79 s d'E17
+- **Le préchargement gagne peu** : ≈ 1,2 s sur `wine cmd` quand il a fini avant (224 fichiers,
+  108 Mo lus en 1,8 s d'uptime invité quand rien d'autre ne tourne), et coûte 1 à 2 s quand il
+  tourne en même temps que le premier programme (11 à 14 s de lecture en concurrence). Le coût de 62 à 79 s d'E17
   venait de la racine 9p ; avec la racine ext4 lue depuis l'OPFS (chantier 6a), le premier `wine`
   est déjà à 8,6 s. Le préchargement reste dans l'image (gain mesuré, aucun coût visible sur
   l'invite) ; `osx86.preload=off` le coupe.

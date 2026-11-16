@@ -433,15 +433,18 @@ includes adding the user in memory from the serial console:
 
 | Boot | Prompt | Template copied | `wine cmd /c echo` (itself) | `osx86-hello.exe` (itself) | **First program** |
 | --- | --- | --- | --- | --- | --- |
-| no preloading | 15.2 s | 2.5 s | 11.3 s (8.6 s) | 13.3 s (2.0 s) | **13.3 s** |
-| preloading, program at once | 16.3 s | 3.1 s | 11.9 s (8.7 s) | 13.9 s (2.0 s) | **13.9 s** |
-| preloading, program after it | 16.5 s | 2.7 s | 10.0 s (7.3 s) | 12.2 s (2.1 s) | **12.2 s** |
+| no preloading | 15.2 s | 4.3 s | 12.4 s (8.0 s) | 14.6 s (2.2 s) | **14.6 s** |
+| preloading, program at once | 15.2 s | 5.5 s | 15.1 s (9.6 s) | 17.1 s (2.0 s) | **17.1 s** |
+| preloading, program after it | 15.3 s | 4.2 s | 11.1 s (6.8 s) | 13.3 s (2.2 s) | **13.3 s** |
 
-- **Criterion of 204 A met**: first console program 12 to 14 s after the prompt (objective: under
+An earlier pass (template copied in place, without the staging directory under `/run`) gave
+13.3, 13.9 and 12.2 s; the spread from one pass to the next is about 1 to 3 s.
+
+- **Criterion of 204 A met**: first console program 12 to 17 s after the prompt (objective: under
   60 s), without a template state; 152 A does not need to be asked again.
-- **Preloading gains little**: about 1.3 s on `wine cmd` when it finished first (224 files,
-  108 MB read in 1.7 s of guest uptime when nothing else runs), nothing when it runs at the same
-  time as the first program (11 s of competing reads). E17's 62 to 79 s came from the 9p root;
+- **Preloading gains little**: about 1.2 s on `wine cmd` when it finished first (224 files,
+  108 MB read in 1.8 s of guest uptime when nothing else runs), and costs 1 to 2 s when it runs at
+  the same time as the first program (11 to 14 s of competing reads). E17's 62 to 79 s came from the 9p root;
   with the ext4 root read from the OPFS (work item 6a), the first `wine` is already at 8.6 s. The
   preloading stays in the image (measured gain, no visible cost on the prompt);
   `osx86.preload=off` turns it off.
