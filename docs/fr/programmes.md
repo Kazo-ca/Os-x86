@@ -256,7 +256,7 @@ l'autre).
   qui jette ce qui a été tapé avant ; une ligne tapée pendant le démarrage du programme peut se
   perdre (le test attend que le programme annonce sa lecture).
 - **Code de sortie.** Celui de `wine`, donc celui du programme modulo 256 (un code Windows plus
-  grand, comme `0xC000013A`, arrive tronqué). Après Ctrl+C, le code mesuré est indiqué plus bas.
+  grand, comme `0xC000013A`, arrive tronqué) : après Ctrl+C, le programme sort avec 58.
 
 ## `Ix86` : ce qui est ajouté, et pourquoi
 
@@ -279,8 +279,16 @@ Playwright, pack Wine copié depuis une origine locale.
 
 | Mesure | Valeur |
 | --- | --- |
-| Premier `x86 run osx86-hello.exe a b` : VM créée, pack téléchargé et vérifié (348,9 Mio), démarrage, préfixe créé (gabarit copié), session Wine, programme | 37,6 s |
-| Second `x86 run` (VM et session en marche, programme déjà copié) | 3,5 s |
+| Premier `x86 run osx86-hello.exe a b` : VM créée, pack téléchargé et vérifié (348,9 Mio), démarrage, préfixe créé (gabarit copié), session Wine, programme | 37,0 à 37,7 s (trois passages) |
+| Second `x86 run` (VM et session en marche, programme déjà copié) | 3,3 à 3,5 s |
+| `x86 shell --prefix default` après `x86 vm stop`, démarrage compris (le fichier écrit avant l'arrêt est là) | 20,0 s |
+| `x86 run` juste après, VM en marche mais session à démarrer (cache de l'invité froid) | 15,3 s |
+| Ctrl+C sur un programme qui attend : code de sortie rendu | 58 (`0xC000013A`, `STATUS_CONTROL_C_EXIT`, tronqué à 8 bits) |
+| Ligne tapée juste après l'annonce de lecture du programme | perdue une fois sur deux passages, lue au second essai |
+
+Le démarrage de la session Wine (le `wineboot --init` de la session) coûte environ 12 s quand le cache
+de l'invité est froid ; c'est ce que le second `x86 run` n'a plus à payer. Le préchargement des
+fichiers chauds du chantier 9 tourne au démarrage de l'image et en prend une part.
 
 ## Tests
 

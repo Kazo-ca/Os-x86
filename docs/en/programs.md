@@ -246,7 +246,7 @@ fast second run, and services left from one program to the next).
   was typed before; a line typed while the program starts may be lost (the test waits for the
   program to say it reads).
 - **Exit code.** `wine`'s, so the program's modulo 256 (a bigger Windows code, such as `0xC000013A`,
-  arrives truncated). The code measured after Ctrl+C is given below.
+  arrives truncated): after Ctrl+C, the program exits with 58.
 
 ## `Ix86`: what is added, and why
 
@@ -269,8 +269,16 @@ Playwright, the wine pack copied from a local origin.
 
 | Measurement | Value |
 | --- | --- |
-| First `x86 run osx86-hello.exe a b`: VM made, pack downloaded and verified (348.9 MiB), boot, prefix made (template copied), Wine session, program | 37.6 s |
-| Second `x86 run` (VM and session up, program already copied) | 3.5 s |
+| First `x86 run osx86-hello.exe a b`: VM made, pack downloaded and verified (348.9 MiB), boot, prefix made (template copied), Wine session, program | 37.0 to 37.7 s (three runs) |
+| Second `x86 run` (VM and session up, program already copied) | 3.3 to 3.5 s |
+| `x86 shell --prefix default` after `x86 vm stop`, boot included (the file written before the stop is there) | 20.0 s |
+| `x86 run` right after, VM up but session to start (guest cache cold) | 15.3 s |
+| Ctrl+C on a program that waits: exit code returned | 58 (`0xC000013A`, `STATUS_CONTROL_C_EXIT`, truncated to 8 bits) |
+| A line typed right after the program says it reads | lost once in two runs, read at the second try |
+
+Starting the Wine session (the session's `wineboot --init`) costs about 12 s when the guest's cache
+is cold; that is what the second `x86 run` no longer pays. The preloading of the hot files of work
+item 9 runs when the image boots and takes part of it.
 
 ## Tests
 
