@@ -116,7 +116,8 @@ public sealed class UserNetwork : IGatewayHost, IAsyncDisposable
     private readonly PrivateSwitch _switch;
     private readonly NetworkGateway _gateway;
     private readonly Dictionary<int, VmNetworkAttachment> _vms = [];
-    private readonly Channel<NetworkJournalEntry> _journalQueue = Channel.CreateUnbounded<NetworkJournalEntry>(new UnboundedChannelOptions { SingleReader = true });
+    private const int JournalQueueBound = 4096; // a guest that floods refusals loses entries, never the host's memory
+    private readonly Channel<NetworkJournalEntry> _journalQueue = Channel.CreateBounded<NetworkJournalEntry>(new BoundedChannelOptions(JournalQueueBound) { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite });
     private readonly Task _journalWriter;
     private readonly ITimer _ticker;
 
@@ -126,7 +127,7 @@ public sealed class UserNetwork : IGatewayHost, IAsyncDisposable
         _hub = hub;
         Rules = new NetworkRuleBook(userId, hub.Store, hub.Time);
         Journal = new NetworkJournal(userId, hub.Store, hub.Time);
-        Policy = new NetworkPolicy(Rules, hub.Prompt);
+        Policy = new NetworkPolicy(Rules, hub.Prompt, lifetime);
         _gateway = new NetworkGateway(this, Policy, hub.Relay, hub.Limits, hub.Time, lifetime);
         _switch = new PrivateSwitch(_gateway);
         _journalWriter = Task.Run(WriteJournalAsync);

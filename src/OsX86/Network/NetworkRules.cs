@@ -140,8 +140,9 @@ public static class NetworkRuleMatcher
     /// <summary>
     /// The rule of <paramref name="identity"/> that decides a connection to
     /// <paramref name="host"/>:<paramref name="port"/>: the most specific matching rule (host and
-    /// port, then host, then port, then any); between equally specific rules, deny wins over ask,
-    /// and ask over allow.
+    /// port, then host, then port, then any); between equally specific rules, a rule of the session
+    /// wins over a written one (the answer given for the session holds while the written rule stays
+    /// for later), then deny wins over ask, and ask over allow.
     /// </summary>
     public static RuleVerdict Decide(IEnumerable<NetworkRule> rules, FlowIdentity identity, string host, int port)
     {
@@ -166,7 +167,17 @@ public static class NetworkRuleMatcher
     private static bool Outranks(NetworkRule candidate, NetworkRule current)
     {
         int bySpecificity = candidate.Destination.Specificity.CompareTo(current.Destination.Specificity);
-        return bySpecificity != 0 ? bySpecificity > 0 : Strength(candidate.Action) > Strength(current.Action);
+        if (bySpecificity != 0)
+        {
+            return bySpecificity > 0;
+        }
+
+        if (candidate.Session != current.Session)
+        {
+            return candidate.Session;
+        }
+
+        return Strength(candidate.Action) > Strength(current.Action);
     }
 
     private static int Strength(NetworkRuleAction action) => action switch
@@ -196,6 +207,12 @@ public sealed record NetworkLimits
     /// <summary>A flow without traffic for this long is cut (E6 and the relay of Kazo: 300 s).</summary>
     public TimeSpan IdleTimeout { get; init; } = TimeSpan.FromSeconds(300);
 
+    /// <summary>
+    /// How long a connection may wait for its decision (the window unanswered, a relay that does not
+    /// answer) before it is refused: the guest's own connect gives up after about two minutes.
+    /// </summary>
+    public TimeSpan DecisionTimeout { get; init; } = TimeSpan.FromSeconds(120);
+
     /// <summary>Throws when a limit makes no sense.</summary>
     public void Validate()
     {
@@ -210,6 +227,11 @@ public sealed record NetworkLimits
         if (IdleTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(IdleTimeout), IdleTimeout, "The idle time must be positive.");
+        }
+
+        if (DecisionTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(DecisionTimeout), DecisionTimeout, "The decision time must be positive.");
         }
     }
 }

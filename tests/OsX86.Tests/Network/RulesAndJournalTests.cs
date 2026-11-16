@@ -88,10 +88,11 @@ public sealed class RulesAndJournalTests
         NetworkRule kept = Assert.Single(await reread.ListAsync(CancellationToken.None));
         Assert.Equal((2, NetworkRuleAction.Allow, web), (kept.Id, kept.Action, kept.Destination));
 
-        // A session answer for the same scope replaces the written rule.
+        // A session answer for the same scope wins for the session, and the written rule stays on disk for later.
         await book.AddAsync(P1, web, NetworkRuleAction.Deny, session: true, CancellationToken.None);
         Assert.Equal(NetworkRuleAction.Deny, (await book.DecideAsync(P1, "203.0.113.9", 80, CancellationToken.None)).Action);
-        Assert.DoesNotContain("\"id\": 2", await store.ReadAsync(User, NetworkDocumentKind.Rules, CancellationToken.None), StringComparison.Ordinal);
+        Assert.Contains("\"id\": 2", await store.ReadAsync(User, NetworkDocumentKind.Rules, CancellationToken.None), StringComparison.Ordinal);
+        Assert.Equal(NetworkRuleAction.Allow, (await new NetworkRuleBook(User, store, time).DecideAsync(P1, "203.0.113.9", 80, CancellationToken.None)).Action);
 
         Assert.True(await book.RemoveAsync(-1, CancellationToken.None));
         Assert.False(await book.RemoveAsync(99, CancellationToken.None));
@@ -99,7 +100,7 @@ public sealed class RulesAndJournalTests
         Assert.True(await book.RemoveAsync(written.Id, CancellationToken.None));
         await book.AddAsync(P1, NetworkDestination.Any, NetworkRuleAction.Allow, session: false, CancellationToken.None);
         await book.AddAsync(Machine, NetworkDestination.Any, NetworkRuleAction.Allow, session: false, CancellationToken.None);
-        Assert.Equal(2, await book.RemoveForAsync(NetworkRig.Vm, new PrefixId("p1"), CancellationToken.None)); // the session deny and the written allow
+        Assert.Equal(3, await book.RemoveForAsync(NetworkRig.Vm, new PrefixId("p1"), CancellationToken.None)); // the session deny and the two written allows
         Assert.Equal(1, await book.RemoveForAsync(NetworkRig.Vm, null, CancellationToken.None));
         Assert.Empty(await book.ListAsync(CancellationToken.None));
     }

@@ -34,7 +34,10 @@ internal interface IGatewayHost
 /// </summary>
 internal sealed class NetworkGateway
 {
-    private static readonly TimeSpan UdpJournalInterval = TimeSpan.FromSeconds(60);
+    // One journal entry per identity, destination and reason per minute for what is refused before
+    // a flow exists (UDP, ports, limits, deny rules): a program retrying in a loop is one attempt,
+    // and never pushes the real entries out of the journal.
+    private static readonly TimeSpan RefusalJournalInterval = TimeSpan.FromSeconds(60);
     private readonly IGatewayHost _host;
     private readonly NetworkPolicy _policy;
     private readonly IRelayConnector _relay;
@@ -42,7 +45,7 @@ internal sealed class NetworkGateway
     private readonly TimeProvider _time;
     private readonly CancellationToken _lifetime;
     private readonly Dictionary<FlowKey, TcpFlow> _flows = [];
-    private readonly Dictionary<(FlowIdentity, string, int), DateTimeOffset> _udpJournaled = [];
+    private readonly Dictionary<(FlowIdentity, string, int, string), DateTimeOffset> _refusalsJournaled = [];
     private uint _nextIss = 0x4F58_0000;
 
     public NetworkGateway(IGatewayHost host, NetworkPolicy policy, IRelayConnector relay, NetworkLimits limits, TimeProvider time, CancellationToken lifetime)
@@ -110,8 +113,19 @@ internal sealed class NetworkGateway
     public void Tick()
     {
         DateTimeOffset now = _time.GetUtcNow();
+        foreach ((FlowIdentity, string, int, string) key in _refusalsJournaled.Where(pair => now - pair.Value >= RefusalJournalInterval).Select(pair => pair.Key).ToList())
+        {
+            _refusalsJournaled.Remove(key);
+        }
+
         foreach (TcpFlow flow in _flows.Values.ToList())
         {
+            if (flow.State == FlowState.Deciding && now - flow.Started >= _limits.DecisionTimeout)
+            {
+                Refuse(flow, new FlowDecision(false, NetworkJournalReasons.Undecided, null), null); // never answered: it never holds a slot of the limits for good
+                continue;
+            }
+
             if (flow.State != FlowState.Established)
             {
                 continue;
@@ -130,7 +144,7 @@ internal sealed class NetworkGateway
 
             if (flow.SndUna != flow.SndNxt)
             {
-                bool synPending = flow.SndUna == flow.Iss;
+                bool synPending = !flow.SynAcked;
                 flow.Rewind();
                 if (synPending)
                 {
@@ -182,16 +196,21 @@ internal sealed class NetworkGateway
             return;
         }
 
-        // One journal entry per identity and destination per minute: a resolver retrying is one attempt.
-        string host = packet.Destination.ToString();
+        JournalRefusal(Entry(source.Identity, packet.Destination.ToString(), udp.DestinationPort, NetworkJournalEvent.Refused, NetworkJournalReasons.Udp) with { Detail = udp.DestinationPort == 53 ? "udp/53 (dns)" : "udp" });
+    }
+
+    /// <summary>Writes a refusal, at most once a minute per identity, destination and reason.</summary>
+    private void JournalRefusal(NetworkJournalEntry entry)
+    {
+        var key = (entry.Identity, entry.Host, entry.Port, entry.Reason);
         DateTimeOffset now = _time.GetUtcNow();
-        if (_udpJournaled.TryGetValue((source.Identity, host, udp.DestinationPort), out DateTimeOffset last) && now - last < UdpJournalInterval)
+        if (_refusalsJournaled.TryGetValue(key, out DateTimeOffset last) && now - last < RefusalJournalInterval)
         {
             return;
         }
 
-        _udpJournaled[(source.Identity, host, udp.DestinationPort)] = now;
-        _host.Journal(Entry(source.Identity, host, udp.DestinationPort, NetworkJournalEvent.Refused, NetworkJournalReasons.Udp) with { Detail = udp.DestinationPort == 53 ? "udp/53 (dns)" : "udp" });
+        _refusalsJournaled[key] = now;
+        _host.Journal(entry);
     }
 
     private void ReceiveTcp(FlowKey key, MacAddress sourceMac, SourceIdentity source, TcpSegment segment)
@@ -228,18 +247,17 @@ internal sealed class NetworkGateway
         if (refusal is not null)
         {
             _host.Deliver(key.VmSlot, RefuseSyn(key, sourceMac, syn));
-            _host.Journal(Entry(source.Identity, host, key.RemotePort, NetworkJournalEvent.Refused, refusal));
+            JournalRefusal(Entry(source.Identity, host, key.RemotePort, NetworkJournalEvent.Refused, refusal));
             return;
         }
 
         _nextIss += 0x0001_0F31;
         var flow = new TcpFlow(key, sourceMac, source.Identity, source.VmName, syn.Sequence, syn.Window, syn.MaxSegmentSize, _nextIss, _time.GetUtcNow());
         _flows[key] = flow;
-        uint synSequence = syn.Sequence;
-        _ = Task.Run(() => DecideAndConnectAsync(flow, sourceMac, synSequence));
+        _ = Task.Run(() => DecideAndConnectAsync(flow));
     }
 
-    private async Task DecideAndConnectAsync(TcpFlow flow, MacAddress sourceMac, uint synSequence)
+    private async Task DecideAndConnectAsync(TcpFlow flow)
     {
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime, flow.Stop.Token);
         FlowDecision decision;
@@ -258,16 +276,25 @@ internal sealed class NetworkGateway
                 {
                     relayError = exception.Code;
                 }
+                catch (OperationCanceledException) when (!linked.IsCancellationRequested)
+                {
+                    relayError = RelayException.Unreachable; // the relay gave up on its own (its timeout)
+                }
             }
         }
-        catch (Exception exception) when (exception is OperationCanceledException || linked.IsCancellationRequested)
+        catch (Exception) when (linked.IsCancellationRequested)
         {
-            return; // the VM or the network went away: the flow is already gone
+            return; // the VM, the flow or the network went away: the flow is already gone
         }
         catch (Exception exception)
         {
-            _host.ReportError(exception);
-            decision = new FlowDecision(false, NetworkJournalReasons.NoPrompt, null);
+            // A window or a rule store that failed: refused this time, never left waiting.
+            if (exception is not OperationCanceledException)
+            {
+                _host.ReportError(exception);
+            }
+
+            decision = new FlowDecision(false, NetworkJournalReasons.Undecided, null);
         }
 
         lock (_host.Sync)
@@ -281,14 +308,7 @@ internal sealed class NetworkGateway
 
             if (!decision.Allowed || relay is null)
             {
-                _flows.Remove(flow.Key);
-                flow.State = FlowState.Closed;
-                _host.Deliver(flow.Key.VmSlot, PacketBuilder.Tcp(flow.Endpoints, 0, synSequence + 1, TcpFlags.Rst | TcpFlags.Ack, 0, []));
-                _host.Journal(Entry(flow.Identity, flow.Host, flow.Port, NetworkJournalEvent.Refused, decision.Allowed ? NetworkJournalReasons.Relay : decision.Reason) with
-                {
-                    Rule = decision.RuleId,
-                    Detail = relayError,
-                });
+                Refuse(flow, decision, relayError);
                 return;
             }
 
@@ -306,6 +326,20 @@ internal sealed class NetworkGateway
         _ = Task.Run(() => PumpToRelayAsync(flow, relay));
     }
 
+    /// <summary>Refuses a flow that waited for its decision: reset to the guest, journal, slot freed.</summary>
+    private void Refuse(TcpFlow flow, FlowDecision decision, string? relayError)
+    {
+        _flows.Remove(flow.Key);
+        flow.State = FlowState.Closed;
+        flow.Stop.Cancel(); // the decision task, if it still waits, ends
+        _host.Deliver(flow.Key.VmSlot, PacketBuilder.Tcp(flow.Endpoints, 0, flow.GuestIsn + 1, TcpFlags.Rst | TcpFlags.Ack, 0, []));
+        JournalRefusal(Entry(flow.Identity, flow.Host, flow.Port, NetworkJournalEvent.Refused, decision.Allowed ? NetworkJournalReasons.Relay : decision.Reason) with
+        {
+            Rule = decision.RuleId,
+            Detail = relayError,
+        });
+    }
+
     private void HandleEstablished(TcpFlow flow, TcpSegment segment)
     {
         DateTimeOffset now = _time.GetUtcNow();
@@ -317,7 +351,7 @@ internal sealed class NetworkGateway
 
         if (segment.Has(TcpFlags.Syn))
         {
-            if (segment.Sequence == flow.GuestIsn && flow.SndUna == flow.Iss)
+            if (segment.Sequence == flow.GuestIsn && !flow.SynAcked)
             {
                 Send(flow, flow.SynAck()); // our SYN-ACK was lost
             }
@@ -336,10 +370,15 @@ internal sealed class NetworkGateway
         }
 
         ReadOnlySpan<byte> payload = segment.Payload;
-        if (payload.Length > 0)
+        if (payload.Length > flow.AdvertisedWindow)
+        {
+            payload = payload[..flow.AdvertisedWindow]; // beyond the window offered: the guest sends it again later
+        }
+
+        if (segment.Payload.Length > 0)
         {
             acknowledge = true;
-            if (segment.Sequence == flow.RcvNext && !flow.GuestFinished)
+            if (segment.Sequence == flow.RcvNext && !flow.GuestFinished && payload.Length > 0)
             {
                 flow.ToRelay.Writer.TryWrite(payload.ToArray());
                 flow.PendingToRelay += payload.Length;
@@ -349,7 +388,7 @@ internal sealed class NetworkGateway
             }
         }
 
-        if (segment.Has(TcpFlags.Fin) && !flow.GuestFinished && segment.Sequence + (uint)payload.Length == flow.RcvNext)
+        if (segment.Has(TcpFlags.Fin) && !flow.GuestFinished && payload.Length == segment.Payload.Length && segment.Sequence + (uint)payload.Length == flow.RcvNext)
         {
             flow.GuestFinished = true;
             flow.RcvNext++;
@@ -365,7 +404,13 @@ internal sealed class NetworkGateway
         }
 
         SendAll(flow, segments);
-        if (flow.GuestFinished && flow.FinAcked)
+        CloseIfDone(flow);
+    }
+
+    /// <summary>Both sides finished and the relay has everything the guest sent: the flow ends.</summary>
+    private void CloseIfDone(TcpFlow flow)
+    {
+        if (flow.GuestFinished && flow.FinAcked && flow.WritesCompleted)
         {
             Close(flow, NetworkJournalReasons.Ended);
         }
@@ -445,6 +490,12 @@ internal sealed class NetworkGateway
                 if (chunk.Length == 0)
                 {
                     await relay.CompleteWritesAsync(flow.Stop.Token).ConfigureAwait(false);
+                    lock (_host.Sync)
+                    {
+                        flow.WritesCompleted = true;
+                        CloseIfDone(flow); // the guest's last bytes reached the relay before it closes
+                    }
+
                     return;
                 }
 

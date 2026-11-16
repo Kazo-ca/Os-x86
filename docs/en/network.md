@@ -58,7 +58,8 @@ guest (VM a)                           page (Os-x86)                            
 - **The switch.** One switch per user (`UserNetwork`), created on first use: two users never have
   a frame in common. Each running VM is a port; the Os-x86 gateway is another. The switch checks
   each frame against the address plan: a VM sends only from its address or those of its prefixes,
-  and does not take another VM's Ethernet address while that VM is plugged in. Between two VMs
+  and has a single Ethernet address, the first its card uses; an Ethernet address belongs to one
+  VM while it is plugged in, so a VM can neither take another's address nor cut it off. Between two VMs
   only traffic from one VM to another VM passes (VM addresses on both sides): a prefix never
   reaches another VM (146). An ARP request between VMs goes only to the VM asked. IPv6, the other
   Ethernet types, IPv4 broadcast frames and unknown destinations are dropped and counted
@@ -128,8 +129,9 @@ that of the prefix even if its address changes from one run to the next.
   out only over TCP to an address outside the private network; to an address of the private
   network (another prefix, another VM, the gateway) it gets a `reset`; `input` chain: a prefix
   reaches no service of the VM (only the replies to the VM's connections pass); UDP 53 and IPv6
-  refused by explicit rule, whoever the sender; `output` chain: on `eth0`, only root sends (a user
-  outside any prefix has no network, E6). `prefix.nft` in the prefix's namespace: IPv6 and UDP 53
+  refused by explicit rule, whoever the sender; `output` chain: outside `lo`, only root sends (a
+  user outside any prefix has no network at all, E6: neither towards `eth0` nor towards a prefix
+  through its link; a prefix whose namespace could not be made is in that case). `prefix.nft` in the prefix's namespace: IPv6 and UDP 53
   refused right at the source. A prefix's user has no capability: it does not change these rules
   and does not leave its namespace (`user.max_user_namespaces=0`, no `CAP_SYS_ADMIN`).
 - **Image.** `linux-base` gains `iproute2` and `nftables` (Debian tools image), the modules
@@ -159,8 +161,10 @@ that of the prefix even if its address changes from one run to the next.
   relay (`IRelayConnector.ConnectAsync` with the identity) → SYN-ACK. Every refusal answers a
   `reset` to the guest (the connection fails at once) and is written to the journal; a refused
   flow never reaches the relay.
-- **UDP and the rest.** UDP (DNS included) never goes out: dropped, journaled once per minute per
-  identity and destination (`udp/53 (dns)` for DNS). ICMP to the outside, fragments and IPv6 are
+- **UDP and the rest.** UDP (DNS included) never goes out: dropped and journaled (`udp/53 (dns)`
+  for DNS). Every refusal that comes before a flow (UDP, port, limits, deny rule, no decision) is
+  written only once per minute per identity, destination and reason: a program retrying in a loop
+  counts as one attempt and never pushes the real entries out of the journal. ICMP to the outside, fragments and IPv6 are
   dropped and counted. At milestone 0, a destination is an IPv4 address (see the limits).
 - **The relays.** `IRelayConnector` has three implementations:
   - `UnavailableRelay`, the Feature's today: every allowed flow fails with `relay-unavailable`
@@ -177,14 +181,20 @@ that of the prefix even if its address changes from one run to the next.
   itself. It carries a destination (`any`, a host, `host:port` or `*:port`) and an action:
   **allow**, **deny** or **ask** (open the window every time).
 - **Arbitration.** The most precise rule wins (host and port, then host, then port, then `any`);
-  at equal precision, deny prevails over ask, and ask over allow. "Allow" never lifts the limits
-  (D14).
+  at equal precision, a session rule prevails over a written one, then deny over ask, and ask over
+  allow. "Allow" never lifts the limits (D14).
 - **The permission window** is behind `INetworkPermissionPrompt`: the first connection that no
   rule decides calls it, with the user, the identity, the VM name, the host and the port. Answer:
   allow or deny; for this connection, for the session (rule kept in memory, never written) or
-  always (rule written); for this host and this port, or for any destination. A "session" or
-  "always" answer replaces a rule of the same scope (no asking again after "always"). Several
-  connections waiting for the same decision share a single window. Implementations:
+  always (rule written); for this host and this port, or for any destination. An "always" answer
+  replaces the rules of the same scope (no asking again after "always"); a "session" answer
+  prevails over the written rule of the same scope for the session and never erases it. Several
+  connections waiting for the same decision share a single window, which belongs to none of them:
+  a connection that goes (its VM stops) leaves it open for the others, and the question is
+  forgotten as soon as it has its answer, so an answer for "this connection" never serves a later
+  one. A connection with no decision after 120 s (window unanswered, relay silent) is refused
+  (`undecided`) and frees its place in the limits; a window or a relay that fails also refuses,
+  never leaving the connection waiting. Implementations:
   `UnavailablePermissionPrompt` (no window: refusal for this time, reason `no-prompt`, nothing is
   kept), the Feature's as long as ADR 0246 is not in a published version of Kazo;
   `InjectedPermissionPrompt` (answers given in advance, requests kept) for the tests and a command
@@ -205,6 +215,7 @@ Kazo's relay does not enforce them per identity:
 | flows at once per identity | 4 | `flows-identity` |
 | flows at once for the user (device cap at the relay) | 4 | `flows-user` |
 | inactivity before cut-off | 300 s | `idle` (close) |
+| waiting for a decision | 120 s | `undecided` |
 
 ADR 0255 (answer 1 A) will give the relay 2 flows per identity by default under a cap of 4 per
 device; the Os-x86 values are set through `NetworkLimits` and will follow the relay's.
@@ -214,9 +225,10 @@ device; the Os-x86 values are set through `NetworkLimits` and will follow the re
 One entry per decision and per end of flow (174 A; ADR 0255 §3: per identity): time, VM, prefix
 (or the VM), host, port, event (`Opened`, `Closed`, `Refused`), reason, rule that decided, and for
 a close the bytes sent and received and the duration. Reasons: `rule`, `prompt`, `no-prompt`,
-`port`, `flows-identity`, `flows-user`, `relay` (detail: `identity-denied`, `identity-undecided`,
+`undecided`, `port`, `flows-identity`, `flows-user`, `relay` (detail: `identity-denied`, `identity-undecided`,
 `unreachable`, `relay-unavailable`), `udp`, `idle`, `ended`, `reset`, `vm-stopped`. Written as it
-goes, in order, by one queue per user; kept 7 days and 1000 entries at most (the bounds of the
+goes, in order, by one queue per user (bounded to 4096 waiting entries: a guest flooding the
+queue loses entries, never the host's memory); kept 7 days and 1000 entries at most (the bounds of the
 audit route of ADR 0255). The journal contains no user name: it is stored per user.
 
 ## Versioned formats (plan, section 13)

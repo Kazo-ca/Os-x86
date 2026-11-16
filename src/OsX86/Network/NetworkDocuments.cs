@@ -47,6 +47,9 @@ public static class NetworkJournalReasons
     /// <summary>UDP (DNS included) never leaves the private network (174 A).</summary>
     public const string Udp = "udp";
 
+    /// <summary>No decision came in time (the window unanswered, the relay silent).</summary>
+    public const string Undecided = "undecided";
+
     /// <summary>The flow was idle longer than the limit.</summary>
     public const string Idle = "idle";
 

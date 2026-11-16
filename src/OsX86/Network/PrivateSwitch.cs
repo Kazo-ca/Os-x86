@@ -55,6 +55,7 @@ internal sealed class PrivateSwitch
 {
     private readonly Dictionary<int, INetworkPort> _ports = [];
     private readonly Dictionary<MacAddress, int> _macs = [];
+    private readonly Dictionary<int, MacAddress> _slotMacs = [];
     private readonly Dictionary<string, long> _drops = new(StringComparer.Ordinal);
 
     public PrivateSwitch(NetworkGateway gateway)
@@ -72,6 +73,7 @@ internal sealed class PrivateSwitch
     public void Detach(int vmSlot)
     {
         _ports.Remove(vmSlot);
+        _slotMacs.Remove(vmSlot);
         foreach (MacAddress mac in _macs.Where(pair => pair.Value == vmSlot).Select(pair => pair.Key).ToList())
         {
             _macs.Remove(mac);
@@ -103,8 +105,11 @@ internal sealed class PrivateSwitch
             return;
         }
 
-        // A source Ethernet address belongs to the first VM that used it until that VM leaves.
-        if (_macs.TryGetValue(frame.Source, out int owner) && owner != vmSlot)
+        // A VM has one Ethernet address, the first its card uses (its kernel's, before anything the
+        // guest could choose), and an address belongs to one VM until that VM leaves: a VM can
+        // neither take another's address nor cut it off by sending from it.
+        if ((_macs.TryGetValue(frame.Source, out int owner) && owner != vmSlot)
+            || (_slotMacs.TryGetValue(vmSlot, out MacAddress own) && own != frame.Source))
         {
             Drop(DropReasons.Spoofed);
             return;
@@ -141,7 +146,7 @@ internal sealed class PrivateSwitch
             return;
         }
 
-        _macs[frame.Source] = vmSlot;
+        Learn(vmSlot, frame.Source);
         if (arp.TargetIp == AddressPlan.Gateway)
         {
             Gateway.ReceiveArp(vmSlot, arp);
@@ -172,7 +177,7 @@ internal sealed class PrivateSwitch
             return;
         }
 
-        _macs[frame.Source] = vmSlot;
+        Learn(vmSlot, frame.Source);
         if (frame.Destination == AddressPlan.GatewayMac)
         {
             Gateway.ReceiveIpv4(vmSlot, frame.Source, packet);
@@ -198,6 +203,12 @@ internal sealed class PrivateSwitch
         }
 
         Deliver(target, bytes.ToArray());
+    }
+
+    private void Learn(int vmSlot, MacAddress mac)
+    {
+        _macs[mac] = vmSlot;
+        _slotMacs[vmSlot] = mac;
     }
 
     private static bool TryVmSlotOf(Ipv4Address address, out int vmSlot) =>

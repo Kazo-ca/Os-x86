@@ -98,6 +98,12 @@ internal sealed class TcpFlow
 
     public bool RelayEnded { get; set; }
 
+    /// <summary>Whether the guest acknowledged the SYN-ACK (not read from the numbers: they wrap after 4 GiB).</summary>
+    public bool SynAcked { get; set; }
+
+    /// <summary>Whether the relay got everything the guest sent and the end of it (its FIN).</summary>
+    public bool WritesCompleted { get; set; }
+
     public bool FinSent { get; set; }
 
     public bool FinAcked { get; set; }
@@ -136,7 +142,7 @@ internal sealed class TcpFlow
     public ushort AdvertisedWindow => (ushort)Math.Clamp(ReceiveWindow - PendingToRelay, 0, ReceiveWindow);
 
     /// <summary>The offset in <see cref="Outgoing"/> of the next byte never sent.</summary>
-    public int Unsent => (int)(SndNxt - SndUna) - (FinSent && !FinAcked ? 1 : 0) - (SndUna == Iss ? 1 : 0);
+    public int Unsent => (int)(SndNxt - SndUna) - (FinSent && !FinAcked ? 1 : 0) - (SynAcked ? 0 : 1);
 
     public static TaskCompletionSource NewGate(bool open)
     {
@@ -227,9 +233,10 @@ internal sealed class TcpFlow
         }
 
         int acknowledged = (int)(ack - SndUna);
-        if (SndUna == Iss)
+        if (!SynAcked)
         {
             acknowledged--; // the SYN
+            SynAcked = true;
         }
 
         if (FinSent && ack == SndNxt)
@@ -252,7 +259,7 @@ internal sealed class TcpFlow
             FinSent = false;
         }
 
-        SndNxt = SndUna == Iss ? Iss + 1 : SndUna;
+        SndNxt = SynAcked ? SndUna : Iss + 1;
         Retransmit = Retransmit * 2 > MaxRetransmit ? MaxRetransmit : Retransmit * 2;
     }
 }

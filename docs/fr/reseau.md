@@ -58,8 +58,9 @@ invité (VM a)                          page (Os-x86)                           
 - **Le commutateur.** Un commutateur par usager (`UserNetwork`), créé au premier usage : deux
   usagers n'ont jamais de trame en commun. Chaque VM en marche est un port ; la passerelle
   d'Os-x86 en est un autre. Le commutateur vérifie chaque trame contre le plan d'adresses : une VM
-  n'émet que depuis son adresse ou celles de ses préfixes, et ne prend pas l'adresse Ethernet
-  d'une autre VM tant que celle-ci est branchée. Entre deux VM ne passe que le trafic d'une VM à
+  n'émet que depuis son adresse ou celles de ses préfixes, et n'a qu'une adresse Ethernet, la
+  première que sa carte utilise ; une adresse Ethernet appartient à une VM tant qu'elle est
+  branchée, si bien qu'une VM ne peut ni prendre l'adresse d'une autre ni la couper du réseau. Entre deux VM ne passe que le trafic d'une VM à
   une autre VM (adresses de VM des deux côtés) : un préfixe ne joint jamais une autre VM (146).
   Une requête ARP entre VM ne va qu'à la VM demandée. IPv6, les autres types Ethernet, les trames
   de diffusion IPv4 et les destinations inconnues sont abandonnés et comptés (`UserNetwork.Drops`).
@@ -129,8 +130,9 @@ celle du préfixe même si son adresse change d'une marche à l'autre.
   ne sort qu'en TCP vers une adresse hors du réseau privé ; vers une adresse du réseau privé
   (autre préfixe, autre VM, passerelle) il reçoit un `reset` ; chaîne `input` : un préfixe
   n'atteint aucun service de la VM (seules les réponses aux connexions de la VM passent) ; UDP 53
-  et IPv6 refusés par règle explicite, quel que soit l'émetteur ; chaîne `output` : sur `eth0`,
-  seul root émet (un usager hors de tout préfixe n'a pas de réseau, E6). `prefix.nft` dans
+  et IPv6 refusés par règle explicite, quel que soit l'émetteur ; chaîne `output` : hors de `lo`,
+  seul root émet (un usager hors de tout préfixe n'a aucun réseau, E6 : ni vers `eth0`, ni vers un
+  préfixe par son lien ; un préfixe dont l'espace réseau n'a pas pu être fait est dans ce cas). `prefix.nft` dans
   l'espace du préfixe : IPv6 et UDP 53 refusés dès la source. L'usager d'un préfixe n'a aucune
   capacité : il ne change pas ces règles et ne quitte pas son espace
   (`user.max_user_namespaces=0`, pas de `CAP_SYS_ADMIN`).
@@ -161,8 +163,11 @@ celle du préfixe même si son adresse change d'une marche à l'autre.
   ignorés) → relais (`IRelayConnector.ConnectAsync` avec l'identité) → SYN-ACK. Tout refus répond
   un `reset` à l'invité (la connexion échoue tout de suite) et s'écrit au journal ; un flux
   refusé n'atteint jamais le relais.
-- **UDP et le reste.** UDP (DNS compris) ne sort jamais : abandonné, journalisé une fois par
-  minute et par identité et destination (`udp/53 (dns)` pour le DNS). ICMP vers l'extérieur,
+- **UDP et le reste.** UDP (DNS compris) ne sort jamais : abandonné et journalisé (`udp/53 (dns)`
+  pour le DNS). Tout refus qui précède un flux (UDP, port, limites, règle de refus, absence de
+  décision) n'est écrit qu'une fois par minute et par identité, destination et raison : un
+  programme qui réessaie en boucle compte pour une tentative et ne chasse pas les vraies entrées
+  du journal. ICMP vers l'extérieur,
   fragments et IPv6 sont abandonnés et comptés. Au jalon 0, une destination est une adresse
   IPv4 (voir les limites).
 - **Les relais.** `IRelayConnector` a trois implémentations :
@@ -181,15 +186,21 @@ celle du préfixe même si son adresse change d'une marche à l'autre.
   VM elle-même. Elle porte une destination (`any`, un hôte, `hôte:port` ou `*:port`) et une
   action : **autoriser**, **refuser** ou **demander** (ouvrir la fenêtre à chaque fois).
 - **Arbitrage.** La règle la plus précise gagne (hôte et port, puis hôte, puis port, puis `any`) ;
-  à précision égale, refuser l'emporte sur demander, et demander sur autoriser. « Autoriser » ne
-  lève jamais les limites (D14).
+  à précision égale, une règle de la session l'emporte sur une règle écrite, puis refuser sur
+  demander, et demander sur autoriser. « Autoriser » ne lève jamais les limites (D14).
 - **La fenêtre de permission** est derrière `INetworkPermissionPrompt` : la première connexion
   qu'aucune règle ne décide l'appelle, avec l'usager, l'identité, le nom de la VM, l'hôte et le
   port. Réponse : autoriser ou refuser ; pour cette connexion, pour la session (règle gardée en
   mémoire, jamais écrite) ou toujours (règle écrite) ; pour cet hôte et ce port, ou pour toute
-  destination. Une réponse « session » ou « toujours » remplace une règle de même portée (on ne
-  redemande pas après « toujours »). Plusieurs connexions qui attendent la même décision
-  partagent une seule fenêtre. Implémentations : `UnavailablePermissionPrompt` (pas de fenêtre :
+  destination. Une réponse « toujours » remplace les règles de même portée (on ne redemande pas
+  après « toujours ») ; une réponse « session » l'emporte sur la règle écrite de même portée le
+  temps de la session sans jamais l'effacer. Plusieurs connexions qui attendent la même décision
+  partagent une seule fenêtre, qui n'appartient à aucune : une connexion qui s'en va (sa VM
+  s'arrête) la laisse ouverte pour les autres, et la question est oubliée dès qu'elle a sa
+  réponse, si bien qu'une réponse « cette connexion » ne sert jamais à une connexion suivante.
+  Une connexion qui n'a pas de décision au bout de 120 s (fenêtre sans réponse, relais muet) est
+  refusée (`undecided`) et libère sa place dans les limites ; une fenêtre ou un relais en échec
+  refusent aussi, sans jamais laisser la connexion en attente. Implémentations : `UnavailablePermissionPrompt` (pas de fenêtre :
   refus pour cette fois, raison `no-prompt`, rien n'est retenu), celle de la Feature tant que
   l'ADR 0246 n'est pas dans une version publiée de Kazo ; `InjectedPermissionPrompt` (réponses
   données d'avance, demandes gardées) pour les tests et une ligne de commande qui décide avant de
@@ -210,6 +221,7 @@ relais de Kazo ne les tient pas par identité :
 | flux à la fois par identité | 4 | `flows-identity` |
 | flux à la fois pour l'usager (plafond de l'appareil au relais) | 4 | `flows-user` |
 | inactivité avant coupure | 300 s | `idle` (fermeture) |
+| attente d'une décision | 120 s | `undecided` |
 
 L'ADR 0255 (réponse 1 A) donnera au relais 2 flux par identité par défaut sous un plafond de 4 par
 appareil ; les valeurs d'Os-x86 se règlent par `NetworkLimits` et suivront celles du relais.
@@ -219,9 +231,11 @@ appareil ; les valeurs d'Os-x86 se règlent par `NetworkLimits` et suivront cell
 Une entrée par décision et par fin de flux (174 A ; ADR 0255 §3 : par identité) : heure, VM,
 préfixe (ou la VM), hôte, port, événement (`Opened`, `Closed`, `Refused`), raison, règle qui a
 décidé, et pour une fermeture les octets envoyés et reçus et la durée. Raisons : `rule`,
-`prompt`, `no-prompt`, `port`, `flows-identity`, `flows-user`, `relay` (détail :
+`prompt`, `no-prompt`, `undecided`, `port`, `flows-identity`, `flows-user`, `relay` (détail :
 `identity-denied`, `identity-undecided`, `unreachable`, `relay-unavailable`), `udp`, `idle`,
-`ended`, `reset`, `vm-stopped`. Écrit au fil de l'eau, dans l'ordre, par une file par usager ;
+`ended`, `reset`, `vm-stopped`. Écrit au fil de l'eau, dans l'ordre, par une file par usager
+(bornée à 4096 entrées en attente : un invité qui inonderait la file perd des entrées, jamais la
+mémoire de l'hôte) ;
 gardé 7 jours et 1000 entrées au plus (les bornes de la route d'audit de l'ADR 0255). Le journal
 ne contient aucun nom d'usager : il est rangé par usager.
 

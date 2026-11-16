@@ -45,8 +45,11 @@ public sealed class NetworkRuleBook
         NetworkRuleMatcher.Decide(await ListAsync(cancellationToken).ConfigureAwait(false), identity, host, port);
 
     /// <summary>
-    /// Adds a rule; a rule of the same identity and destination is replaced (the new answer wins,
-    /// so "ask" then "always allow" does not ask again). A session rule is kept in memory only.
+    /// Adds a rule. A written rule replaces the written and session rules of the same identity and
+    /// destination (the new answer wins, so "ask" then "always allow" does not ask again). A session
+    /// rule is kept in memory only, replaces a session rule of the same scope, and never touches a
+    /// written one: it outranks it for the session (<see cref="NetworkRuleMatcher"/>), and the
+    /// written rule holds again after it.
     /// </summary>
     public async ValueTask<NetworkRule> AddAsync(FlowIdentity identity, NetworkDestination destination, NetworkRuleAction action, bool session, CancellationToken cancellationToken)
     {
@@ -63,17 +66,7 @@ public sealed class NetworkRuleBook
                 {
                     var rule = new NetworkRule(_nextSessionId--, identity.VmId, identity.Prefix, destination, action, now, Session: true);
                     _session = [.. _session.Where(existing => !Same(existing)), rule];
-                }
-
-                // A written rule of the same scope would outrank nothing (same specificity): it goes.
-                if (document.Rules.Any(Same))
-                {
-                    await SaveAsync(new NetworkRulesDocument { User = UserId, NextId = document.NextId, Rules = [.. document.Rules.Where(rule => !Same(rule))] }, cancellationToken).ConfigureAwait(false);
-                }
-
-                lock (_lock)
-                {
-                    return _session[^1];
+                    return rule;
                 }
             }
 

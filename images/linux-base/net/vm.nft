@@ -5,7 +5,8 @@
 #   - a prefix (its link vx<slot>) reaches TCP out of the private network only: never another
 #     prefix, another VM, nor a service of this VM;
 #   - UDP 53 (DNS) and IPv6 are refused by an explicit rule, whoever sends;
-#   - a user of the VM outside a prefix namespace has no network (only root speaks on eth0).
+#   - a user of the VM outside a prefix namespace has no network at all (only root speaks out of
+#     lo): not on eth0, nor to a prefix through its link (a prefix whose namespace failed stays here).
 table inet osx86
 delete table inet osx86
 
@@ -32,6 +33,6 @@ table inet osx86 {
         type filter hook output priority filter; policy accept;
         meta nfproto ipv6 counter drop
         udp dport 53 counter drop
-        oifname "eth0" meta skuid != 0 counter drop
+        oifname != "lo" meta skuid != 0 counter drop
     }
 }

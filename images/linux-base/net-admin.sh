@@ -60,7 +60,7 @@ case "$action" in
     load_modules
     ip link show eth0 > /dev/null 2>&1 || fail "the VM has no network card (eth0)"
     address="10.86.0.$vm"
-    changed=1
+    changed=$NOTHING
     if ! ip -4 -o addr show dev eth0 | grep -q " inet $address/24 "; then
       ip -4 addr flush dev eth0
       ip addr add "$address/24" dev eth0
