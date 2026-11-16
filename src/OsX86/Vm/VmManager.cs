@@ -232,7 +232,14 @@ public sealed class VmManager : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            ReportBackgroundError(instance, exception); // a listener that fails never fails the download
+            try
+            {
+                ReportBackgroundError(instance, exception); // a listener that fails never fails the download
+            }
+            catch (Exception)
+            {
+                // Neither does a failing error listener.
+            }
         }
     }
 

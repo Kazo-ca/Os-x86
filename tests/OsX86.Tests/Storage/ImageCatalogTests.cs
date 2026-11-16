@@ -76,6 +76,7 @@ public sealed class ImageCatalogTests
     [InlineData("linux-base", "latest", "a/manifest.json", null, "not a semantic version")]
     [InlineData("linux-base", "0.1.0", "a/image.bin", null, "must end with /manifest.json")]
     [InlineData("linux-base", "0.1.0", "", null, "must end with /manifest.json")]
+    [InlineData("linux-base", "0.1.0", "//other.example/manifest.json", null, "must end with /manifest.json")]
     [InlineData("linux-base", "0.1.0", "a/manifest.json", "abc", "64 hex digits")]
     public void An_invalid_entry_is_refused_naming_the_problem(string image, string version, string url, string? sha, string expected)
     {

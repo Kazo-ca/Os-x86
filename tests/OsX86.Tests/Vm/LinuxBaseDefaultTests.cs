@@ -136,7 +136,7 @@ public sealed class LinuxBaseDefaultTests
 
         BootImage boot = await source.ResolveAsync("linux-base", "0.1.0", reports, None);
 
-        Assert.Equal(["list", "fetch-manifest", "read-state", "download", "read-manifest"], worker.PostedTypes);
+        Assert.Equal(["list", "list", "fetch-manifest", "read-state", "download", "read-manifest"], worker.PostedTypes); // looked for again under the gate
         Assert.Equal("https://images.example/linux-base/0.1.0/", worker.LastDownload!.Value.GetProperty("baseUrl").GetString());
         Assert.Equal(DownloadPhase.FetchingManifest, reports.All[0].Phase);
         Assert.Equal(DownloadPhase.Completed, reports.All[^1].Phase);
@@ -155,7 +155,7 @@ public sealed class LinuxBaseDefaultTests
 
         Assert.Equal(X86ErrorCodes.ImageUnavailable, error.Code);
         Assert.Contains("no origin is configured", error.Message, StringComparison.Ordinal);
-        Assert.Equal(["list"], worker.PostedTypes);
+        Assert.Equal(["list", "list"], worker.PostedTypes);
         Assert.Equal(X86ErrorCodes.ImageUnavailable, (await Assert.ThrowsAsync<X86Exception>(async () => await source.ResolveAsync("Not An Id", "0.1.0", null, None))).Code);
         Assert.Equal(X86ErrorCodes.ImageUnavailable, (await Assert.ThrowsAsync<X86Exception>(async () => await source.ResolveAsync("linux-base", "latest", null, None))).Code);
     }

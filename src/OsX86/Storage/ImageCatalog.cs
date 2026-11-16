@@ -30,9 +30,10 @@ public sealed record KnownImage(string Image, string Version, string ManifestUrl
 
         if (string.IsNullOrWhiteSpace(ManifestUrl)
             || !(ManifestUrl == StorageLayout.ManifestFileName || ManifestUrl.EndsWith("/" + StorageLayout.ManifestFileName, StringComparison.Ordinal))
+            || ManifestUrl.StartsWith("//", StringComparison.Ordinal)
             || !Uri.TryCreate(ManifestUrl, UriKind.RelativeOrAbsolute, out _))
         {
-            throw Invalid($"the manifest address of {Image} {Version} must end with /{StorageLayout.ManifestFileName}");
+            throw Invalid($"the manifest address of {Image} {Version} must end with /{StorageLayout.ManifestFileName} (a relative one may not start with //)");
         }
 
         if (!ImageManifest.IsLowercaseSha256(ManifestSha256?.ToLowerInvariant()))

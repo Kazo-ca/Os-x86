@@ -323,11 +323,14 @@ internal sealed class DownloadReporter(TextWriter output)
             return;
         }
 
-        _lines.Writer.TryWrite(line);
         lock (_lock)
         {
+            // Started before the line is queued, under the lock CompleteAsync reads it with: a report
+            // racing the end of the operation is written, never left behind.
             _pump ??= Task.Run(PumpAsync);
         }
+
+        _lines.Writer.TryWrite(line);
     }
 
     /// <summary>Writes what is queued and stops.</summary>
@@ -355,9 +358,9 @@ internal sealed class DownloadReporter(TextWriter output)
                 await output.WriteLineAsync(line.AsMemory(), CancellationToken.None).ConfigureAwait(false);
             }
         }
-        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        catch (Exception)
         {
-            // The terminal went away: the download goes on, its end is the command's result.
+            // Whatever the terminal does, the progress never replaces the command's own result.
         }
     }
 }

@@ -39,23 +39,34 @@ public sealed class StoreBootImageSource : IBootImageSource
             throw new X86Exception(X86ErrorCodes.ImageUnavailable, $"'{image} {version}' is not an image identifier and version.");
         }
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            ImageManifest manifest = await FindOrDownloadAsync(image, version, progress, cancellationToken).ConfigureAwait(false);
+            // An image already there needs no gate: only a download waits for another one.
+            ImageManifest? manifest = await FindAsync(image, version, cancellationToken).ConfigureAwait(false);
+            if (manifest is null)
+            {
+                await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    manifest = await FindAsync(image, version, cancellationToken).ConfigureAwait(false)
+                        ?? await DownloadAsync(image, version, progress, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _gate.Release();
+                }
+            }
+
             return new BootImage(manifest);
         }
         catch (StorageException exception)
         {
             throw new X86Exception(X86ErrorCodes.ImageUnavailable, $"The image {image} {version} is not available ({exception.Code}): {exception.Message}", exception);
         }
-        finally
-        {
-            _gate.Release();
-        }
     }
 
-    private async Task<ImageManifest> FindOrDownloadAsync(string image, string version, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
+    /// <summary>The manifest of a complete stored version, <see langword="null"/> when it must be downloaded.</summary>
+    private async Task<ImageManifest?> FindAsync(string image, string version, CancellationToken cancellationToken)
     {
         IReadOnlyList<StoredImage> stored = await _store.ListAsync(cancellationToken).ConfigureAwait(false);
         StoredImage? present = stored.FirstOrDefault(entry => entry.Image == image && entry.Version == version);
@@ -69,6 +80,11 @@ public sealed class StoreBootImageSource : IBootImageSource
             throw new X86Exception(X86ErrorCodes.ImageUnavailable, $"The image {image} {version} in the store has format {present.Format}, which this version of Os-x86 cannot open (decision 169): delete it to download it again.");
         }
 
+        return null;
+    }
+
+    private async Task<ImageManifest> DownloadAsync(string image, string version, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken)
+    {
         ImageSource source = Catalog.SourceOf(image, version)
             ?? throw new X86Exception(X86ErrorCodes.ImageUnavailable, $"The image {image} {version} is not in the store and no origin is configured for it: it cannot be downloaded on this host.");
         StoredImage downloaded = await _store.DownloadAsync(source, progress, cancellationToken).ConfigureAwait(false);

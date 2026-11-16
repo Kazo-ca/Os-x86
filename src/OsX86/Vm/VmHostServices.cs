@@ -190,7 +190,7 @@ public interface IBootImageSource
     ValueTask<BootImage> ResolveAsync(string image, string version, IProgress<DownloadProgress>? progress, CancellationToken cancellationToken);
 
     /// <summary>Deletes the write layers of a VM (its disks start again from the image); nothing when it has none.</summary>
-    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmBusy"/> while an engine still runs on them, <see cref="X86ErrorCodes.StartFailed"/> for another failure of the store.</exception>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmBusy"/> while an engine still runs on them, <see cref="X86ErrorCodes.StorageFailed"/> for another failure of the store.</exception>
     ValueTask DeleteLayersAsync(string layerSet, CancellationToken cancellationToken);
 }
 

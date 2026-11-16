@@ -25,7 +25,7 @@ internal static class DevImages
     public static async Task<ImageCatalog> LoadCatalogAsync(Uri baseAddress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(baseAddress);
-        using var http = new HttpClient { BaseAddress = baseAddress };
+        using var http = new HttpClient { BaseAddress = baseAddress, Timeout = TimeSpan.FromSeconds(10) };
         var images = new List<KnownImage>();
         foreach ((string directory, string sha256) in Packs(typeof(DevImages).Assembly))
         {
@@ -36,8 +36,9 @@ internal static class DevImages
                 ImageManifest manifest = ImageManifest.Parse(text, sha256);
                 images.Add(new KnownImage(manifest.Image, manifest.Version, url, sha256));
             }
-            catch (Exception exception) when (exception is HttpRequestException or StorageException)
+            catch (Exception exception) when (exception is not OutOfMemoryException)
             {
+                // A pack that cannot be read never stops the dev host: it is only left out.
                 await Console.Error.WriteLineAsync($"Os-x86 dev host: the pack {directory} is left out of the image catalog: {exception.Message}").ConfigureAwait(false);
             }
         }

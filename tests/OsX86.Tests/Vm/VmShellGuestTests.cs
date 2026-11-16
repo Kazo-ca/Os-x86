@@ -76,7 +76,7 @@ public sealed class VmShellGuestTests(ITestOutputHelper output)
         try
         {
             var created = new StringWriter();
-            Assert.Equal(0, await new X86Command().ExecuteAsync(TestAppContext.Terminal(["vm", "create", "Alpine"], created, new StringWriter()), CancellationToken.None));
+            Assert.Equal(0, await new X86Command().ExecuteAsync(TestAppContext.Terminal(["vm", "create", "--profile", "alpine-test", "Alpine"], created, new StringWriter()), CancellationToken.None));
             output.WriteLine(created.ToString().TrimEnd());
 
             var input = new QueueTextReader();
