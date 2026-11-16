@@ -46,11 +46,46 @@ internal sealed class WorkerMessage
     /// <summary><c>screen</c>: the rows of the VGA text screen.</summary>
     public List<string>? Lines { get; set; }
 
+    /// <summary><c>screen</c>: one VGA attribute byte per cell, row by row, base64.</summary>
+    public string? Attributes { get; set; }
+
+    /// <summary><c>screen</c>: the hardware cursor, null when the worker cannot read it.</summary>
+    public CursorMessage? Cursor { get; set; }
+
+    /// <summary><c>screen</c>: whether bit 7 of an attribute blinks (instead of brightening the background).</summary>
+    public bool Blink { get; set; }
+
+    /// <summary><c>screen</c>: whether the VGA is in a graphical mode (the text is then the last one, frozen).</summary>
+    public bool Graphical { get; set; }
+
+    /// <summary><c>screen</c>: <c>vga</c> (the VGA memory) or <c>events</c> (characters only).</summary>
+    public string? Source { get; set; }
+
     /// <summary><c>disks</c>: the counters of each open disk.</summary>
     public Dictionary<string, DiskCountersMessage>? Disks { get; set; }
 
     /// <summary><c>disks</c>: the counters of the frame cache, null when no disk is open.</summary>
     public CacheCountersMessage? Cache { get; set; }
+}
+
+/// <summary>The cursor of the <c>screen</c> message.</summary>
+internal sealed class CursorMessage
+{
+    public int Row { get; set; }
+
+    public int Col { get; set; }
+
+    public bool Visible { get; set; }
+}
+
+/// <summary>The <c>keys</c> command: PS/2 scancodes (set 1).</summary>
+internal sealed class KeysCommand
+{
+    /// <summary>Always <c>keys</c>.</summary>
+    public string Type { get; } = "keys";
+
+    /// <summary>The scancodes, in order.</summary>
+    public required int[] Codes { get; init; }
 }
 
 /// <summary>The <c>start</c> command.</summary>
@@ -99,6 +134,9 @@ internal sealed class StartCommandOptions
     /// <summary>Whether the virtio-console device is declared.</summary>
     public bool VirtioConsole { get; init; }
 
+    /// <summary>Whether <c>keys</c> may reach the guest keyboard.</summary>
+    public bool Keyboard { get; init; }
+
     /// <summary>Builds the command options from the public options.</summary>
     public static StartCommandOptions From(EngineStartOptions options) => new()
     {
@@ -113,13 +151,17 @@ internal sealed class StartCommandOptions
         VgaMemoryMiB = options.VgaMemoryMiB,
         CacheMiB = options.FrameCacheMiB,
         VirtioConsole = options.VirtioConsole,
+        Keyboard = options.Keyboard,
     };
 }
 
-/// <summary>A source of the start command: <c>{path, offset?, size?, rawSize?, blockSize?}</c>.</summary>
+/// <summary>A source of the start command: <c>{path, offset?, size?, rawSize?, blockSize?}</c> or <c>{inline}</c>.</summary>
 internal sealed class SourceCommand
 {
-    public required string Path { get; init; }
+    public string? Path { get; init; }
+
+    /// <summary>The bytes of a disk sent whole, base64.</summary>
+    public string? Inline { get; init; }
 
     public long? Offset { get; init; }
 
@@ -129,7 +171,10 @@ internal sealed class SourceCommand
 
     public int? BlockSize { get; init; }
 
-    public static SourceCommand? From(EngineFileSource? source) => source is null ? null : new SourceCommand
+    public static SourceCommand? From(EngineFileSource? source) => source is null ? null : source.Content is { } content ? new SourceCommand
+    {
+        Inline = Convert.ToBase64String(content.Span),
+    } : new SourceCommand
     {
         Path = source.Path,
         Offset = source.Offset,
@@ -238,6 +283,7 @@ internal sealed class WriteCommand
 [JsonSerializable(typeof(StartCommand))]
 [JsonSerializable(typeof(SimpleCommand))]
 [JsonSerializable(typeof(WriteCommand))]
+[JsonSerializable(typeof(KeysCommand))]
 internal sealed partial class WorkerJsonContext : JsonSerializerContext
 {
 }
@@ -260,6 +306,8 @@ internal static class WorkerProtocol
     }
 
     public static string ReadScreen() => Serialize(new SimpleCommand("read-screen"));
+
+    public static string Keys(IReadOnlyList<byte> codes) => Serialize(new KeysCommand { Codes = [.. codes.Select(static code => (int)code)] }, WorkerJsonContext.Default.KeysCommand);
 
     public static string QueryDisks() => Serialize(new SimpleCommand("query-disks"));
 

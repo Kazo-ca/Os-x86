@@ -1,15 +1,5 @@
 namespace OsX86.Engine;
 
-/// <summary>The VGA text screen of the guest (trial E14: how a DOS program is read), blank outside the text modes.</summary>
-/// <param name="Columns">The width in characters.</param>
-/// <param name="Rows">The height in characters.</param>
-/// <param name="Lines">One string per row, code page 437 turned into Unicode, padded with spaces.</param>
-public sealed record EngineTextScreen(int Columns, int Rows, IReadOnlyList<string> Lines)
-{
-    /// <summary>The rows joined by line feeds, trailing spaces removed.</summary>
-    public string Text => string.Join('\n', Lines.Select(static line => line.TrimEnd()));
-}
-
 /// <summary>What one disk did since the engine started.</summary>
 /// <param name="Bytes">The size of the disk.</param>
 /// <param name="Reads">How many reads the guest made.</param>

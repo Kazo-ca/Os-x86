@@ -38,7 +38,14 @@ internal sealed class TestAppContext(string userId) : IAppExecutionContext
     public IAppProcessGateway Processes => throw new NotSupportedException();
 
     /// <summary>Builds a terminal context on this app context, with captured output.</summary>
-    public static TerminalExecutionContext Terminal(IReadOnlyList<string> arguments, TextWriter stdout, TextWriter stderr, TextReader? stdin = null, string userId = DefaultUserId, CancellationToken process = default) =>
-        new(new TestAppContext(userId) { CancellationToken = process }, arguments, stdin ?? new StringReader(string.Empty), stdout, stderr, "/home/user-1",
-            new Dictionary<string, string>(StringComparer.Ordinal) { ["USER"] = "user-1", ["HOME"] = "/home/user-1" });
+    public static TerminalExecutionContext Terminal(IReadOnlyList<string> arguments, TextWriter stdout, TextWriter stderr, TextReader? stdin = null, string userId = DefaultUserId, CancellationToken process = default, IFullScreenTerminalSession? fullScreen = null, IReadOnlyDictionary<string, string>? environment = null)
+    {
+        var variables = new Dictionary<string, string>(StringComparer.Ordinal) { ["USER"] = "user-1", ["HOME"] = "/home/user-1" };
+        foreach ((string name, string value) in environment ?? new Dictionary<string, string>())
+        {
+            variables[name] = value;
+        }
+
+        return new(new TestAppContext(userId) { CancellationToken = process }, arguments, stdin ?? new StringReader(string.Empty), stdout, stderr, "/home/user-1", variables, fullScreen);
+    }
 }

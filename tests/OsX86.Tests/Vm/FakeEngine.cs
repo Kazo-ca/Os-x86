@@ -11,12 +11,16 @@ namespace OsX86.Tests.Vm;
 /// An <see cref="IEngine"/> without emulator: it goes through the states, and its ports talk to a
 /// <see cref="SimulatedAgentChannel"/> (the agent of work item 5's tests) on <c>virtio0</c> and
 /// <c>virtio1</c>, or to nobody for an image without agent. The serial port is a byte queue the
-/// test fills and reads.
+/// test fills and reads. For the DOS way (work item 11) it is a text-mode engine: its screen is what
+/// the test sets, the scancodes it receives are recorded, the serial lines are what the test sends.
 /// </summary>
-internal sealed class FakeEngine : IEngine
+internal sealed class FakeEngine : IEngine, ITextModeEngine
 {
     private readonly Lock _lock = new();
     private readonly Channel<ReadOnlyMemory<byte>> _serial = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+    private readonly Channel<string> _serialLines = Channel.CreateUnbounded<string>();
+    private readonly List<byte> _scancodes = [];
+    private EngineTextScreen _screen = new(80, 25, [.. Enumerable.Repeat(new string(' ', 80), 25)]);
     private readonly List<byte[]> _serialWritten = [];
     private EngineState _state;
 
@@ -103,6 +107,7 @@ internal sealed class FakeEngine : IEngine
 
         Agent?.Complete();
         _serial.Writer.TryComplete();
+        _serialLines.Writer.TryComplete();
         return ValueTask.CompletedTask;
     }
 
@@ -115,6 +120,81 @@ internal sealed class FakeEngine : IEngine
 
     /// <summary>The guest writes on its serial console.</summary>
     public void SendSerial(string text) => _serial.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
+
+    /// <summary>The guest writes a line on its serial console, as the line readers see it.</summary>
+    public void SendSerialLine(string line) => _serialLines.Writer.TryWrite(line);
+
+    /// <summary>The text screen the guest shows.</summary>
+    public EngineTextScreen Screen
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _screen;
+            }
+        }
+
+        set
+        {
+            lock (_lock)
+            {
+                _screen = value;
+            }
+        }
+    }
+
+    /// <summary>The scancodes received, in order.</summary>
+    public IReadOnlyList<byte> Scancodes
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _scancodes];
+            }
+        }
+    }
+
+    /// <summary>How many times the screen was read.</summary>
+    public int ScreenReads { get; private set; }
+
+    /// <summary>The guest changes its video mode.</summary>
+    public void RaiseScreenSize(int columns, int rows, int bitsPerPixel) => ScreenSizeChanged?.Invoke(this, new ScreenSizeChangedEventArgs(columns, rows, bitsPerPixel));
+
+    public ValueTask<EngineTextScreen> ReadTextScreenAsync(CancellationToken cancellationToken)
+    {
+        if (State != EngineState.Running)
+        {
+            throw new EngineStateException(EngineOperation.Write, State);
+        }
+
+        lock (_lock)
+        {
+            ScreenReads++;
+            return ValueTask.FromResult(_screen);
+        }
+    }
+
+    public ValueTask SendScancodesAsync(IReadOnlyList<byte> scancodes, CancellationToken cancellationToken)
+    {
+        if (State != EngineState.Running)
+        {
+            throw new EngineStateException(EngineOperation.Write, State);
+        }
+
+        if (StartedWith?.Keyboard != true)
+        {
+            throw new EngineException(EngineErrorCodes.InvalidState, "the keyboard of this guest is not enabled");
+        }
+
+        lock (_lock)
+        {
+            _scancodes.AddRange(scancodes);
+        }
+
+        return ValueTask.CompletedTask;
+    }
 
     public ValueTask PauseAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
@@ -137,6 +217,7 @@ internal sealed class FakeEngine : IEngine
         Disposed = true;
         Agent?.Complete();
         _serial.Writer.TryComplete();
+        _serialLines.Writer.TryComplete();
         _ = ScreenSizeChanged;
         return ValueTask.CompletedTask;
     }
@@ -168,7 +249,7 @@ internal sealed class FakeEngine : IEngine
 
         public IAsyncEnumerable<ReadOnlyMemory<byte>> ReadRawAsync(CancellationToken cancellationToken) => engine._serial.Reader.ReadAllAsync(cancellationToken);
 
-        public IAsyncEnumerable<string> ReadLinesAsync(CancellationToken cancellationToken) => Never<string>(cancellationToken);
+        public IAsyncEnumerable<string> ReadLinesAsync(CancellationToken cancellationToken) => engine._serialLines.Reader.ReadAllAsync(cancellationToken);
 
         public ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
         {

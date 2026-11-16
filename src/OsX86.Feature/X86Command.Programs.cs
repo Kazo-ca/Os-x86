@@ -7,7 +7,7 @@ using OsX86.Vm;
 
 namespace OsX86.Feature;
 
-/// <content>Work item 10: <c>x86 prefix</c>, <c>x86 detect</c> and <c>x86 run</c>.</content>
+/// <content>Work item 10: <c>x86 prefix</c>, <c>x86 detect</c> and <c>x86 run</c> (DOS programs: work item 11, <c>X86Command.Dos.cs</c>).</content>
 public sealed partial class X86Command
 {
     /// <summary>What <c>x86 prefix export</c> says until prefixes can be exported (plan §11: with the disks and restore points).</summary>
@@ -153,7 +153,9 @@ public sealed partial class X86Command
         yield return $"{path}: {detection.MimeType}";
         yield return $"  {detection.Detail} ({source})";
         string? why = VmManager.WhyNotSupported(detection);
-        yield return why is null ? "  x86 run: runs it in a virtual machine of Windows programs" : $"  x86 run: no, {why}";
+        yield return why is not null ? $"  x86 run: no, {why}"
+            : detection.Kind == ProgramKind.Dos ? "  x86 run: runs it in a FreeDOS virtual machine, its screen in the terminal"
+            : "  x86 run: runs it in a virtual machine of Windows programs";
     }
 
     private async ValueTask<int> RunAsync(TerminalExecutionContext context, Guid user, List<string> args, CancellationToken cancellationToken)
@@ -179,6 +181,11 @@ public sealed partial class X86Command
         if (VmManager.WhyNotSupported(detection) is { } why)
         {
             throw new X86Exception(X86ErrorCodes.ProgramNotSupported, $"{program}: {why}");
+        }
+
+        if (detection.Kind == ProgramKind.Dos)
+        {
+            return await RunDosAsync(context, user, options, program!, content, arguments, cancellationToken).ConfigureAwait(false);
         }
 
         Guid vmId;

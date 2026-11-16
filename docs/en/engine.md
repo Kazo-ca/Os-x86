@@ -15,7 +15,7 @@ image storage and the guest agent come with work items 3, 5 and 6
 | --- | --- |
 | `src/OsX86/Engine/` | `IEngine`, `EngineState`, `EngineStateMachine`, `EngineStartOptions`, `ConsoleId`, `IEngineConsole`, `LineFramer`, the exceptions |
 | `src/OsX86/Engine/V86/` | `V86Engine` (the implementation), `IEngineWorkerChannel` and `JsEngineWorkerChannel` (JS interop), `V86Console`, the protocol |
-| `src/OsX86/wwwroot/engine/` | `v86-host.js` (the module the C# imports; creates the worker), `v86-worker.js` (hosts v86), `zstd-seekable.js` (zstd seek table) and `disk.js` (disks, frame cache, write layers), work item 6a |
+| `src/OsX86/wwwroot/engine/` | `v86-host.js` (the module the C# imports; creates the worker), `v86-worker.js` (hosts v86), `zstd-seekable.js` (zstd seek table) and `disk.js` (disks, frame cache, write layers), work item 6a; `vga-text.js` (text screen with attributes and cursor), work item 11 |
 | `src/OsX86/Engine/ImageBoot.cs`, `EngineDisk.cs` | the boot described by the manifest and the same-major-version rule (169); sources, disks and layers of the start options (work item 6a) |
 | `src/OsX86/wwwroot/v86/` | vendored v86: `libv86.js` (patched), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
 | `tools/v86/` | `vendor-v86.py` (downloads, verifies, applies the patches) and `patches/` |
@@ -80,6 +80,33 @@ the engine is disposed. On stop, the pending partial line (the prompt) is delive
 `ScreenSizeChanged` reports VGA mode changes (columns and rows in text mode, pixels otherwise,
 `bpp` 0 = text: the "graphical DOS" signal of 164 A, trial E14). In this work item the worker only
 resizes and blackens the canvas; the rendering comes with the graphical guests of milestone 1.
+Work item 11 uses it: a switch to `bpp ≠ 0` during a DOS program stops it (217 A).
+
+## The DOS way: screen with attributes, keyboard, disk in memory (work item 11)
+
+What work item 11 adds to the engine for `x86 run` of a DOS program
+([`programs.md`](programs.md#dos-programs-work-item-11)):
+
+- **`ITextModeEngine`** (`EngineTextScreen.cs`), implemented by `V86Engine`: `ReadTextScreenAsync`
+  now returns an `EngineTextScreen` with `Attributes` (one VGA byte per cell), `Cursor`
+  (`EngineTextCursor`: row, column, shown), `BlinkEnabled` and `Graphical`; `SendScancodesAsync`
+  sends PS/2 scancodes of set 1 (`keys` command).
+- **`vga-text.js`**: the only file that reads internal fields of v86 (218 A) — the VGA device
+  (`emulator.v86.cpu.devices.vga`), its text memory, the start address, the cursor, the attribute
+  mode — following `text_mode_redraw()` and `update_cursor()` of `vga.js`; without those fields
+  (another version of v86) it falls back to the characters of `screen-put-char`, without attributes
+  nor cursor (`source: "events"`). Its CP437 table went from control characters to the VGA glyphs
+  (`☺`, `♥`, `⌂`…).
+- **`screen` answer**: `cols`, `rows`, `lines`, `attributes` (base64), `cursor` (`{row, col,
+  visible}` or `null`), `blink`, `graphical`, `source`.
+- **Keyboard**: the start option `keyboard` (`EngineStartOptions.Keyboard`); without it the worker
+  refuses `keys` (`invalid-state`). v86's `disable_keyboard` stays true: it only turns off the DOM
+  adapter (absent from a worker); the guest's PS/2 keyboard is always there and
+  `keyboard_send_scancodes` feeds it. At most 256 scancodes per message; the pauses (Alt held) are
+  made on the C# side.
+- **Disk in memory**: `EngineFileSource.InMemory(bytes)` (at most 64 MiB) becomes the source
+  `{inline: base64}`; `disk.js` makes it an `InlineEntry` (no OPFS file), to put on a discard layer.
+  It is the program disk of a DOS run (`hdb`).
 
 ## Disks and the boot described by the manifest (work item 6a)
 

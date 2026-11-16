@@ -1,4 +1,5 @@
-// Unit tests of the engine disk (src/OsX86/wwwroot/engine/zstd-seekable.js and disk.js), run by
+// Unit tests of the engine disk (src/OsX86/wwwroot/engine/zstd-seekable.js and disk.js) and of the
+// VGA text reader (vga-text.js, work item 11), run by
 // Node from DiskScriptTests.cs (category unit). The browser APIs the disk uses are replaced by
 // fakes: an in-memory origin private file system with exclusive sync access handles, and a Web
 // Locks API. The zstd decoder is the real one of the vendored v86.wasm.
@@ -178,7 +179,9 @@ Object.defineProperty(globalThis, "navigator", {
 const engineDirectory = path.join(repository, "src", "OsX86", "wwwroot", "engine");
 const seekable = require(path.join(engineDirectory, "zstd-seekable.js"));
 require(path.join(engineDirectory, "disk.js"));
+require(path.join(engineDirectory, "vga-text.js"));
 const disk = globalThis.OsX86Disk;
+const vgaText = globalThis.OsX86VgaText;
 const v86Module = new WebAssembly.Module(fs.readFileSync(path.join(repository, "src", "OsX86", "wwwroot", "v86", "v86.wasm")));
 
 // --- fixtures ------------------------------------------------------------------------------------
@@ -517,6 +520,76 @@ if (packDirectory) {
     }
   });
 }
+
+// --- work item 11: inline disks and the VGA text reader ---------------------------------------
+
+test("an inline disk is read from the start options, alone and within its bounds", async () => {
+  const bytes = Uint8Array.from({ length: 8192 }, (_, index) => index & 0xff);
+  const source = { inline: Buffer.from(bytes).toString("base64") };
+  const files = new Map();
+  const entry = await disk.openEntry(source, "hdb", files, null, null);
+  assert.equal(entry.rawSize, 8192);
+  assert.equal(entry.file, null);
+  assert.equal(files.size, 0);
+  assert.deepEqual(entry.read(4000, 300), bytes.subarray(4000, 4300));
+  assert.throws(() => entry.read(8000, 300), (error) => error.code === "protocol");
+  const layered = new disk.V86Disk("hdb", entry, new disk.MemoryWriteLayer(entry.rawSize));
+  layered.write(10, Uint8Array.of(1, 2, 3));
+  assert.deepEqual(layered.read(9, 5), Uint8Array.of(9, 1, 2, 3, 13));
+  assert.deepEqual(entry.read(10, 3), Uint8Array.of(10, 11, 12), "the inline bytes are not written");
+  assert.throws(() => disk.checkSource({ inline: "AAAA", path: "x/y" }, "hdb"), (error) => error.code === "protocol");
+  await assert.rejects(disk.openEntry({ inline: "" }, "hdb", files, null, null), (error) => error.code === "protocol");
+});
+
+function fakeVga(text, attribute, overrides) {
+  const memory = new Uint8Array(262144);
+  for (let index = 0; index < 80 * 25; index++) {
+    memory[2 * index] = 0x20;
+    memory[2 * index + 1] = 0x07;
+  }
+  for (let index = 0; index < text.length; index++) {
+    memory[2 * index] = text.charCodeAt(index);
+    memory[2 * index + 1] = attribute;
+  }
+  const vga = Object.assign({
+    vga_memory: memory, start_address: 0, offset_register: 40, line_compare: 0x3ff, max_cols: 80, max_rows: 25,
+    cursor_address: 80 + 5, cursor_scanline_start: 13, cursor_scanline_end: 14, max_scan_line: 15, attribute_mode: 8,
+    graphical_mode: false, scan_line_to_screen_row: () => 1000,
+  }, overrides || {});
+  return { v86: { cpu: { devices: { vga } } } };
+}
+
+test("the VGA text reader gives characters, attributes and the cursor of v86's VGA", () => {
+  const screen = vgaText.read(fakeVga("OSX86 ÉÍ", 0x1e), null);
+  assert.equal(screen.source, "vga");
+  assert.equal(screen.cols, 80);
+  assert.equal(screen.rows, 25);
+  assert.equal(screen.lines[0].slice(0, 8), "OSX86 ╔═");
+  const attributes = Buffer.from(screen.attributes, "base64");
+  assert.equal(attributes.length, 80 * 25);
+  assert.equal(attributes[0], 0x1e);
+  assert.equal(attributes[8], 0x07);
+  assert.deepEqual(screen.cursor, { row: 1, col: 5, visible: true });
+  assert.equal(screen.blink, true);
+});
+
+test("the VGA text reader hides a disabled cursor and follows the start address", () => {
+  const hidden = vgaText.read(fakeVga("A", 0x07, { cursor_scanline_start: 0x20 | 13 }), null);
+  assert.equal(hidden.cursor.visible, false);
+  const scrolled = vgaText.read(fakeVga("", 0x07, { start_address: 80, cursor_address: 80 }), null);
+  assert.deepEqual(scrolled.cursor, { row: 0, col: 0, visible: true });
+});
+
+test("without v86's VGA fields the reader falls back to the characters of screen-put-char", () => {
+  const cells = new Uint16Array(80 * 25);
+  cells[0] = 0x41;
+  const screen = vgaText.read({ v86: { cpu: { devices: {} } } }, { cols: 80, rows: 25, cells });
+  assert.equal(screen.source, "events");
+  assert.equal(screen.lines[0][0], "A");
+  assert.equal(screen.cursor, null);
+  assert.equal(Buffer.from(screen.attributes, "base64")[0], 0x07);
+  assert.equal(vgaText.CP437.length, 256);
+});
 
 (async () => {
   let failed = 0;

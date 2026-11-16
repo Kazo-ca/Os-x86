@@ -67,7 +67,7 @@ public sealed class X86ProgramCommandTests
         (code, output, _) = await RunAsync(rig, files, ["detect", "old.exe"]);
         Assert.Equal(0, code);
         Assert.Contains("application/x-dosexec", output, StringComparison.Ordinal);
-        Assert.Contains("x86 run: no, this is a DOS program", output, StringComparison.Ordinal);
+        Assert.Contains("x86 run: runs it in a FreeDOS virtual machine, its screen in the terminal", output, StringComparison.Ordinal);
 
         var (missing, _, error) = await RunAsync(rig, files, ["detect", "absent.exe"]);
         Assert.Equal(X86ExitCodes.NotFound, missing);

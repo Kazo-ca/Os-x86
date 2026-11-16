@@ -14,5 +14,8 @@ SET LANG=EN
 if exist \FREEDOS\BIN\FDAPM.COM FDAPM APMDOS
 prompt $p$g
 echo.
-echo Os-x86 FreeDOS 1.4 guest (image freedos 0.1.0)
+echo Os-x86 FreeDOS 1.4 guest (image freedos 0.2.0)
 echo OSX86-READY
+rem Work item 11: x86 run gives one DOS program on a second disk (D:) with OSX86RUN.BAT, which
+rem runs it and tells its start and its ERRORLEVEL on COM1 (no agent in this image, 212 A).
+if exist D:\OSX86RUN.BAT call D:\OSX86RUN.BAT

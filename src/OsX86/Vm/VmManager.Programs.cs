@@ -16,8 +16,9 @@ public sealed partial class VmManager
     public const string WindowsVmName = "windows";
 
     /// <summary>
-    /// Checks a program and returns why it cannot run here yet, or <see langword="null"/> when it can:
-    /// a 32-bit console program for i386 (with .NET or not), or a batch file.
+    /// Checks a program and returns why <c>x86 run</c> cannot run it yet, or <see langword="null"/> when
+    /// it can: a 32-bit console program for i386 (with .NET or not), a batch file (work item 10), or a
+    /// DOS program, shown in the terminal by a FreeDOS VM (work item 11).
     /// </summary>
     public static string? WhyNotSupported(ProgramDetection detection)
     {
@@ -26,7 +27,6 @@ public sealed partial class VmManager
         {
             { Source: ProgramDetectionSource.Conflict } => $"the file is refused: {detection.Detail} (its header and its extension disagree, decision 162 A).",
             { Kind: ProgramKind.Unknown } => $"this is not a program Os-x86 knows ({detection.Detail}).",
-            { Kind: ProgramKind.Dos } => "this is a DOS program: DOS programs will run in a FreeDOS VM in the terminal (work item 11, with ADR 0251 and 0252 of Kazo).",
             { Kind: ProgramKind.Linux } => "this is a Linux program: `x86 run` does not run Linux programs yet; open `x86 shell` in a Linux VM and run it there.",
             { Kind: ProgramKind.WindowsInstaller } => "this is a Windows Installer package: installers need a display, which comes with BoxedWine (work item 13).",
             { Kind: ProgramKind.Windows, IsLibrary: true } => "this is a Windows library (DLL), not a program.",
@@ -114,6 +114,11 @@ public sealed partial class VmManager
         if (WhyNotSupported(detection) is { } why)
         {
             throw new X86Exception(X86ErrorCodes.ProgramNotSupported, why);
+        }
+
+        if (detection.Kind == ProgramKind.Dos)
+        {
+            throw new X86Exception(X86ErrorCodes.ProgramNotSupported, "this is a DOS program: it needs a screen, not a console stream; `x86 run` shows it in the terminal (RunDosProgramAsync).");
         }
 
         Guid vmId = options.VmId ?? (await ChooseVmAsync(userId, VmKind.WindowsPrograms, cancellationToken).ConfigureAwait(false)).Vm.Id;

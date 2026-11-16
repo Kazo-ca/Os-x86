@@ -49,8 +49,25 @@ public static class BuiltInProfiles
         Prefix = "default",
     };
 
+    /// <summary>
+    /// The FreeDOS image (work item 4, decisions 111 and 214 A): the VM of DOS programs (work item 11).
+    /// No agent and no serial console (212 A: COM1 only carries the start and end of a program run);
+    /// the program comes on its own disk and the screen is read from the VGA. <c>x86 run</c> makes it
+    /// from this profile when the user has no stopped DOS VM.
+    /// </summary>
+    public static VmProfile Dos { get; } = new()
+    {
+        Name = "dos",
+        Kind = VmKind.Dos,
+        Image = "freedos",
+        ImageVersion = "0.2.0",
+        MemoryMiB = 64,
+        SerialConsole = false,
+        Prefix = null,
+    };
+
     /// <summary>Every built-in profile, in display order.</summary>
-    public static IReadOnlyList<VmProfile> All { get; } = [AlpineTest, LinuxBase, Wine];
+    public static IReadOnlyList<VmProfile> All { get; } = [AlpineTest, LinuxBase, Wine, Dos];
 
     /// <summary>Finds a built-in profile by name (ordinal, case-insensitive).</summary>
     public static VmProfile? Find(string? name) =>

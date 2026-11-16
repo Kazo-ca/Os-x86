@@ -253,6 +253,11 @@ public sealed class ImageBootTests
         Assert.Equal(3, screen.Columns);
         Assert.Equal(2, screen.Rows);
         Assert.Equal("C:\\\nok", screen.Text);
+        Assert.Equal(new byte[] { 7, 7, 7, 0x1E, 0x1E, 0x4F }, screen.Attributes);
+        Assert.Equal(0x4F, screen.AttributeAt(1, 2));
+        Assert.Equal(new EngineTextCursor(1, 2, true), screen.Cursor);
+        Assert.True(screen.BlinkEnabled);
+        Assert.False(screen.Graphical);
 
         EngineDiskStatistics statistics = await engine.GetDiskStatisticsAsync(None);
         EngineDiskCounters hda = statistics.Disks["hda"];

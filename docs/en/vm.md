@@ -93,6 +93,10 @@ shell (`x86 shell`), a console. `VmInstance.AcquireAsync` takes one; the first o
    closes everything: consoles fail with `console-closed`, the agent client is closed, the engine
    stopped and released. Stopping erases nothing.
 6. **Guest death**: if the engine stops by itself (a worker crash), the run ends like a stop.
+7. **DOS VM (work item 11)**: the start waits for no agent (FreeDOS has none); a DOS program is the
+   application of a run of its own (its disk is only given at the start) and the VM **stops as soon
+   as it ends**, without the grace (`VmInstance.StopIdleRunAsync`); see
+   [`programs.md`](programs.md#dos-programs-work-item-11).
 
 Exposed states: `Stopped`, `Starting`, `Running`, `Stopping` (`VmState`), with the
 `VmManager.InstanceStateChanged` event and, filtered per user, `Ix86.VmStateChanged`.
@@ -180,7 +184,9 @@ A profile is the **recipe** of a VM (121): a versioned `.x86profile` JSON docume
 Unknown properties are ignored, comments and trailing commas accepted, 256 KiB at most. Shipped
 profiles: **`linux-base`** (256 MiB, serial, no prefix: its guest users come with the prefixes,
 work items 9 and 10; default of `x86 vm create` since work item 6b) **`wine`** (the wine image of work item 9, VM of Windows programs, 512 MiB, serial, default
-prefix `default`; work item 10, [`programs.md`](programs.md)) and **`alpine-test`** (the
+prefix `default`; work item 10, [`programs.md`](programs.md)), **`dos`** (image `freedos` 0.2.0,
+VM of DOS programs of the kind `dos`, 64 MiB, neither agent nor serial console, no prefix; work item
+11, [`programs.md`](programs.md#dos-programs-work-item-11)) and **`alpine-test`** (the
 Alpine test image with the agent, 128 MiB, serial, prefix `test`). An imported profile (`x86 profile import`) is kept in the
 user's registry and hides a shipped profile of the same name.
 
@@ -431,6 +437,10 @@ clients (BoxedWine, work items 10 and 13). The service is bound to a user
   prefix": its default shell stays the serial console.
 - **ADR 0252**: once the Terminal has its full screen, `x86 shell` will relay the raw bytes to a VT
   emulator instead of the line filter.
+- **11 (DOS)**: done, see [`programs.md`](programs.md#dos-programs-work-item-11). A VM of the kind
+  `dos` starts without waiting for an agent; `x86 run` of a DOS program starts it with a second disk
+  (`hdb`) and the keyboard, and stops it as soon as the program ends; `x86 shell --vm dos` is refused
+  (`no-console`: the `dos` profile declares no serial console).
 
 ## Known limits and not verified
 

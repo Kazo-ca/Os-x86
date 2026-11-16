@@ -7,17 +7,24 @@ of the FreeDOS project and verified against the SHA-256 pinned below (the value 
 verify.txt next to the archive on freedos.org), with two changes made with mtools (never by
 booting anything): FDAUTO.BAT (next to this script) replaces the one of the archive so that the
 disk boots to a text prompt instead of the installer and idles with FDAPM APMDOS, and
-SETUP.BAT is removed. A text console on the VGA screen is the way of 214 A for DOS.
+SETUP.BAT is removed. A text console on the VGA screen is the way of 214 A for DOS. Since
+version 0.2.0 (work item 11) FDAUTO.BAT ends by calling D:\\OSX86RUN.BAT when the program disk of
+`x86 run` is there (the second hard disk, made by the C# side for one DOS run).
+
+The DOS test programs of the guest tests (programs/*.asm next to this script) are assembled with
+NASM pinned in the osx86-nasm container (programs/Dockerfile) into images/build/freedos/programs/
+(OSX86KEY.COM, OSX86GFX.COM); --programs-only builds them alone, without the download.
 
 Output (git-ignored, never committed): images/build/freedos/
     freedos.img     the modified disk, byte for byte otherwise
     pack/           the published form: chunk-NNNNN.bin, manifest.json (entry `disk`),
                     manifest.sha256, sources.json; made by images/tools/pack-image.py
+    programs/       the DOS test programs (OSX86KEY.COM, OSX86GFX.COM), not part of the image
 
 Run from the repository root with an isolated interpreter (standard library only; mtools on
 the PATH, or Docker for the osx86-tools container):
 
-    python -I images/freedos/build-freedos.py [--download-dir DIR] [--output-dir DIR]
+    python -I images/freedos/build-freedos.py [--download-dir DIR] [--output-dir DIR] [--programs-only]
 
 The download goes to an empty directory of its own (default images/freedos/download,
 git-ignored) and is treated as untrusted: hashed, read with zipfile, written into with mtools;
@@ -40,7 +47,7 @@ import zipfile
 from pathlib import Path
 
 IMAGE_ID = "freedos"
-IMAGE_VERSION = "0.1.0"
+IMAGE_VERSION = "0.2.0"
 FREEDOS_VERSION = "1.4"
 ARCHIVE_NAME = "FD14-LiteUSB.zip"
 ARCHIVE_URL = f"https://download.freedos.org/{FREEDOS_VERSION}/{ARCHIVE_NAME}"
@@ -51,6 +58,8 @@ MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_DISK_BYTES = 64 * 1024 * 1024
 USER_AGENT = "os-x86-build-freedos"
 TOOLS_IMAGE = "osx86-tools"
+NASM_IMAGE = "osx86-nasm:3.01"
+PROGRAMS = ("osx86key", "osx86gfx")
 SOURCES = {
     "components": [
         {"name": "FreeDOS 1.4 LiteUSB", "license": "mixed (GPL-2.0 kernel and FreeCOM; per-package licenses in the "
@@ -179,6 +188,30 @@ def pack(output: Path, image: Path, disk_sha256: str) -> dict:
     return json.loads((pack_dir / "manifest.json").read_text(encoding="utf-8"))
 
 
+def build_programs(output: Path) -> list[Path]:
+    """Assembles the DOS test programs with the pinned NASM of the osx86-nasm container."""
+    if not shutil.which("docker"):
+        raise SystemExit("docker is needed to assemble the DOS test programs (osx86-nasm)")
+    sources = HERE / "programs"
+    target = output / "programs"
+    target.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["docker", "build", "-q", "-t", NASM_IMAGE, str(sources)], check=True, capture_output=True)
+    built = []
+    for name in PROGRAMS:
+        out_name = f"{name.upper()}.COM"
+        subprocess.run(["docker", "run", "--rm", "--network", "none",
+                        "-v", f"{str(sources).replace(chr(92), '/')}:/src:ro",
+                        "-v", f"{str(target.resolve()).replace(chr(92), '/')}:/out",
+                        NASM_IMAGE, "nasm", "-f", "bin", "-o", f"/out/{out_name}", f"/src/{name}.asm"], check=True)
+        program = target / out_name
+        size = program.stat().st_size
+        if not 0 < size <= 65280:
+            raise SystemExit(f"{out_name}: {size} bytes is not a .COM program")
+        print(f"  {out_name}: {size} bytes, sha256 {sha256_bytes(program.read_bytes())[:12]}...")
+        built.append(program)
+    return built
+
+
 def build(download_dir: Path, output: Path) -> dict:
     output.mkdir(parents=True, exist_ok=True)
     print(f"FreeDOS {FREEDOS_VERSION} LiteUSB (official release)")
@@ -188,7 +221,10 @@ def build(download_dir: Path, output: Path) -> dict:
     print(f"  {DISK_IN_ARCHIVE}: {len(disk)} bytes, sha256 {sha256_bytes(disk)[:12]}...")
     image = customise(disk, output)
     print(f"  freedos.img: {image.stat().st_size} bytes")
-    return pack(output, image, sha256_bytes(disk))
+    manifest = pack(output, image, sha256_bytes(disk))
+    print("DOS test programs (NASM in osx86-nasm)")
+    build_programs(output)
+    return manifest
 
 
 def main() -> int:
@@ -198,7 +234,11 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT,
                         help="where the image goes (default: images/build/freedos, git-ignored)")
     parser.add_argument("--keep-download", action="store_true", help="keep the download directory afterwards")
+    parser.add_argument("--programs-only", action="store_true", help="only assemble the DOS test programs (no download)")
     args = parser.parse_args()
+    if args.programs_only:
+        build_programs(args.output_dir.resolve())
+        return 0
     download_dir = args.download_dir.resolve()
     # The download directory is an empty directory of its own: checked before anything is written
     # there, and only then is it deleted at the end (a directory that was not empty is never touched).

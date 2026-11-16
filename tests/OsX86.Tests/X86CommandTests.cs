@@ -287,7 +287,8 @@ public sealed class X86CommandTests
             "NAME                  KIND              IMAGE                 MEMORY  ORIGIN\n"
             + "alpine-test           linux             alpine-test 0.1.0       128M  built-in\n"
             + "linux-base            linux             linux-base 0.1.0        256M  built-in\n"
-            + "wine                  windows-programs  wine 0.1.0              512M  built-in\n",
+            + "wine                  windows-programs  wine 0.1.0              512M  built-in\n"
+            + "dos                   dos               freedos 0.2.0            64M  built-in\n",
             output);
 
         (code, output, _) = await RunAsync(rig, files, ["profile", "show", "alpine-test"]);

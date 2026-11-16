@@ -7,7 +7,7 @@ namespace OsX86.Engine.V86;
 /// One operation (start, stop, pause, resume) is pending at a time; a stop may pre-empt the
 /// others. Events are raised after the pending operation has been completed, outside the lock.
 /// </summary>
-public sealed class V86Engine : IEngine
+public sealed class V86Engine : IEngine, ITextModeEngine
 {
     /// <summary>The version of the vendored v86 (<c>wwwroot/v86/VENDOR.json</c>): images and layers of another major version are refused (decision 169).</summary>
     public const string V86Version = "0.5.473";
@@ -130,11 +130,57 @@ public sealed class V86Engine : IEngine
         await _channel.DetachCanvasAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>The VGA text screen of the guest as the worker keeps it (blank until the guest writes, frozen in a graphical mode).</summary>
+    /// <summary>The VGA text screen of the guest with its attributes and cursor (blank until the guest writes, frozen in a graphical mode).</summary>
     public async ValueTask<EngineTextScreen> ReadTextScreenAsync(CancellationToken cancellationToken)
     {
         WorkerMessage answer = await QueryAsync(WorkerProtocol.Types.Screen, WorkerProtocol.ReadScreen(), cancellationToken).ConfigureAwait(false);
-        return new EngineTextScreen(answer.Cols, answer.Rows, answer.Lines ?? []);
+        return ToTextScreen(answer);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask SendScancodesAsync(IReadOnlyList<byte> scancodes, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scancodes);
+        if (scancodes.Count == 0)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_state != EngineState.Running)
+            {
+                throw new EngineStateException(EngineOperation.Write, _state, $"Cannot send keys: the engine is {Name(_state)}.");
+            }
+        }
+
+        await _channel.PostAsync(WorkerProtocol.Keys(scancodes), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The screen of a <c>screen</c> message; attributes that do not match its size are dropped.</summary>
+    internal static EngineTextScreen ToTextScreen(WorkerMessage answer)
+    {
+        byte[]? attributes = null;
+        if (answer.Attributes is { Length: > 0 } encoded)
+        {
+            try
+            {
+                attributes = Convert.FromBase64String(encoded);
+            }
+            catch (FormatException)
+            {
+                attributes = null;
+            }
+
+            if (attributes is not null && attributes.Length != answer.Cols * answer.Rows)
+            {
+                attributes = null;
+            }
+        }
+
+        EngineTextCursor? cursor = answer.Cursor is { } c ? new EngineTextCursor(c.Row, c.Col, c.Visible) : null;
+        return new EngineTextScreen(answer.Cols, answer.Rows, answer.Lines ?? [], attributes, cursor, answer.Blink, answer.Graphical);
     }
 
     /// <summary>The counters of the open disks (reads, writes, layer) and of the frame cache.</summary>
