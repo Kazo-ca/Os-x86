@@ -97,7 +97,7 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
         var sincePrompt = Stopwatch.StartNew();
         await AddPrefixUserAsync(session);
         long copyDoneMs = sincePrompt.ElapsedMilliseconds;
-        await using var client = new AgentClient(bridge.Channel);
+        var client = new AgentClient(bridge.Channel);
         AgentStatus status = await client.ConnectAsync(None);
         Assert.True(status.HasCgroups, "the wine image has no cgroup v2");
         ExecResult cmd = await WineAsync(client, ["cmd", "/c", "echo", "osx86-wine-ok"]);
@@ -130,6 +130,7 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
             preloadText = await PreloadStateAsync(session);
         }
 
+        await client.DisposeAsync();
         await session.StopAsync();
         return new FirstRun(what, bootMs, copyDoneMs, cmdDoneMs, (long)cmd.Duration.TotalMilliseconds, programDoneMs, (long)program.Duration.TotalMilliseconds, preloadText);
     }
