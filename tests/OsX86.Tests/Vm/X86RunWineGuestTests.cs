@@ -110,8 +110,6 @@ public sealed class X86RunWineGuestTests(ITestOutputHelper output)
             // 4. Input reaches the program; Ctrl+C interrupts one that waits (216 A).
             await using (var reading = Live(["run", Program, "--read"]))
             {
-                // Typed only once the program reads: the console of Wine puts the terminal in raw
-                // mode when it starts, which drops what was typed before.
                 Assert.True(await reading.Output.WaitForAsync("osx86-hello reading", Soon, 0), $"no reading line: {reading.Errors.Text}");
                 // Typed once, right after the program says it reads: before work item 10b this raced the
                 // console of Wine, which sets the terminal raw only at its first read (a CR typed before

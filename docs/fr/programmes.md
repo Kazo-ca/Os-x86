@@ -258,7 +258,9 @@ l'autre).
   devenait LF (ICRNL), que Wine prend pour Ctrl+J, et la ligne ne se terminait jamais (8 fois sur
   12 dans un essai en boucle, intermittent en CI). L'agent ouvre maintenant le pty d'un programme
   dans le mode que Wine réglera (`open-console` avec `raw`) : ce qui est tapé arrive tel quel, quel
-  que soit le moment.
+  que soit le moment. Seul ISIG reste actif jusqu'à ce que Wine règle son mode : un programme qui ne
+  lit jamais son entrée ne fait jamais lire la console de Wine, et Ctrl+C doit alors rester un SIGINT
+  (premier essai en CI : Ctrl+C n'arrêtait plus `osx86-hello --wait`).
 - **Code de sortie.** Celui de `wine`, donc celui du programme modulo 256 (un code Windows plus
   grand, comme `0xC000013A`, arrive tronqué) : après Ctrl+C, le programme sort avec 58.
 

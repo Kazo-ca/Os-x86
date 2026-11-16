@@ -248,7 +248,9 @@ fast second run, and services left from one program to the next).
   reads. A line typed just before went through the line discipline: its CR became LF (ICRNL), which
   Wine takes as Ctrl+J, and the line never ended (8 times out of 12 in a loop, intermittent in CI).
   The agent now opens a program's pty in the mode Wine will set (`open-console` with `raw`): what
-  is typed arrives as typed, whenever it is typed.
+  is typed arrives as typed, whenever it is typed. Only ISIG stays on until Wine sets its mode: a
+  program that never reads its input never makes Wine's console read, and Ctrl+C must then remain a
+  SIGINT (first CI try: Ctrl+C no longer stopped `osx86-hello --wait`).
 - **Exit code.** `wine`'s, so the program's modulo 256 (a bigger Windows code, such as `0xC000013A`,
   arrives truncated): after Ctrl+C, the program exits with 58.
 
