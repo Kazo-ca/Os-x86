@@ -75,6 +75,34 @@ public sealed class AgentClientTests
         Assert.Equal([1, 2, 3, 4], ids);
     }
 
+    /// <summary>
+    /// An agent that answers, but slower than the probe interval (a loaded guest, or a loaded
+    /// runner): its late reply to an earlier ping still connects the client. Before work item 6c each
+    /// probe waited for its own reply only, so such an agent was declared absent (not-ready).
+    /// </summary>
+    [Fact]
+    public async Task Connect_accepts_a_late_reply_to_an_earlier_ping()
+    {
+        var channel = new SimulatedAgentChannel();
+        channel.Ignore("ping");
+        await using var client = new AgentClient(channel, Fast with { ConnectTimeout = TimeSpan.FromSeconds(30) });
+
+        Task<AgentStatus> connect = client.ConnectAsync(None);
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (channel.Requests("ping").Count < 3)
+        {
+            Assert.True(System.Diagnostics.Stopwatch.GetElapsedTime(start) < Soon, "the client did not ask again");
+            await Task.Delay(5);
+        }
+
+        long first = channel.Requests("ping")[0].GetProperty("id").GetInt64();
+        channel.Reply(first, """{"ok":true,"version":1,"uptime":9,"rssKb":180,"launches":0,"consoles":0,"cgroups":true}""");
+
+        AgentStatus status = await connect.WaitAsync(Soon);
+        Assert.Equal(TimeSpan.FromSeconds(9), status.Uptime);
+        Assert.True(client.IsConnected);
+    }
+
     [Fact]
     public async Task Connect_fails_with_not_ready_when_no_agent_answers()
     {

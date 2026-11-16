@@ -236,8 +236,7 @@ public sealed class VmLifecycleTests
     [Fact]
     public async Task An_image_without_agent_runs_without_children_and_offers_its_serial_console()
     {
-        await using var rig = new VmTestRig();
-        rig.Engines.WithAgent = false;
+        await using var rig = new VmTestRig(withAgent: false);
         VmInstance vm = await rig.CreateAsync("plain", NoAgentSerial);
 
         IVmConsole console = await vm.OpenConsoleAsync(new VmConsoleOptions(), None);
@@ -270,8 +269,7 @@ public sealed class VmLifecycleTests
     [Fact]
     public async Task An_image_without_agent_and_without_serial_port_has_no_console()
     {
-        await using var rig = new VmTestRig();
-        rig.Engines.WithAgent = false;
+        await using var rig = new VmTestRig(withAgent: false);
         VmInstance vm = await rig.CreateAsync("dark", NoSerial);
         X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await vm.OpenConsoleAsync(new VmConsoleOptions(), None));
         Assert.Equal(X86ErrorCodes.NoConsole, error.Code);
@@ -281,8 +279,7 @@ public sealed class VmLifecycleTests
     [Fact]
     public async Task A_serial_console_fails_when_the_vm_stops_under_it()
     {
-        await using var rig = new VmTestRig();
-        rig.Engines.WithAgent = false;
+        await using var rig = new VmTestRig(withAgent: false);
         VmInstance vm = await rig.CreateAsync("plain", NoAgentSerial);
         IVmConsole console = await vm.OpenConsoleAsync(new VmConsoleOptions(), None);
         await vm.StopAsync(force: true, None);
