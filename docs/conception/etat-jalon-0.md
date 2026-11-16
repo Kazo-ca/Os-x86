@@ -14,6 +14,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Catalogue du Store avec le champ `kind` (256 B) : documentation fusionnée (Os-AppMarketPlace #20), code fusionné avec #450.
 - Code de l'ADR 0261 (ex-0244), bibliothèques partagées, avec l'ADR d'ajustement 0256 (série 17) : fusionné (PR #450), avec le code du champ `kind`.
 - Code de l'ADR 0262 (ex-0245), services des Features et `GetServiceAsync<T>()` : fusionné (PR #541).
+- Code de l'ADR 0246, permissions déclarées par un fournisseur : fusionné (PR #570, série 19).
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
@@ -30,7 +31,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 - **Chantier 6b**, `linux-base` comme image par défaut de `x86 vm create` et `x86 shell` (source d'images configurable, couche d'écriture par VM) : lancé le 2026-11-15, branche `j0/6b-linux-base-default`.
 - **Chantier 9**, image Wine (WineHQ 11.0 i386, Mono, Gecko, bouteille gabarit en fichiers, préchargement 204 A) : lancé le 2026-11-15, branche `j0/9-wine-image`.
-- **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : PR Kazo #570 ouverte, CI en cours ; série 19 répondue (A partout), à fusionner par toi.
+- **Kazo, code de l'ADR 0248**, résolution des dépendances par le Store et kazopkg : lancé le 2026-11-15, branche `feature/18-dependency-resolution-code`.
 
 ## Reste à faire
 
@@ -44,10 +45,9 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 12, réseau privé et relais, fenêtre de permission.
 - Chantier 13, BoxedWine minimal (autre dépôt).
 
-**Kazo** : le code des ADR 0248 à 0255, un chantier par ADR, dans l'ordre 0248, 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
+**Kazo** : le code des ADR 0250 à 0255 et 0247, 0249, un chantier par ADR, dans l'ordre 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Fusionner Kazo #570 (série 19 répondue, A partout).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
