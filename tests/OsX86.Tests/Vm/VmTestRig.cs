@@ -44,14 +44,14 @@ internal sealed class VmTestRig : IAsyncDisposable
 
     public static readonly VmProfile NoSerial = BuiltInProfiles.AlpineTest with { Name = "no-serial", SerialConsole = false };
 
-    public VmTestRig(VmManagerOptions? options = null, long? announcedMiB = 1024, bool withAgent = true)
+    public VmTestRig(VmManagerOptions? options = null, long? announcedMiB = 1024, bool withAgent = true, OsX86.Network.NetworkHub? network = null)
     {
         Engines.WithAgent = withAgent;
         options ??= withAgent ? FastOptions : NoAgentOptions;
         Images = new StaticBootImageSource()
             .Add("alpine-test", "0.1.0", new BootImage("osx86-test/vmlinuz-virt", "osx86-test/initramfs-osx86", "console=ttyS0"))
             .Add("linux-base", "0.1.0", new BootImage("osx86-test/vmlinuz-virt", "osx86-test/initramfs-osx86", "console=ttyS0"));
-        Manager = new VmManager(Store, Engines, Images, new FixedHostMemory(announcedMiB * 1024 * 1024), options, Time);
+        Manager = new VmManager(Store, Engines, Images, new FixedHostMemory(announcedMiB * 1024 * 1024), options, Time, network);
         Manager.BackgroundError += (_, e) => BackgroundErrors.Add(e.Data);
     }
 
