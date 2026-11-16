@@ -24,6 +24,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 4, images : outil de paquetage zstd, recettes `linux-base` (Debian i386, 73 Mo), Alpine de test (15 Mo), FreeDOS (17 Mo), durcissement et son test, publication préparée.
 - Chantier 5, agent : agent invité en C statique dans l'image, client C# du protocole, consoles, tests dans l'image Alpine.
 - Chantier 1c, Kazo épinglé sur `v3.4.0` stable (266 A) : fusionné (PR #10).
+- Chantier 10, préfixes, détection du type de programme, `x86 detect`, `x86 run` avec console, code de sortie et Ctrl+C (premier `x86 run` 37 s téléchargement compris, second 3,4 s) : fusionné (PR #14).
 - Chantier 9, image Wine (WineHQ 11.0 i386, Mono, Gecko, bouteille gabarit, préchargement ; premier programme 13 à 17 s après l'invite ; 349 Mio) : fusionné (PR #12).
 - Chantier 6c, connexion de l'agent qui accepte une réponse tardive, tests VM stables : fusionné (PR #13).
 - Chantier 6b, `linux-base` image par défaut de `x86 vm create` et `x86 shell`, source d'images configurable, couche d'écriture par VM : fusionné (PR #11).
@@ -32,7 +33,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 10**, préfixes, détection du type de programme, `x86 detect`, `x86 run` avec console, code de sortie et Ctrl+C : lancé le 2026-11-16, branche `j0/10-prefixes-and-detection`.
+- **Chantier 11**, programmes DOS texte au terminal par `x86 run` (VM FreeDOS, écran VGA à 33 ms, clavier et accords Échap, mode graphique refusé sans BoxedWine) : lancé le 2026-11-16, branche `j0/11-dos`.
 - **Kazo, code de l'ADR 0248**, résolution des dépendances par le Store et kazopkg : PR Kazo #588 ouverte ; [série 20](serie-20-envoyee.md) répondue (A partout), à fusionner par toi.
 
 ## Reste à faire
@@ -43,7 +44,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 **Os-x86, étape b (Windows et DOS console)**
 - Chantier 10, suite : `./hello.exe` tapé dans le shell de Kazo (attend le code Kazo des ADR 0251 et 0252).
-- Chantier 11, FreeDOS au terminal.
+- Chantier 11, suite : programme DOS tapé dans le shell de Kazo (attend le code Kazo des ADR 0251 et 0252).
 - Chantier 12, réseau privé et relais, fenêtre de permission.
 - Chantier 13, BoxedWine minimal (autre dépôt).
 
