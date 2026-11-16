@@ -25,3 +25,14 @@ Contexte : l'ADR 0248 §5 veut que la fiche du Store montre les dépendances ; u
 - A) ✨(Recommandé) La fiche n'affiche pas de dépendances ; l'installation les lit dans le paquet et montre le plan.
 - B) Le Store télécharge le manifeste pour remplir la fiche : un téléchargement par fiche ouverte.
 - C) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-16
+
+Tes mots : « Je suis d'accord avec tes recommandations ».
+
+| # | Réponse | Effet |
+|---|---|---|
+| 270 | **A** | Téléchargement et vérification avant le consentement ; rien d'écrit avant l'accord. Déjà codé dans #588. |
+| 271 | **A** | Pas de fenêtre pour un plan sans administrateur ; la fiche et le message final nomment les paquets. Déjà codé. |
+| 272 | **A** | Ancien catalogue sans `dependencies` : rien sur la fiche, le plan vient du paquet à l'installation. Déjà codé. |
+
