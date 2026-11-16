@@ -48,6 +48,12 @@ on:
 permissions:
   contents: read
 
+# A new push to the same branch or PR replaces the run in progress (the wine job alone takes about
+# an hour); pushes to j0/base and main are never cancelled (publication).
+concurrency:
+  group: images-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   PYTHON_VERSION: "3.14" # compression.zstd in the standard library
 
