@@ -57,7 +57,8 @@ echo wine > /etc/osx86-image
 echo "$version" > /etc/osx86-release
 # 210 A: the packages installed after the base stage are hardened the same way.
 find / -xdev -type f \( -perm -4000 -o -perm -2000 \) -exec chmod u-s,g-s {} +
-rm -rf /run/lock /run/* /tmp/* /var/tmp/* /root/.cache /root/.wine
+# (/tmp/.wine-0 is the server directory of the wineboot run as root: hidden files too.)
+rm -rf /run/lock /run/* /tmp/* /tmp/.[!.]* /var/tmp/* /var/tmp/.[!.]* /root/.cache /root/.wine /root/.local
 
 # --- 4. the common slim step ----------------------------------------------------------------------
 sh /linux-base/slim.sh

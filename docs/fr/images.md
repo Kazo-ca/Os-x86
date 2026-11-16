@@ -194,7 +194,9 @@ et `osx86-mingw`.
    `libfontconfig1` et `libgnutls30t64` (polices de gdi32, bcrypt et TLS) ; Mono et Gecko sont
    **dépaquetés une fois** sous `/usr/share/wine/mono/wine-mono-10.4.1` et
    `/usr/share/wine/gecko/wine-gecko-2.47.4-x86`, où Wine les cherche avant de proposer un
-   téléchargement : installation partagée, jamais copiée dans un préfixe.
+   téléchargement : installation partagée, jamais copiée dans un préfixe. Les `.deb` de WineHQ ne sont pas
+   épinglés un à un : apt les vérifie contre le `Release` signé par la clé épinglée, et la version
+   est imposée (comme les paquets Debian de linux-base).
 3. **`osx86-hello.c`** compilé par le MinGW-w64 de Debian (`gcc-mingw-w64-i686-win32`, conteneur
    amd64 `osx86-mingw`) : le programme console du test (il affiche ses arguments, le dossier
    Windows et l'usager, et rend le code 7) ; aucun binaire tiers.

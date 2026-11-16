@@ -190,7 +190,9 @@ socket too); images and containers are named `osx86-wine-*` and `osx86-mingw`.
    **= 11.0.0.0~trixie-1** (checked afterwards), plus `libfreetype6`, `libfontconfig1` and
    `libgnutls30t64` (gdi32 fonts, bcrypt and TLS); Mono and Gecko are **unpacked once** under
    `/usr/share/wine/mono/wine-mono-10.4.1` and `/usr/share/wine/gecko/wine-gecko-2.47.4-x86`,
-   where Wine looks before offering a download: a shared install, never copied into a prefix.
+   where Wine looks before offering a download: a shared install, never copied into a prefix. The
+   WineHQ `.deb` files are not pinned one by one: apt checks them against the `Release` file signed
+   by the pinned key, and the version is forced (like linux-base's Debian packages).
 3. **`osx86-hello.c`** compiled by Debian's MinGW-w64 (`gcc-mingw-w64-i686-win32`, amd64 container
    `osx86-mingw`): the console program of the test (it prints its arguments, the Windows directory
    and the user, and exits with code 7); no third-party binary.

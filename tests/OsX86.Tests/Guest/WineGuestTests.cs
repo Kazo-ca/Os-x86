@@ -35,7 +35,6 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
     private const int CriterionSeconds = 60;
     private static readonly TimeSpan WineTimeout = TimeSpan.FromMinutes(8);
     private static readonly CancellationToken None = CancellationToken.None;
-    private readonly System.Text.StringBuilder _serial = new();
 
     [SkippableFact]
     public async Task Wine_runs_cmd_and_a_console_program_in_a_copy_of_the_template_prefix()
@@ -82,7 +81,6 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
     private async Task<FirstRun> RunAsync(PackedGuestSession session, GuestAgentBridge bridge, EngineStartOptions options, string what, bool waitForPreload)
     {
         var clock = Stopwatch.StartNew();
-        _serial.Clear();
         long startMs = await session.StartAsync(options);
         await session.WaitForSerialAsync(session.Manifest.Boot!.ReadyMarker!, BootTimeoutMs);
         await session.WaitForSerialAsync(session.Manifest.Boot.Prompt!, 60_000);
@@ -148,9 +146,9 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
         return new FirstRun(what, bootMs, copyDoneMs, cmdDoneMs, (long)cmd.Duration.TotalMilliseconds, programDoneMs, (long)program.Duration.TotalMilliseconds, preloadText);
     }
 
-    private async Task<string> PreloadStateAsync(PackedGuestSession session)
+    private static async Task<string> PreloadStateAsync(PackedGuestSession session)
     {
-        string transcript = _serial + await session.TranscriptAsync();
+        string transcript = await session.TranscriptAsync();
         if (transcript.Contains("OSX86-PRELOAD off", StringComparison.Ordinal))
         {
             return "off";
@@ -174,7 +172,7 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
     /// The guest user of the prefix "test", in memory, from the root serial shell (the wine image has no
     /// prefix user: work item 10 creates them), then its copy of the template prefix.
     /// </summary>
-    private async Task AddPrefixUserAsync(PackedGuestSession session)
+    private static async Task AddPrefixUserAsync(PackedGuestSession session)
     {
         string[] commands =
         [
@@ -184,14 +182,13 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
             "mkdir -p /home/osx86-test && chown 1001:1001 /home/osx86-test && chmod 700 /home/osx86-test",
             "/usr/lib/osx86/wine/prefix-copy osx86-test && du -sk /home/osx86-test/.wine",
         ];
-        foreach (string command in commands)
+        for (int index = 0; index < commands.Length; index++)
         {
-            string transcript = await session.SerialAsync($"{command} && echo USERS-$((40+2))", "USERS-42", 120_000);
-            Assert.Contains("USERS-42", transcript, StringComparison.Ordinal);
-            // The serial transcript is kept here (the preloading reports on it) before it is cleared
-            // for the next command (a waiter matches the whole transcript).
-            _serial.Append(await session.TranscriptAsync());
-            await session.Page.EvaluateAsync("() => window.guest.clearTranscripts()");
+            // A marker of its own per command (the transcript is not cleared: the preloading reports
+            // on it); the shell computes it, so the echo of the command line does not match.
+            int marker = 4200 + index;
+            string transcript = await session.SerialAsync($"{commands[index]} && echo USERS-$((4200+{index}))-OK", $"USERS-{marker}-OK", 120_000);
+            Assert.Contains($"USERS-{marker}-OK", transcript, StringComparison.Ordinal);
         }
     }
 

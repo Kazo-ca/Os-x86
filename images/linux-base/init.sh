@@ -53,8 +53,11 @@ fi
 # Hooks of the images built on linux-base (work item 9: the preloading of the wine image), in
 # name order, as root, before the ready marker; a hook that works long goes to the background
 # itself. The kernel command line is passed as arguments ("osx86.preload=off" and the like).
+# (No globbing of the command line's words: set -f around the calls.)
 for hook in /usr/lib/osx86/init.d/*; do
+  set -f
   [ -x "$hook" ] && "$hook" $(cat /proc/cmdline) < /dev/null > /dev/null 2>&1
+  set +f
 done
 
 echo "OSX86-READY" > $console
