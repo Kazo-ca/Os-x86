@@ -332,7 +332,24 @@ A command has no `IJSRuntime` (ADR 0070 of Kazo). `src/OsX86.Os/Program.cs` ther
 before any command, the environment of a browser host (`VmHost.Configure(VmHost.ForBrowser(...))`):
 v86 engine through JS interop, `ImageStore` of the OPFS, catalog of the packs built locally.
 `X86Runtime` reads it when it creates its `VmManager`; without it, the command stays without
-emulator (code 6). The Feature of work item 8 takes this role. To try it:
+emulator (code 6). The Feature of work item 8 takes this role.
+
+Two fixes found while trying it in Kazo (the first runs of the command in Kazo itself):
+
+- **The command runs on the main thread** (`[AppManifest(Execution = AppExecutionHost.MainThread)]`,
+  `"execution": "mainThread"` in `manifest.json`). By default Kazo runs a command in a worker of its
+  pool, with its own .NET runtime (ADR 0070 of Kazo): the environment the host installs and the
+  VMs of the machine, which live on the main thread, did not exist there (`x86 shell` answered
+  "image not available").
+- **The registry is created in `~/.config/ca.kazo.x86/`** the way Kazo's settings are
+  (`SettingsTextFile.EnsureDirectoryAsync`): `KazoDirectory.CreateDirectoryAsync` walks up to
+  `~/.config`, which the app may not read, and the first `x86 vm create` of a user failed
+  (`CapabilityDenied`).
+
+Verified in the terminal of the dev host (guest session): `x86 vm create base`, then `x86 shell`
+downloads linux-base (69.7 MiB verified, about 120 MiB/s), boots the VM and opens the serial
+console where `echo`, `uname -m` (`i686`) and `cat /etc/osx86-release` (`0.1.0`) answer; `~.`
+returns 0, the VM stops after the grace; a second `x86 shell` downloads nothing. To try it:
 
 ```text
 python -I images/linux-base/build-linux-base.py
@@ -414,8 +431,8 @@ clients (BoxedWine, work items 10 and 13). The service is bound to a user
   emulator (`engine-unavailable`, code 6) until the Feature exists (work item 8). The dev host
   `OsX86.Os` gives it one (work item 6b). `vm list`, `create`, `rename`, `remove`, `info` and
   `profile` work everywhere on the persistent registry.
-- **Not verified**: the command inside Kazo itself (real private files, Ctrl+C of the Kazo terminal
-  passed as the command's cancellation), Firefox and Safari.
+- **Not verified**: Ctrl+C of the Kazo terminal passed as the command's cancellation, Firefox and
+  Safari, a Kazo user other than the guest session.
 - The VMs live in the host process: reloading the page stops them all; the registry stays.
 - The line filter renders neither colours nor cursor: a full-screen program (`vi`) is unreadable
   until ADR 0252. A program that turns echo off (a password) can leave at most eight lines waiting

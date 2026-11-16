@@ -176,7 +176,7 @@ comes from the configuration, never from the origin):
 ```json
 {"format": 1, "images": [
   {"image": "linux-base", "version": "0.1.0",
-   "manifestUrl": "osx86-images/linux-base/pack/manifest.json",
+   "manifestUrl": "images/build/linux-base/pack/manifest.json",
    "manifestSha256": "d5c9c8f0…"}
 ]}
 ```
@@ -193,7 +193,7 @@ comes from the configuration, never from the origin):
   catalog does not list is `image-unavailable`.
 
 **Local origin.** The dev host `OsX86.Os` serves each pack built in `images/build/<image>/pack/`
-at `osx86-images/<image>/pack/` (manifest and chunks only, never published), and the build records
+at the same path (manifest and chunks only, never published), and the build records
 the hash of the pack's `manifest.sha256` as assembly metadata (`OsX86.DevPack`). At start,
 `DevImages` reads each manifest, checks it against that hash and makes the catalog of them.
 `-p:OsX86DevImages=false` leaves them out. The `guest` tests do the same with a local static

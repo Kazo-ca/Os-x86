@@ -6,7 +6,7 @@ namespace OsX86.Os;
 /// <summary>
 /// The local origin of the images for the dev host (work item 6b: the hosting of the images is not
 /// settled, so no address is written in the code). The build serves every pack built in
-/// <c>images/build/&lt;image&gt;/pack/</c> at <c>osx86-images/&lt;image&gt;/pack/</c> and records, as
+/// <c>images/build/&lt;image&gt;/pack/</c> at the same path and records, as
 /// assembly metadata <c>OsX86.DevPack</c>, the directory and the SHA-256 the pack's
 /// <c>manifest.sha256</c> gives. At start, each manifest is fetched once and checked against that
 /// hash to learn the image and its version; the catalog then lets the store download them like any
@@ -19,7 +19,7 @@ internal static class DevImages
     internal const string MetadataKey = "OsX86.DevPack";
 
     /// <summary>Where the dev host serves the packs, relative to its base address.</summary>
-    internal const string ServedDirectory = "osx86-images";
+    internal const string ServedDirectory = "images/build";
 
     /// <summary>The catalog of the packs the build served; empty when none was built.</summary>
     public static async Task<ImageCatalog> LoadCatalogAsync(Uri baseAddress, CancellationToken cancellationToken)

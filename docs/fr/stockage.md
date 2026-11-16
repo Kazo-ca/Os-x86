@@ -179,7 +179,7 @@ manifeste doit avoir (203 A : l'empreinte vient de la configuration, jamais de l
 ```json
 {"format": 1, "images": [
   {"image": "linux-base", "version": "0.1.0",
-   "manifestUrl": "osx86-images/linux-base/pack/manifest.json",
+   "manifestUrl": "images/build/linux-base/pack/manifest.json",
    "manifestSha256": "d5c9c8f0…"}
 ]}
 ```
@@ -196,8 +196,7 @@ manifeste doit avoir (203 A : l'empreinte vient de la configuration, jamais de l
   absente du catalogue, `image-unavailable`.
 
 **Source locale.** L'hôte de développement `OsX86.Os` sert chaque pack construit dans
-`images/build/<image>/pack/` à `osx86-images/<image>/pack/` (manifeste et morceaux seulement,
-jamais publiés), et la build inscrit l'empreinte du `manifest.sha256` du pack en métadonnée
+`images/build/<image>/pack/` au même chemin (manifeste et morceaux seulement, jamais publiés), et la build inscrit l'empreinte du `manifest.sha256` du pack en métadonnée
 d'assemblée (`OsX86.DevPack`). Au démarrage, `DevImages` lit chaque manifeste, le vérifie contre
 cette empreinte et en fait le catalogue. `-p:OsX86DevImages=false` les retire. Les tests `guest`
 font de même avec un serveur statique local (`StaticFileServer`). Le catalogue de production

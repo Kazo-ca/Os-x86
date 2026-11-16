@@ -87,7 +87,7 @@ public sealed record KnownImage(string Image, string Version, string ManifestUrl
 /// host generates one for the packs built in <c>images/build/</c>. Format 1:
 /// <code>
 /// {"format": 1, "images": [{"image": "linux-base", "version": "0.1.0",
-///   "manifestUrl": "osx86-images/linux-base/0.1.0/manifest.json", "manifestSha256": "…"}]}
+///   "manifestUrl": "images/build/linux-base/pack/manifest.json", "manifestSha256": "…"}]}
 /// </code>
 /// Unknown properties are ignored; an unknown format is refused (decision 169).
 /// </summary>

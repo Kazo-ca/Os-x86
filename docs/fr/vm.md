@@ -334,7 +334,26 @@ Une commande n'a pas d'`IJSRuntime` (ADR 0070 de Kazo). `src/OsX86.Os/Program.cs
 avant toute commande, l'environnement d'un hôte navigateur (`VmHost.Configure(VmHost.ForBrowser(...))`) :
 moteur v86 par interop JS, `ImageStore` de l'OPFS, catalogue des packs construits en local.
 `X86Runtime` le lit à la création de son `VmManager` ; sans lui, la commande reste sans émulateur
-(code 6). La Feature du chantier 8 prendra ce rôle. Pour essayer :
+(code 6). La Feature du chantier 8 prendra ce rôle.
+
+Deux corrections trouvées en l'essayant dans Kazo (premiers essais de la commande dans Kazo
+lui-même) :
+
+- **La commande tourne sur le thread principal** (`[AppManifest(Execution = AppExecutionHost.MainThread)]`,
+  `"execution": "mainThread"` dans `manifest.json`). Par défaut, Kazo exécute une commande dans un
+  worker de son pool, avec son propre runtime .NET (ADR 0070 de Kazo) : l'environnement installé par
+  l'hôte et les VM de la machine, qui vivent sur le thread principal, n'y existaient pas
+  (`x86 shell` répondait « image not available »).
+- **Le registre se crée dans `~/.config/ca.kazo.x86/`** comme les réglages de Kazo
+  (`SettingsTextFile.EnsureDirectoryAsync`) : `KazoDirectory.CreateDirectoryAsync` remonte jusqu'à
+  `~/.config`, que l'app n'a pas le droit de lire, et le premier `x86 vm create` d'un usager
+  échouait (`CapabilityDenied`).
+
+Vérifié dans le terminal de l'hôte de développement (session invitée) : `x86 vm create base`, puis
+`x86 shell` télécharge linux-base (69,7 Mio vérifiés, environ 120 Mio/s), démarre la VM et ouvre la
+console série où `echo`, `uname -m` (`i686`) et `cat /etc/osx86-release` (`0.1.0`) répondent ;
+`~.` rend 0, la VM s'arrête après le délai de grâce ; un second `x86 shell` ne télécharge rien.
+Pour essayer :
 
 ```text
 python -I images/linux-base/build-linux-base.py
@@ -418,8 +437,8 @@ un usager (`new X86Service(manager, userId)`) ; son enregistrement dans Kazo est
   commande n'a pas d'émulateur (`engine-unavailable`, code 6) tant que la Feature n'existe pas
   (chantier 8). L'hôte de développement `OsX86.Os` lui en donne un (chantier 6b). `vm list`,
   `create`, `rename`, `remove`, `info` et `profile` marchent partout sur le registre persistant.
-- **Non vérifié** : la commande dans Kazo lui-même (fichiers privés réels, Ctrl+C du terminal de
-  Kazo transmis comme annulation de la commande), Firefox et Safari.
+- **Non vérifié** : Ctrl+C du terminal de Kazo transmis comme annulation de la commande,
+  Firefox et Safari, un usager de Kazo autre que la session invitée.
 - Les VM vivent dans le processus hôte : recharger la page les arrête toutes ; le registre reste.
 - Le filtre ligne par ligne ne rend ni couleurs ni curseur : un programme plein écran (`vi`) est
   illisible jusqu'à l'ADR 0252. Un programme qui coupe l'écho (mot de passe) peut laisser au plus

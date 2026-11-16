@@ -11,7 +11,7 @@ public sealed class ImageCatalogTests
 
     private static string Catalog(string entries, int format = 1) => $$"""{"format": {{format}}, "images": [{{entries}}]}""";
 
-    private static string Entry(string image = "linux-base", string version = "0.1.0", string url = "osx86-images/linux-base/pack/manifest.json", string? sha = null) =>
+    private static string Entry(string image = "linux-base", string version = "0.1.0", string url = "images/build/linux-base/pack/manifest.json", string? sha = null) =>
         $$"""{"image": "{{image}}", "version": "{{version}}", "manifestUrl": "{{url}}", "manifestSha256": "{{sha ?? Hash}}"}""";
 
     [Fact]
@@ -22,9 +22,9 @@ public sealed class ImageCatalogTests
         Assert.Equal(2, catalog.Images.Count);
         Assert.Equal(Page, catalog.BaseAddress);
         ImageSource local = catalog.SourceOf("linux-base", "0.1.0")!;
-        Assert.Equal("http://localhost:5000/osx86-images/linux-base/pack/", local.BaseUrl);
+        Assert.Equal("http://localhost:5000/images/build/linux-base/pack/", local.BaseUrl);
         Assert.Equal(Hash, local.ManifestSha256);
-        Assert.Equal("http://localhost:5000/osx86-images/linux-base/pack/manifest.json", local.ManifestUrl);
+        Assert.Equal("http://localhost:5000/images/build/linux-base/pack/manifest.json", local.ManifestUrl);
         ImageSource remote = catalog.SourceOf("freedos", "1.4.0")!;
         Assert.Equal("https://images.example/freedos/1.4.0/", remote.BaseUrl);
         Assert.Equal(new string('b', 64), remote.ManifestSha256);

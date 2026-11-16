@@ -29,20 +29,41 @@
 
   <!--
     Work item 6b: the local origin of the images. Every pack built in images/build/<image>/pack/
-    (never committed) is served at osx86-images/<image>/pack/ (manifest.json and chunks only,
-    never published), and its expected manifest hash (the pack's manifest.sha256) is recorded as
+    (never committed) is served at the same path, images/build/<image>/pack/ (manifest.json and
+    chunks only, never published), and its expected manifest hash (the pack's manifest.sha256) is recorded as
     assembly metadata OsX86.DevPack = "<image>|<sha256>"; DevImages.cs turns them into the image
     catalog. OsX86DevImages=false leaves them out.
   -->
   <PropertyGroup>
-    <_OsX86DevPacks>$(MSBuildThisFileDirectory)..\..\images\build\</_OsX86DevPacks>
+    <_OsX86RepositoryRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..'))</_OsX86RepositoryRoot>
+    <_OsX86DevPacks>$(_OsX86RepositoryRoot)images\build\</_OsX86DevPacks>
   </PropertyGroup>
   <ItemGroup Condition="'$(OsX86DevImages)' != 'false'">
-    <Content Include="$(_OsX86DevPacks)**\pack\manifest.json;$(_OsX86DevPacks)**\pack\chunk-*.bin"
-             Link="wwwroot\osx86-images\%(RecursiveDir)%(Filename)%(Extension)"
-             CopyToPublishDirectory="Never" />
+    <_OsX86DevPackFile Include="$(_OsX86DevPacks)**\pack\manifest.json;$(_OsX86DevPacks)**\pack\chunk-*.bin"
+                       RelativePath="images/build/%(RecursiveDir)%(Filename)%(Extension)" />
     <_OsX86DevPackHash Include="$(_OsX86DevPacks)**\pack\manifest.sha256" />
   </ItemGroup>
+  <!--
+    Static web assets whose content root is the repository: a linked Content item would be served
+    from the project's wwwroot, where the file is not. Build only: never published.
+  -->
+  <Target Name="OsX86DevPackAssets" AfterTargets="ResolveProjectStaticWebAssets" Condition="'@(_OsX86DevPackFile)' != ''">
+    <DefineStaticWebAssets CandidateAssets="@(_OsX86DevPackFile)"
+                           RelativePathPattern="**"
+                           SourceType="Discovered"
+                           SourceId="$(PackageId)"
+                           AssetKind="Build"
+                           ContentRoot="$(_OsX86RepositoryRoot)"
+                           BasePath="/">
+      <Output TaskParameter="Assets" ItemName="_OsX86DevPackAsset" />
+    </DefineStaticWebAssets>
+    <DefineStaticWebAssetEndpoints CandidateAssets="@(_OsX86DevPackAsset)" ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+      <Output TaskParameter="Endpoints" ItemName="StaticWebAssetEndpoint" />
+    </DefineStaticWebAssetEndpoints>
+    <ItemGroup>
+      <StaticWebAsset Include="@(_OsX86DevPackAsset)" />
+    </ItemGroup>
+  </Target>
   <Target Name="OsX86DevPackMetadata" BeforeTargets="GetAssemblyAttributes" Condition="'@(_OsX86DevPackHash)' != ''">
     <ItemGroup>
       <AssemblyMetadata Include="OsX86.DevPack" Value="$([System.String]::Copy('%(_OsX86DevPackHash.RecursiveDir)').Replace('\pack\', ''))|$([System.IO.File]::ReadAllText('%(_OsX86DevPackHash.FullPath)').Substring(0, 64))" />
