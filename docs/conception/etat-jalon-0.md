@@ -30,7 +30,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 - **Chantier 6b**, `linux-base` comme image par défaut de `x86 vm create` et `x86 shell` (source d'images configurable, couche d'écriture par VM) : lancé le 2026-11-15, branche `j0/6b-linux-base-default`.
 - **Chantier 9**, image Wine (WineHQ 11.0 i386, Mono, Gecko, bouteille gabarit en fichiers, préchargement 204 A) : lancé le 2026-11-15, branche `j0/9-wine-image`.
-- **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : PR Kazo #570 ouverte, CI en cours ; ses questions sont la série 19 (267 à 269).
+- **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : PR Kazo #570 ouverte, CI en cours ; série 19 répondue (A partout), à fusionner par toi.
 
 ## Reste à faire
 
@@ -47,7 +47,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0248 à 0255, un chantier par ADR, dans l'ordre 0248, 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Répondre à la série 19 (267 à 269), puis fusionner Kazo #570.
+- Fusionner Kazo #570 (série 19 répondue, A partout).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 

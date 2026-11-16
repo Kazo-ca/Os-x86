@@ -527,3 +527,11 @@ Série 18 (263 à 266), posée le 2026-11-15 dans [serie-18-envoyee.md](serie-18
 | 265 | Fixture `sdk-compat` et version mineure | **A** : à la publication. | ADR 0262 |
 | 266 | Version de Kazo épinglée dans Os-x86 | **A** : `v3.4.0-preview.4` maintenant, suivre les préliminaires qui apportent une ADR de la série, `v3.4.0` à sa publication. | 220 A (seconde moitié) |
 
+Série 19 (267 à 269), posée le 2026-11-15 dans [serie-19-envoyee.md](serie-19-envoyee.md) (questions du code de l'ADR Kazo 0246, PR Kazo-ca/Os#570), répondue le même jour. Tes mots : « Oui, A partout ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 267 | Langue des textes d'une permission de Feature | **A** : texte du manifeste, traduit par ses fichiers `localization/`, sans charger le code de la Feature. | ADR 0246 §1 |
+| 268 | Permissions des Features dans le Store | **A** : avec la résolution des dépendances de l'ADR 0248. | ADR 0246, 0248 |
+| 269 | Capacités en ligne de commande | **A** : marquées dans le rapport de `kazopkg install`, `kazopkg info` inchangé. | ADR 0246 |
+
