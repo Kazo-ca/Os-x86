@@ -68,7 +68,7 @@ valide (un octet invalide d'une sortie de programme devient U+FFFD).
 | `kill` d'administration | `scope` = `pid` \| `group` \| `prefix` \| `cgroup`, puis `pid`, `prefix`, `seq`, `signal`, `allowRoot` | `count`, `signal`, `target`, `ms` |
 | `mounts` | `timeoutMs` (défaut 8000, au plus 1 h) | `mounts[]` : `path`, `type`, `device`, `state` (`ok`, `error`, `hung`), `entries`, `blocks`, `blockSize`, `freeBlocks`, `statfsErrno`, `readdirErrno`, `error` ; `timedOut` |
 | `exec-in-prefix` | `prefix`, `program`, `args[]`, `env{}`, `cwd`, `timeoutMs` (défaut 30000, au plus 1 h), `maxOutput` (défaut 65536, au plus 1 Mio) | `code`, `signal`, `timedOut`, `truncated`, `output`, `ms` |
-| `open-console` | `prefix`, `program` (défaut : le shell de l'usager, interactif), `args[]`, `env{}`, `cwd`, `cols`, `rows` | `launch`, `console` (numéro), `pid`, `uid`, `cols`, `rows` |
+| `open-console` | `prefix`, `program` (défaut : le shell de l'usager, interactif), `args[]`, `env{}`, `cwd`, `cols`, `rows`, `raw` (terminal en mode brut dès l'ouverture, chantier 10b) | `launch`, `console` (numéro), `pid`, `uid`, `cols`, `rows` |
 | `close-console` | `console` ou `launch`, `graceMs`, `keep[]` (pid à garder) | `keptCount`, `kept` (lancement des processus gardés) ; immédiate |
 | `console-resize` | `console`, `cols`, `rows` | `console`, `cols`, `rows` |
 | `list-windows` | — | erreur `no-x-server` tant que l'image n'a pas de serveur X (chantier 9) |

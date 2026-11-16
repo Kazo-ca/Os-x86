@@ -253,9 +253,12 @@ l'autre).
   Entrée ; un shell (`x86 shell`) le reçoit en LF par sa discipline de ligne (ICRNL).
 - **Espaces.** La console de Wine dessine les blancs d'une ligne par des déplacements du curseur
   (`CSI n C`) : le filtre de ligne les rend en espaces (`a b` sortait `ab`).
-- **Frappe avant la lecture.** La console de Wine passe le terminal en mode brut à son démarrage, ce
-  qui jette ce qui a été tapé avant ; une ligne tapée pendant le démarrage du programme peut se
-  perdre (le test attend que le programme annonce sa lecture).
+- **Le pty naît en mode brut (chantier 10b).** La console de Wine ne passe le terminal en mode brut
+  qu'à sa première lecture. Une ligne tapée juste avant passait par la discipline de ligne : son CR
+  devenait LF (ICRNL), que Wine prend pour Ctrl+J, et la ligne ne se terminait jamais (8 fois sur
+  12 dans un essai en boucle, intermittent en CI). L'agent ouvre maintenant le pty d'un programme
+  dans le mode que Wine réglera (`open-console` avec `raw`) : ce qui est tapé arrive tel quel, quel
+  que soit le moment.
 - **Code de sortie.** Celui de `wine`, donc celui du programme modulo 256 (un code Windows plus
   grand, comme `0xC000013A`, arrive tronqué) : après Ctrl+C, le programme sort avec 58.
 

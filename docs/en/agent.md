@@ -67,7 +67,7 @@ byte of a program's output becomes U+FFFD).
 | administrative `kill` | `scope` = `pid` \| `group` \| `prefix` \| `cgroup`, then `pid`, `prefix`, `seq`, `signal`, `allowRoot` | `count`, `signal`, `target`, `ms` |
 | `mounts` | `timeoutMs` (default 8000, at most 1 h) | `mounts[]`: `path`, `type`, `device`, `state` (`ok`, `error`, `hung`), `entries`, `blocks`, `blockSize`, `freeBlocks`, `statfsErrno`, `readdirErrno`, `error`; `timedOut` |
 | `exec-in-prefix` | `prefix`, `program`, `args[]`, `env{}`, `cwd`, `timeoutMs` (default 30000, at most 1 h), `maxOutput` (default 65536, at most 1 MiB) | `code`, `signal`, `timedOut`, `truncated`, `output`, `ms` |
-| `open-console` | `prefix`, `program` (default: the user's shell, interactive), `args[]`, `env{}`, `cwd`, `cols`, `rows` | `launch`, `console` (number), `pid`, `uid`, `cols`, `rows` |
+| `open-console` | `prefix`, `program` (default: the user's shell, interactive), `args[]`, `env{}`, `cwd`, `cols`, `rows`, `raw` (terminal raw from the start, work item 10b) | `launch`, `console` (number), `pid`, `uid`, `cols`, `rows` |
 | `close-console` | `console` or `launch`, `graceMs`, `keep[]` (pids to keep) | `keptCount`, `kept` (the launch of the kept processes); immediate |
 | `console-resize` | `console`, `cols`, `rows` | `console`, `cols`, `rows` |
 | `list-windows` | — | error `no-x-server` until the image has an X server (work item 9) |
