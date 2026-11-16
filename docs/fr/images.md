@@ -18,6 +18,8 @@ est reconstruit depuis des sources officielles épinglées par leur SHA-256.
 | `images/tools/publish-layout.py` | la mise en forme de la publication (`images/<image>/<version>/`, `index.json`, refus au-dessus de 100 Mio pour Pages) |
 | `images/tools/Dockerfile` | le conteneur `osx86-tools` (e2fsprogs, mtools, python3) que les recettes utilisent |
 | `images/linux-base/` | la recette du Linux de base (201 A) : `Dockerfile`, `init.sh`, `verify-console.sh`, `modules.keep`, `osx86.modules`, `probes/`, `build-linux-base.py` |
+| `images/linux-base/slim.sh` | le dégraissage commun à linux-base et à l'image Wine (inventaire des paquets et des licences compris) |
+| `images/wine/` | la recette de l'image Wine (chantier 9) : `build-wine.py`, `install-wine.sh`, `winehq-trixie.sources`, `make-prefix.sh`, `prefix-copy.sh`, `trace-hot.sh`, `preload.sh`, `slim-wine.sh`, `osx86-hello.c` |
 | `images/alpine-test/` | l'image Alpine de test du chantier 2, désormais paquetée ; elle embarque l'agent du chantier 5 |
 | `images/agent/` | l'agent invité (chantier 5) : sources C, `Dockerfile`, `build-agent.py` ; voir [`agent.md`](agent.md) |
 | `images/freedos/` | la recette FreeDOS : `build-freedos.py`, `FDAUTO.BAT` |
@@ -30,6 +32,7 @@ python -I images/agent/build-agent.py                 # l'agent invité (Docker 
 python -I images/alpine-test/build-alpine-test.py     # ISO officiel ; embarque l'agent s'il est construit
 python -I images/freedos/build-freedos.py             # archive officielle, mtools ou osx86-tools
 python -I images/linux-base/build-linux-base.py       # Docker (linux/386), 5 Go libres exigés
+python -I images/wine/build-wine.py                   # part de linux-base ; ≈ 2,5 Go d'images Docker
 python -I images/tools/pack-image.py check images/build/linux-base/pack
 ```
 
@@ -168,6 +171,101 @@ retirés de `su`, `mount`, `passwd`… : la VM est pilotée par l'agent en root)
 `HOME_MODE` et `DIR_MODE` à 0700 pour les usagers des préfixes, `/run/lock` supprimé (le test
 d'image l'avait trouvé en 1777).
 
+### wine (chantier 9 ; 201 A, 152 A, 204 A)
+
+L'image Wine est linux-base plus Wine : elle part de l'étape `base` de linux-base (image Docker
+`osx86-linux-base-full`, construite par `build-linux-base.py`, que `build-wine.py` importe au lieu
+de le recopier) et finit par le même dégraissage (`images/linux-base/slim.sh`, partagé). Toutes les
+étapes qui exécutent du code 32 bits passent par `docker run` puis `docker commit` (le profil
+seccomp des étapes `RUN` de BuildKit refuse `socket(2)` aux conteneurs 32 bits sur les runners
+GitHub ; `wineserver` aussi a besoin d'un socket) ; images et conteneurs s'appellent `osx86-wine-*`
+et `osx86-mingw`.
+
+1. **Téléchargements épinglés** dans `images/build/wine/download/` (dossier à part) : la clé du
+   dépôt WineHQ (`winehq.key`, SHA-256 épinglé ; empreinte `D43F 6401 4536 9C51 D786 DDEA 76F1
+   A20F F987 672F`), `wine-mono-10.4.1-x86.tar.xz` et `wine-gecko-2.47.4-x86.tar.xz` (SHA-256
+   épinglés). Mono 10.4.1 et Gecko 2.47.4 sont les versions que Wine 11.0 demande : son
+   `dlls/appwiz.cpl/addons.c` épingle le SHA-256 de leurs `.msi`, et les `.msi` publiés à côté des
+   archives ont été vérifiés contre ces valeurs au moment d'épingler les archives.
+2. **`install-wine.sh`** (`osx86-wine-installed`) : `ca-certificates`, la clé et
+   `winehq-trixie.sources` (dépôt `https://dl.winehq.org/wine-builds/debian`, suite `trixie`,
+   i386 seulement, `Signed-By` sur la clé), puis `winehq-stable`, `wine-stable` et
+   `wine-stable-i386` **= 11.0.0.0~trixie-1** (vérifié après coup), plus `libfreetype6`,
+   `libfontconfig1` et `libgnutls30t64` (polices de gdi32, bcrypt et TLS) ; Mono et Gecko sont
+   **dépaquetés une fois** sous `/usr/share/wine/mono/wine-mono-10.4.1` et
+   `/usr/share/wine/gecko/wine-gecko-2.47.4-x86`, où Wine les cherche avant de proposer un
+   téléchargement : installation partagée, jamais copiée dans un préfixe.
+3. **`osx86-hello.c`** compilé par le MinGW-w64 de Debian (`gcc-mingw-w64-i686-win32`, conteneur
+   amd64 `osx86-mingw`) : le programme console du test (il affiche ses arguments, le dossier
+   Windows et l'usager, et rend le code 7) ; aucun binaire tiers.
+4. **`make-prefix.sh`** (`osx86-wine-prefix`) : la **bouteille gabarit** (152 A), voir plus bas.
+5. **`trace-hot.sh`** (conteneur jetable) : la liste des **fichiers chauds** (204 A), voir plus bas.
+6. **`slim-wine.sh`** (`osx86-wine`) : dégraissage, pièces de l'image, puis `slim.sh` de
+   linux-base (inventaire des paquets et des licences, purge d'`apt` et de `perl-base`, pages de
+   manuel, locales…).
+7. Export, test d'image de 210 A et ext4 dans `osx86-tools` (les fonctions de linux-base),
+   vérifications propres à Wine sur l'export, `sources.json`, paquetage.
+
+**Dégraissage.** `wine-stable-i386` dépend en dur de GStreamer, PulseAudio, SANE, libgphoto2,
+OpenCL, libpcap, Wayland et ALSA-plugins : 201 paquets et 1 Gio installés par apt. Ces
+dépendances ne servent qu'à des modules de Wine qu'un programme console n'ouvre pas
+(`winegstreamer`, `winepulse`, `sane`, `gphoto2`, `opencl`, `wpcap`, `winewayland`) : elles sont
+purgées, ainsi que tout ce qui n'est plus dans la fermeture des dépendances de ce qui reste
+(calculée par `apt-cache depends --recurse` : la base de linux-base, Wine, ses autres dépendances
+dures et les trois bibliothèques choisies). Ces modules échouent alors à se charger, comme Wine le
+fait sur un système sans ces bibliothèques. Partent aussi les outils de développement de Wine
+(`winegcc`, `winebuild`, `widl`, `wrc`, `wmc`, `winedump`, `winemaker`…) et ses bibliothèques
+d'import `.a`, ainsi que `ca-certificates`, `xz-utils`, la clé et la source apt. Les bits setuid et
+setgid des paquets ajoutés sont retirés (210 A). Restent les bibliothèques X (`libx11-6`,
+`libxext6`) pour les jalons graphiques, `libasound2`, `libudev1` et `libusb` (petites).
+
+**La bouteille gabarit (152 A).** `wineboot -u` tourne dans le conteneur, en natif, comme root,
+avec `WINEPREFIX=/usr/lib/osx86/wine/prefix-template`, `HOME=/root` (aucun dossier XDG : les
+dossiers du profil sont de vrais dossiers) et l'usager Windows **`osx86-template`** ; jamais chez
+l'usager. Ensuite :
+
+- tout fichier du gabarit dont les octets sont ceux d'un fichier de Wine, de Mono ou de Gecko
+  (les DLL intégrées que `wineboot` copie dans `system32`, les fichiers NLS, les polices…) devient
+  un **lien symbolique** vers ce fichier : le gabarit ne garde que ce que `wineboot` a vraiment
+  écrit (registre, quelques talons) ; Wine ne lit que l'en-tête d'une DLL intégrée de `system32`
+  avant de charger la sienne, et un programme qui voudrait l'écraser reçoit `EACCES` (elle
+  appartient à l'image) ;
+- `.update-timestamp` doit valoir la date de modification de
+  `/opt/wine-stable/share/wine/wine.inf` (Wine compare les deux à chaque démarrage et relance un
+  `wineboot -u` complet s'ils diffèrent ; `wineboot` écrit le nombre suivi de CR LF) : vérifié
+  dans le conteneur, dans l'export et dans la VM par le test `guest` ;
+- Mono est enregistré comme installation partagée (paquet de support seulement) ; Gecko est
+  trouvé à la demande dans `/usr/share/wine/gecko`.
+
+**Copie par préfixe.** `/usr/lib/osx86/wine/prefix-copy <usager> [<destination>]` (root) copie le
+gabarit pour l'usager invité `osx86-<préfixe>` (par défaut dans `$HOME/.wine`, qui ne doit pas
+exister) : `cp -a` (les liens restent des liens : quelques Mio écrits), renommage de
+`drive_c/users/osx86-template` et de l'usager dans `system.reg`, `user.reg` et `userdef.reg`
+(Wine prend le nom de l'usager Windows dans `$USER` ; sans ce renommage, `%TEMP%` et les dossiers
+du profil pointeraient vers `osx86-template`), puis `chown` à l'usager (Wine refuse un préfixe qui
+n'est pas à lui). C'est la référence pour le chantier 10, qui décide où vivent les préfixes ;
+l'image n'a pas d'usager de préfixe (le test `guest` en ajoute un en mémoire). Après un
+changement de version de Wine dans l'image, un préfixe copié de l'ancien gabarit garde des liens
+vers des fichiers de la nouvelle version : à traiter avec la migration des préfixes.
+
+**Fichiers chauds et préchargement (204 A).** `trace-hot.sh` donne une copie du gabarit à un usager
+`osx86-trace`, puis trace par `strace` (installé dans ce conteneur jetable seulement) ce qu'une
+première session fait : `wine cmd /c echo`, puis `osx86-hello.exe`. Chaque fichier ordinaire
+ouvert ou exécuté avec succès est gardé, dans l'ordre de son premier usage, ceux de la copie
+ramenés au gabarit et les liens résolus ; la liste est filtrée après le dégraissage et rangée dans
+`/usr/lib/osx86/wine/hot-files.list` (publiée aussi avec le pack). Le crochet
+`/usr/lib/osx86/init.d/50-preload-wine`, lancé par l'init avant `OSX86-READY`, lit ces fichiers en
+arrière-plan, en `nice 10`, et écrit `OSX86-PRELOAD done files=… start=… end=…` sur la console
+série : l'invité les garde dans son cache de pages, et le premier `wine` lit la mémoire au lieu de
+trames décompressées une à une. `osx86.preload=off` sur la ligne de commande du noyau le coupe
+(pour mesurer sans). L'init de linux-base lance désormais, dans l'ordre, les exécutables de
+`/usr/lib/osx86/init.d/` (avec la ligne de commande du noyau en arguments) et lit le nom de
+l'image dans `/etc/osx86-image`.
+
+**Manifeste.** `boot.memoryMiB` vaut 512 (E17 : l'invité utilise 142 Mio avec trois fenêtres Wine)
+et `boot.wine` donne `prefixTemplate`, `prefixCopy`, `templateWindowsUser`, `hotFiles` et
+`preloadOff` ; `build` porte les versions de Wine, Mono et Gecko et les mesures.
+
 ### alpine-test
 
 ISO officiel 3.22.8, lecteurs ISO 9660 et cpio maison, `init.sh` en `/init` ;
@@ -237,6 +335,29 @@ Chaque pack publie `sources.json` à côté de l'image :
   client sans navigateur) et les archives amont qu'il nomme avec leur SHA-512 ;
   `--fetch-sources` les télécharge dans `images/build/linux-base/sources/` (noyau ≈ 150 Mio :
   pour R2, jamais pour Pages).
+- **wine** : tout ce qui précède pour la base, plus :
+  - **Wine** (LGPL-2.1 ou ultérieure, fichier `copyright` des paquets WineHQ gardé dans l'image) :
+    le paquet source WineHQ dont viennent les binaires (`wine_11.0.0.0~trixie-1.dsc`,
+    `.orig.tar.gz`, `.debian.tar.xz` du dépôt `dl.winehq.org/wine-builds/debian/pool/main/w/wine/`)
+    et l'archive amont `wine-11.0.tar.xz` ; les paquets WineHQ ne sont pas sur
+    `snapshot.debian.org` (leur ligne de `debian.packages` renvoie au dépôt WineHQ) ;
+  - **Mono 10.4.1** : licences mêlées, lues dans le `COPYING` de wine-mono (étiquette
+    `wine-mono-10.4.1`) : MIT X11 pour l'essentiel ; parties de Mono sous LGPL ou GPL avec des
+    exceptions (dont SharpZipLib, GPL avec exception ; le compilateur VB sous LGPL v2) ; FNA sous
+    MS-PL et MIT ; FAudio, FNA3D, MojoShader et SDL sous zlib ; `jay` sous BSD ; winforms, wpf,
+    System.Speech sous MIT. **Copyleft (LGPL, GPL) : sources à publier**,
+    `wine-mono-10.4.1-src.tar.xz` (357 Mio) ;
+  - **Gecko 2.47.4** : Gecko de Mozilla sous **MPL 2.0** avec les autres licences listées dans
+    `toolkit/content/license.html` de ses sources (le `LICENSE` de wine-gecko y renvoie) ; aucun
+    droit sur les marques de Mozilla. **MPL : sources à publier**, `wine-gecko-2.47.4-src.tar.xz`
+    (197 Mio) ;
+  - `osx86-hello.exe` : source du dépôt (`images/wine/osx86-hello.c`), compilateur noté.
+
+  Les archives binaires de Mono et de Gecko n'embarquent aucun texte de licence : c'est un
+  prérequis de la première publication (plan, section 12) de publier à côté de l'image les
+  sources de Wine, Mono et Gecko et ces textes. `build-wine.py --fetch-sources` télécharge les
+  sources de Wine, Mono, Gecko et des composants Alpine dans `images/build/wine/sources/` et note
+  leur SHA-256 (aucune empreinte amont n'existe pour elles) : pour R2, jamais pour Pages.
 - **alpine-test** : les aports `3.22-stable` (`main/linux-lts`, `main/busybox`, `main/musl`) et
   l'ISO ; **freedos** : l'archive officielle, les licences par paquet du dossier `PACKAGES` du
   disque et les sources de la distribution 1.4 sur ibiblio.

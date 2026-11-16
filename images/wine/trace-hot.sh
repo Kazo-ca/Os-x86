@@ -19,7 +19,8 @@ useradd -m -u 1001 -s /bin/sh "$user"
 prefix="/home/$user/.wine"
 
 trace() {
-  su "$user" -s /bin/sh -c "cd && WINEDEBUG=-all strace -f -qq -e trace=open,openat,execve -o /tmp/$1.strace $2"
+  # -ff: one file per process (no line cut by another process); -ttt: the time orders them again.
+  su "$user" -s /bin/sh -c "cd && WINEDEBUG=-all strace -f -ff -ttt -qq -e trace=open,openat,execve -o /tmp/strace.$1 $2"
 }
 start=$(date +%s%N)
 trace cmd 'wine cmd /c echo osx86-hot' > /tmp/cmd.out
@@ -29,9 +30,9 @@ end=$(date +%s%N)
 grep -q osx86-hot /tmp/cmd.out
 grep -q 'osx86-hello' /tmp/hello.out
 
-# 123 openat(AT_FDCWD, "/path", O_RDONLY|O_CLOEXEC) = 3   and   123 execve("/path", [...]) = 0
-cat /tmp/cmd.strace /tmp/hello.strace \
-  | sed -n 's/^[0-9]* \(open\|openat\|execve\)(\(AT_FDCWD, \)\{0,1\}"\([^"]*\)".* = [0-9][0-9]*$/\3/p' > /tmp/opened
+# 1700000000.123456 openat(AT_FDCWD, "/path", O_RDONLY|O_CLOEXEC) = 3  and  ... execve("/path", [...]) = 0
+cat /tmp/strace.* | sort -s -n -k1,1 \
+  | sed -n 's/^[0-9.]* \(open\|openat\|execve\)(\(AT_FDCWD, \)\{0,1\}"\([^"]*\)".* = [0-9][0-9]*$/\3/p' > /tmp/opened
 : > /out/hot-files.list
 seen=" "
 while IFS= read -r path; do
