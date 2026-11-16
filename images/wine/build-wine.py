@@ -455,7 +455,11 @@ def main() -> int:
     contents = inspect_export(tar_path)
     with tarfile.open(tar_path, "r:") as archive:
         member = archive.getmember("./" + HOT_LIST) if "./" + HOT_LIST in archive.getnames() else archive.getmember(HOT_LIST)
-        (output / "hot-files.list").write_bytes(archive.extractfile(member).read())  # type: ignore[union-attr]
+        # The traced list was written by root in the trace container (a file this user cannot
+        # rewrite on Linux): it is replaced by the list the image holds, after the trimming.
+        hot = output / "hot-files.list"
+        hot.unlink(missing_ok=True)
+        hot.write_bytes(archive.extractfile(member).read())  # type: ignore[union-attr]
     # The ext4 keeps wine.inf's date (SOURCE_DATE_EPOCH clamps later dates only): otherwise Wine sees
     # a changed wine.inf and runs a full wineboot -u in the VM at the first start (152 A forbids it).
     lb.run_tools(output, source_date_epoch=contents["wineInfMtime"])
