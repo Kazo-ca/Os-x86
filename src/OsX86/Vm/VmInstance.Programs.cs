@@ -70,14 +70,15 @@ public sealed partial class VmInstance
             RegisterChild(handle.Launch, VmChildKind.Program, handle.Exited);
             WineSession held = session;
             session = null;
-            _ = handle.Exited.ContinueWith(_ => ReleaseSession(held), TaskScheduler.Default);
+            LaunchId programLaunch = handle.Launch;
+            _ = handle.Exited.ContinueWith(_ => ReleaseSession(held, programLaunch), TaskScheduler.Default);
             return new AgentVmConsole(Id, application, handle, _options.ConsoleCloseGrace);
         }
         catch
         {
             if (session is not null)
             {
-                ReleaseSession(session);
+                ReleaseSession(session, null);
             }
 
             application.Dispose();
@@ -405,7 +406,9 @@ public sealed partial class VmInstance
     }
 
     /// <summary>A program of the session ended: when it was the last one, the session ends after <see cref="VmManagerOptions.PrefixSessionGrace"/>.</summary>
-    private void ReleaseSession(WineSession session)
+    /// <param name="session">The session.</param>
+    /// <param name="ended">The program that ended, which may still be listed among the children (their removal runs apart).</param>
+    private void ReleaseSession(WineSession session, LaunchId? ended)
     {
         AgentClient? agent;
         lock (_lock)
@@ -434,7 +437,7 @@ public sealed partial class VmInstance
 
                 // A console of the prefix (x86 shell) may run Wine on this session: it keeps it, and
                 // the stop is tried again after the grace.
-                if (_options.PrefixSessionGrace > TimeSpan.Zero && _children.Any(child => child.Kind != VmChildKind.Session && child.Launch.Prefix == session.Prefix.Value))
+                if (_options.PrefixSessionGrace > TimeSpan.Zero && _children.Any(child => child.Kind != VmChildKind.Session && child.Launch.Prefix == session.Prefix.Value && child.Launch != ended))
                 {
                     session.ScheduleStop(_time.CreateTimer(_ => Stop(), null, _options.PrefixSessionGrace, Timeout.InfiniteTimeSpan));
                     return;

@@ -110,6 +110,9 @@ public sealed class ProgramRunTests
         await second.DisposeAsync();
 
         Assert.Empty(agent.Requests("kill"));
+        // The stop of the session is scheduled when the program's end reaches the instance: waited
+        // for (with the stop grace of the VM, 5 min) before the clock moves.
+        await WaitUntilAsync(() => rig.Time.PendingTimers >= 2, "the session's stop scheduled");
         rig.Time.Advance(TimeSpan.FromSeconds(31));
         await WaitUntilAsync(() => agent.Requests("kill").Count == 1, "the session killed after its grace");
         Assert.Equal("default/1", agent.Request("kill").GetProperty("launch").GetString());
@@ -218,6 +221,7 @@ public sealed class ProgramRunTests
         ScriptWineGuest(rig.Engines.Last, copied: true, console: 6);
         IVmConsole shell = await vm.OpenConsoleAsync(new VmConsoleOptions { Prefix = "default" }, None);
 
+        await WaitUntilAsync(() => rig.Time.PendingTimers >= 1, "the session's stop scheduled");
         rig.Time.Advance(TimeSpan.FromSeconds(31));
         await Task.Delay(100);
         Assert.Empty(agent.Requests("kill"));
@@ -227,6 +231,7 @@ public sealed class ProgramRunTests
         await shell.Exited.WaitAsync(Soon);
         await shell.DisposeAsync();
         await WaitUntilAsync(() => vm.Children.All(child => child.Kind == VmChildKind.Session), "the console child gone");
+        await WaitUntilAsync(() => rig.Time.PendingTimers >= 2, "the session's stop scheduled again, and the grace of the VM");
         rig.Time.Advance(TimeSpan.FromSeconds(31));
         await WaitUntilAsync(() => agent.Requests("kill").Count == 1, "the session killed once the console closed");
     }
