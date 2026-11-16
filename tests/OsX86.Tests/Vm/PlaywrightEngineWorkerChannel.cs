@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 using OsX86.Engine;
 using OsX86.Engine.V86;
+using OsX86.Storage;
 using OsX86.Vm;
 
 namespace OsX86.Tests.Vm;
@@ -135,4 +136,42 @@ internal sealed class PlaywrightWorkerHub
 internal sealed class PlaywrightEngineFactory(IPage page, PlaywrightWorkerHub hub) : IEngineFactory
 {
     public IEngine Create() => new V86Engine(new PlaywrightEngineWorkerChannel(page, hub));
+}
+
+/// <summary>
+/// An <see cref="IStorageWorkerChannel"/> on the real storage worker of the test page (work item 6b):
+/// started like an engine worker, through the same binding, so that the production
+/// <see cref="ImageStore"/> downloads into the OPFS of the page.
+/// </summary>
+internal sealed class PlaywrightStorageWorkerChannel(IPage page, PlaywrightWorkerHub hub) : IStorageWorkerChannel
+{
+    private int _host;
+
+    public async ValueTask StartAsync(Func<string, ValueTask> onMessage, CancellationToken cancellationToken)
+    {
+        int host = await hub.ReserveAsync(onMessage);
+        _host = await page.EvaluateAsync<int>("() => window.vm.createStorageHost()");
+        PlaywrightWorkerHub.Bind(host, _host);
+    }
+
+    public async ValueTask PostAsync(string json, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await page.EvaluateAsync("([id, json]) => window.vm.post(id, json)", new object[] { _host, json });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_host != 0)
+        {
+            try
+            {
+                await page.EvaluateAsync("id => window.vm.disposeHost(id)", _host);
+            }
+            catch (PlaywrightException)
+            {
+                // The page is gone: so is the worker.
+            }
+        }
+    }
 }

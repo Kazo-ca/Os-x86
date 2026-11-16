@@ -14,11 +14,12 @@ French only). Decisions: 165 A (several VMs, memory limit), 166 A (what an "appl
 
 | Path | Content |
 | --- | --- |
-| `src/OsX86/Vm/` | `VmRegistry` and its document (`VmRegistryDocument`, `VmRecord`, `IVmRegistryStore`), `VmManager` (the machine's VMs, the budget), `VmInstance` (the lifecycle of one VM), `VmApplication`, the consoles (`VmConsoles.cs`), `MemoryBudget`, `IEngineFactory` and `IBootImageSource`, `X86Service` (the implementation of `Ix86`) |
+| `src/OsX86/Vm/` | `VmRegistry` and its document (`VmRegistryDocument`, `VmRecord`, `IVmRegistryStore`), `VmManager` (the machine's VMs, the budget), `VmInstance` (the lifecycle of one VM), `VmApplication`, the consoles (`VmConsoles.cs`), `MemoryBudget`, `IEngineFactory` and `IBootImageSource` with `BootImage`, `JsEngineFactory` and `VmHost` (`VmHostServices.cs`), `StoreBootImageSource` (work item 6b), `X86Service` (the implementation of `Ix86`) |
 | `src/OsX86/Profiles/` | `VmProfile` (the `.x86profile` format), `BuiltInProfiles` (`alpine-test`, `linux-base`) |
 | `src/OsX86.Feature/` | `X86Command` in four files (dispatch, `vm`, `shell`, `profile`), `CommandArguments`, `TerminalTextFilter`, `X86Runtime` (the shared manager), `X86Files` (Kazo files, the registry store) |
 | `src/OsX86.Interface/` | `Ix86` extended, `IVmConsole`, `VmConsoleOptions`, `X86Exception` and `X86ErrorCodes`, `VmMemoryBudgetExceededException` |
-| `tests/OsX86.Tests/Vm/` | `unit` tests (simulated engine and agent, manual clock) and the `guest` test (`VmShellGuestTests`, `vm.html`) |
+| `src/OsX86.Os/` | the dev host: `Program.cs` installs engine, storage and catalog (`VmHost`), `DevImages.cs` reads the packs built locally (work item 6b) |
+| `tests/OsX86.Tests/Vm/` | `unit` tests (simulated engine and agent, manual clock; `LinuxBaseDefaultTests`) and `guest` tests (`VmShellGuestTests`, `X86ShellLinuxBaseGuestTests`, `vm.html`) |
 
 ## Overview
 
@@ -98,7 +99,7 @@ Exposed states: `Stopped`, `Starting`, `Running`, `Stopping` (`VmState`), with t
 
 **Grace choice: 5 s.** 166 A says "as soon as". A short grace lets a shell that reopens at once, or
 a program that chains another, keep the VM, while a boot costs 8 s for the Alpine image (measured
-below) and 45 to 70 s for linux-base. It is configurable (`VmManagerOptions.StopGrace`, 0 = stop at
+below) and about 16 s for linux-base (work item 6b). It is configurable (`VmManagerOptions.StopGrace`, 0 = stop at
 once); its writing by the administrator is work item 7.
 
 ## The memory limit (165 A)
@@ -177,9 +178,9 @@ A profile is the **recipe** of a VM (121): a versioned `.x86profile` JSON docume
 | `programs` | an opaque section reserved to BoxedWine, kept as is |
 
 Unknown properties are ignored, comments and trailing commas accepted, 256 KiB at most. Shipped
-profiles: **`alpine-test`** (the Alpine test image with the agent, 128 MiB, serial, prefix `test`,
-default of `x86 vm create`) and **`linux-base`** (256 MiB, serial, no prefix: its guest users come
-with the prefixes, work items 9 and 10). An imported profile (`x86 profile import`) is kept in the
+profiles: **`linux-base`** (256 MiB, serial, no prefix: its guest users come with the prefixes,
+work items 9 and 10; default of `x86 vm create` since work item 6b) and **`alpine-test`** (the
+Alpine test image with the agent, 128 MiB, serial, prefix `test`). An imported profile (`x86 profile import`) is kept in the
 user's registry and hides a shipped profile of the same name.
 
 ## The `x86` command
@@ -201,12 +202,22 @@ unknown option is an error; `--` ends the options. Messages are in English, like
 command: the skeleton has no translated resources.
 
 ```text
-$ x86 vm create Alpine
-Created Alpine (3f2c…) from the profile alpine-test.
+$ x86 vm create base
+Created base (3f2c…) from the profile linux-base.
+$ x86 shell
+x86: linux-base 0.1.0 is not on this machine yet: downloading it.
+…
+x86: this is the serial console of the virtual machine: the guest's root shell, shared with its boot messages. A line ~. closes it.
+osx86# echo vm-$((6*7))
+vm-42
+osx86# ~.
+$ x86 vm create --profile alpine-test Alpine
+Created Alpine (8d01…) from the profile alpine-test.
 $ x86 vm list
 ID                                    KIND              STATE     MEMORY  IMAGE                 NAME
-3f2c…                                 linux             stopped     128M  alpine-test 0.1.0     Alpine
-$ x86 shell
+3f2c…                                 linux             stopped     256M  linux-base 0.1.0      base
+8d01…                                 linux             stopped     128M  alpine-test 0.1.0     Alpine
+$ x86 shell --vm Alpine
 ~ $ echo vm-$((6*7))-$(id -u)
 vm-42-1001
 ~ $ sleep 600
@@ -221,12 +232,12 @@ $ echo $?
 | Code | Meaning |
 | --- | --- |
 | 0 | done |
-| 1 | the operation failed: agent, invalid profile or name, unknown format, start |
+| 1 | the operation failed: agent, invalid profile or name, unknown format, start, deleting the disk of a VM (`storage-failed`) |
 | 2 | wrong command line: unknown command or option, missing argument; the usage goes to standard error |
 | 3 | memory budget exceeded; the running and compatible VMs are listed |
 | 4 | no VM or profile of that name |
 | 5 | VM busy: stop or remove without `--force` |
-| 6 | nothing on this host can run it: no emulator, image missing, no console |
+| 6 | nothing on this host can run it: no emulator, image missing with no configured origin, failed download, image of another v86 version, no console |
 | 130 | Ctrl+C before a console was open |
 
 `x86 shell` returns the code of the guest shell, 128 plus the signal when a signal ended it.
@@ -247,6 +258,88 @@ Until ADR 0252 lands, the Kazo terminal is line-based. `x86 shell` relays the ag
 
 The shell counts as an application (166 A). Without `--vm`, it takes the user's only VM; without
 VM, it says so (code 4); with several, it asks for `--vm` (code 2).
+
+## `linux-base` by default (work item 6b)
+
+`x86 vm create <name>` without `--profile` takes the shipped profile **`linux-base`**: image
+`linux-base` 0.1.0 (Debian trixie i386, agent installed), 256 MiB, serial port, no default prefix.
+`alpine-test` stays for the tests (`--profile alpine-test`).
+
+**The image comes from the repository.** The `IBootImageSource` of a host with storage is
+`StoreBootImageSource`: a version complete in the OPFS is used as is; a missing or partial one is
+first downloaded by the storage worker of work item 3 (every chunk verified, resumed after a cut)
+from the origin the **catalog of the known images** gives
+([storage](storage.md#catalog-of-the-known-images-work-item-6b)). `ImageStore.Locate` then
+places the kernel, the initramfs and the disk in `image.bin` (`BootImage(ImageManifest)`), and
+`ImageBoot.CreateStartOptions` starts the VM. An image made for another major version of v86 is
+refused before any engine (`image-unavailable`, code 6). One download at a time: two VMs that
+start on the same missing image wait for the same one.
+
+**Progress.** During a download, `x86 shell` and `x86 vm start` write it to standard error, at the
+start, every 10 % and at the end; nothing when the image is already there
+(`VmManager.ImageProgress`):
+
+```text
+x86: linux-base 0.1.0 is not on this machine yet: downloading it.
+x86: downloading linux-base 0.1.0: 0 % (0.0 of 69.7 MiB)
+x86: downloading linux-base 0.1.0: 91 % (64.0 of 69.7 MiB, 284.6 MiB/s)
+x86: downloading linux-base 0.1.0: 100 % (69.7 of 69.7 MiB, 276.0 MiB/s)
+x86: linux-base 0.1.0 downloaded and verified (69.7 MiB).
+```
+
+The 10 % step is a minimum: a 32 MiB chunk covers 46 % of it, hence the jumps.
+
+**One write layer per VM.** The writes of disk `hda` go to
+`osx86/layers/vm-<32 hexadecimal digits>/hda.layer`, persistent: they survive `x86 vm stop`. The
+set name is kept with the VM in the registry (`layerSet` of `VmRecord`); a VM created before work
+item 6b takes the same name, from its GUID. `x86 vm remove` deletes the layer before the VM:
+refused (`vm-busy`) while an engine holds it, `storage-failed` (code 1) for another failure; the
+VM then stays listed and the removal can be done again. The root of linux-base is mounted
+read-only and `/home`, `/tmp`, `/run`, `/var/log` are in memory: what must stay is written after
+`mount -o remount,rw /`.
+
+### `x86 shell` on a profile without prefix (decision)
+
+The agent opens a shell only as the user `osx86-<prefix>`, and linux-base has none: they come with
+the prefixes (work items 9 and 10). **Without `--prefix` and without a default prefix in the
+profile, `x86 shell` opens the serial console when the profile declares one**: the guest's root
+shell (prompt `osx86# `), shared with the boot messages. A notice says so on standard error; `~.`
+closes it and returns 0; the VM then stops after the grace. Without a serial port, `no-prefix`
+(code 1) asks for `--prefix`. With `--prefix`, it is the agent console as before (in linux-base,
+`agent-error` `unknown-prefix` until the user exists).
+
+Why this rather than a message alone: without it, `x86 shell` would open nothing in the default
+image. Being root in one's own VM gives nothing beyond what the user already has: the VM is theirs
+and its disk is their layer. The isolation of the prefixes (R134.5) applies to the programs
+launched in the prefixes, which do not change. Once prefixes exist, the shipped profile may get a
+default prefix; the serial fallback stays for the images without one.
+
+### Measures (headless Chrome, Ryzen 7 3700X, local origin)
+
+| Measure | Value |
+| --- | --- |
+| First `x86 shell` to the answer of a command, download included | 16.0 s |
+| of which download and verification of the pack (69.7 MiB, local origin) | under 1 s, about 280 MiB/s |
+| Second `x86 shell` after `x86 vm stop`, image already there | 16.1 s |
+| Whole `guest` test (three boots, download, removal) | 49 s |
+
+The guest boot dominates. From a real hosting, the download will depend on the network (69.7 MiB,
+once per image version).
+
+### In the dev host
+
+A command has no `IJSRuntime` (ADR 0070 of Kazo). `src/OsX86.Os/Program.cs` therefore installs,
+before any command, the environment of a browser host (`VmHost.Configure(VmHost.ForBrowser(...))`):
+v86 engine through JS interop, `ImageStore` of the OPFS, catalog of the packs built locally.
+`X86Runtime` reads it when it creates its `VmManager`; without it, the command stays without
+emulator (code 6). The Feature of work item 8 takes this role. To try it:
+
+```text
+python -I images/linux-base/build-linux-base.py
+dotnet run --project src/OsX86.Os -c Release
+x86 vm create base        (in the Kazo terminal)
+x86 shell
+```
 
 ## What `Ix86` exposes, and why
 
@@ -282,29 +375,47 @@ clients (BoxedWine, work items 10 and 13). The service is bound to a user
   interrupts `sleep 600` (status 130); `exit 5` returns 5; the VM stops after the grace and its
   worker is released. Triggered by `src/OsX86/Vm/**`, `src/OsX86/Profiles/**`,
   `src/OsX86.Feature/**` and `tests/OsX86.Tests/Vm/**` in `guest-tests.yml`.
+- **`unit` of work item 6b** (`LinuxBaseDefaultTests`, `ImageCatalogTests`): the catalog (reading,
+  refusals, relative addresses), `StoreBootImageSource` on the simulated storage worker (image
+  present, downloaded with its progress, missing without origin, failed download, unreadable
+  format, wrong origin), `BootImage` of a stored image on the VM's layer, the layer set kept,
+  preserved on rename, checked when read and deleted with the VM (refused while an engine holds
+  it), an image of another v86 version refused before any engine, the serial fallback without
+  prefix, `VmHost`, the progress lines and the notice of `x86 shell`.
+- **`guest` of work item 6b** (`X86ShellLinuxBaseGuestTests`): in a real browser, with the
+  production engine, `ImageStore` and `VmManager`, `x86 vm create base` without profile takes
+  linux-base; the first `x86 shell` downloads the pack from a local origin (catalog: address and
+  hash), boots the VM on its layer and opens the serial console; a command answers; a file is
+  written to the disk. After `x86 vm stop`, a second `x86 shell` downloads nothing and finds the
+  file; `x86 vm remove` deletes the layer, and a new VM of the same image does not have it. It
+  needs the pack (`images/build/linux-base/pack`): skipped in `guest-tests.yml`, which does not
+  build linux-base, it runs in the `guest` job of `images.yml` (its name holds
+  `LinuxBaseGuestTests`).
 
 ## What the other work items will do
 
-- **6a (`hda` disk)**: make `linux-base` the default image of `x86 vm create` and give it an
-  `IBootImageSource` that reads the store (`ImageStore.Locate`). `BootImage` only has the kernel,
-  the initramfs and the command line today; it will take the disk.
 - **7 (admin)**: write the memory limit and the grace, see and manage other users' VMs, keep the
   personal log; the choice window of 165 A on the interface side.
-- **8 (Feature)**: the Feature creates the engine (it has the `IJSRuntime` the command lacks,
+- **8 (Feature)**: the Feature installs the environment the dev host installs today
+  (`VmHost.Configure`: engine, storage, image catalog; it has the `IJSRuntime` the command lacks,
   ADR 0070 of Kazo), reads `navigator.deviceMemory`, registers `Ix86` per user, and makes each VM a
   Kazo process and each child a child process (207 A).
-- **10 (prefixes)**: `--prefix` will create its guest users; `x86 run` and `./hello.exe` will go
+- **Hosting of the images**: the production catalog (R2 or Pages addresses and hashes) waits for
+  the hosting; no address is written in the code.
+- **10 (prefixes)**: `--prefix` will create its guest users; the `linux-base` profile may then get
+  a default prefix; `x86 run` and `./hello.exe` will go
   through `VmInstance.LaunchAsync`.
 - **ADR 0252**: once the Terminal has its full screen, `x86 shell` will relay the raw bytes to a VT
   emulator instead of the line filter.
 
 ## Known limits and not verified
 
-- **In Kazo, the command does not start VMs**: a command has no emulator (`engine-unavailable`,
-  code 6) until the Feature exists (work item 8); the `guest` test replaces the engine factory.
-  `vm list`, `create`, `rename`, `remove`, `info` and `profile` work on the persistent registry.
+- **In a Kazo other than the dev host, the command does not start VMs**: a command has no
+  emulator (`engine-unavailable`, code 6) until the Feature exists (work item 8). The dev host
+  `OsX86.Os` gives it one (work item 6b). `vm list`, `create`, `rename`, `remove`, `info` and
+  `profile` work everywhere on the persistent registry.
 - **Not verified**: the command inside Kazo itself (real private files, Ctrl+C of the Kazo terminal
-  passed as the command's cancellation), Firefox and Safari, linux-base (no `hda`).
+  passed as the command's cancellation), Firefox and Safari.
 - The VMs live in the host process: reloading the page stops them all; the registry stays.
 - The line filter renders neither colours nor cursor: a full-screen program (`vi`) is unreadable
   until ADR 0252. A program that turns echo off (a password) can leave at most eight lines waiting
