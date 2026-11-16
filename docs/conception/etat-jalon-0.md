@@ -28,17 +28,17 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
+- **Chantier 6b**, `linux-base` comme image par défaut de `x86 vm create` et `x86 shell` (source d'images configurable, couche d'écriture par VM) : lancé le 2026-11-15, branche `j0/6b-linux-base-default`.
+- **Chantier 9**, image Wine (WineHQ 11.0 i386, Mono, Gecko, bouteille gabarit en fichiers, préchargement 204 A) : lancé le 2026-11-15, branche `j0/9-wine-image`.
 - **Kazo, code de l'ADR 0246**, permissions déclarées par un fournisseur : PR Kazo #570 ouverte, CI en cours ; ses questions sont la série 19 (267 à 269).
 
 ## Reste à faire
 
 **Os-x86, étape a (Linux)**
-- Brancher `linux-base` comme image par défaut (petit chantier, les briques 6a et 6 sont dans `j0/base`).
 - Chantier 7, pages d'administration et rôle (attend le code Kazo des ADR 0247, 0249, 0254).
 - Chantier 8, passage au vrai type Feature, permissions, interface enregistrée, installation depuis le Store (attend le code Kazo des ADR 0245, 0246, 0248, 0250).
 
 **Os-x86, étape b (Windows et DOS console)**
-- Chantier 9, image Wine (peut commencer tout de suite, ne dépend que du chantier 4).
 - Chantier 10, préfixes et détection, `./hello.exe` dans le terminal (attend 9 et le code Kazo des ADR 0251, 0252).
 - Chantier 11, FreeDOS au terminal.
 - Chantier 12, réseau privé et relais, fenêtre de permission.
