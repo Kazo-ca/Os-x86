@@ -362,7 +362,7 @@ public sealed class X86CommandTests
         Assert.Equal(string.Empty, error);
         Assert.Equal(7, code);
         Assert.Equal("console$ hi\nconsole$ ^C\nconsole$ bye\n", output);
-        Assert.Equal(["echo hi\n", "\u0003", "exit 7\n", "\u0004"], Received(received).Select(b => Encoding.UTF8.GetString(b)));
+        Assert.Equal(["echo hi\r", "\u0003", "exit 7\r", "\u0004"], Received(received).Select(b => Encoding.UTF8.GetString(b)));
         Assert.Equal(100, rig.Engines.Last.Agent!.Request("open-console").GetProperty("cols").GetInt32());
         Assert.Equal(0, vm.Applications);
         rig.Time.Advance(TimeSpan.FromSeconds(5));
@@ -409,7 +409,7 @@ public sealed class X86CommandTests
 
         // "exit 3" is read, then the terminal blocks forever, deaf to cancellation, as a real stdin can.
         Task<(int, string, string)> run = RunAsync(rig, null, ["shell"], new StubbornReader("exit 3"));
-        await VmTestRig.WaitUntilAsync(() => Received(received).Any(b => Encoding.UTF8.GetString(b) == "exit 3\n"), "the exit line");
+        await VmTestRig.WaitUntilAsync(() => Received(received).Any(b => Encoding.UTF8.GetString(b) == "exit 3\r"), "the exit line");
         rig.Engines.Last.Agent!.SendConsoleBytes(VmTestRig.Closed(3, 3, 0)); // the guest shell ends by itself
 
         var (code, output, _) = await run.WaitAsync(VmTestRig.Soon);
@@ -453,7 +453,7 @@ public sealed class X86CommandTests
 
         Assert.Equal(0, code);
         Assert.Equal("osx86# ", output);
-        Assert.Equal(["uname\n"], rig.Engines.Last.SerialWritten.Select(b => Encoding.UTF8.GetString(b)));
+        Assert.Equal(["uname\r"], rig.Engines.Last.SerialWritten.Select(b => Encoding.UTF8.GetString(b)));
         Assert.Equal(0, vm.Applications);
     }
 
@@ -541,12 +541,12 @@ internal static class SimulatedAgentFixtures
                 }
                 else if (text.StartsWith("echo ", StringComparison.Ordinal))
                 {
-                    Send(text.TrimEnd('\n') + "\r\n" + text[5..].TrimEnd('\n') + "\r\nconsole$ ");
+                    Send(text.TrimEnd('\r') + "\r\n" + text[5..].TrimEnd('\r') + "\r\nconsole$ ");
                 }
                 else if (text.StartsWith("exit ", StringComparison.Ordinal))
                 {
                     exitCode = int.Parse(text[5..].Trim(), System.Globalization.CultureInfo.InvariantCulture);
-                    Send(text.TrimEnd('\n') + "\r\nbye\r\n");
+                    Send(text.TrimEnd('\r') + "\r\nbye\r\n");
                 }
             }
         };

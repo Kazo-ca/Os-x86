@@ -118,7 +118,7 @@ public sealed partial class X86Command
     /// <summary>
     /// Relays a console to the terminal line by line until its program ends: what the guest writes
     /// goes to standard output as text (<see cref="TerminalTextFilter"/>); each line read from standard
-    /// input goes to the guest with LF; a line <c>^C</c> and the command's own interruption (Ctrl+C in
+    /// input goes to the guest with CR, as the Enter key sends it; a line <c>^C</c> and the command's own interruption (Ctrl+C in
     /// the Kazo terminal) send Ctrl+C to the guest program (216 A); a line <c>~.</c> closes the console;
     /// the end of input sends Ctrl+D. When the command's process itself is stopped (its tab closed,
     /// <see cref="Kazo.Os.AppSdk.IAppExecutionContext.CancellationToken"/>), the console is closed.
@@ -224,7 +224,10 @@ public sealed partial class X86Command
                         filter.ExpectEcho(line);
                     }
 
-                    await SendQuietlyAsync(() => console.WriteAsync(Encoding.UTF8.GetBytes(line + "\n"), stop)).ConfigureAwait(false);
+                    // CR, what the Enter key of a terminal sends: a shell's line discipline turns it
+                    // into LF (ICRNL), and a program that reads its terminal raw, like the console of
+                    // Wine, takes it as Enter, where LF would be Ctrl+J (work item 10).
+                    await SendQuietlyAsync(() => console.WriteAsync(Encoding.UTF8.GetBytes(line + "\r"), stop)).ConfigureAwait(false);
                     break;
             }
         }

@@ -6,7 +6,8 @@ namespace OsX86.Feature;
 /// Turns the bytes of a guest pseudo-terminal into text for the line-mode terminal of Kazo, until
 /// ADR 0252 gives the Terminal a VT emulator: UTF-8 decoded across chunks, carriage returns and
 /// escape sequences (CSI, OSC, two-byte ESC) dropped, other control characters dropped except
-/// LF, tab and BEL. The pty echoes what is typed; the Kazo terminal already shows the typed line,
+/// LF, tab and BEL. A cursor-forward sequence (CSI n C) becomes n spaces: the console of Wine draws
+/// the blanks of a line that way (work item 10: <c>a b</c> came out as <c>ab</c>). The pty echoes what is typed; the Kazo terminal already shows the typed line,
 /// so the echo of each line the command sent is removed once, when it comes back as is.
 /// </summary>
 internal sealed class TerminalTextFilter
@@ -15,11 +16,16 @@ internal sealed class TerminalTextFilter
 
     /// <summary>How many sent lines may wait for their echo at once.</summary>
     private const int MaxPending = 8;
+
+    /// <summary>The most spaces one cursor-forward sequence gives (a terminal line, at most).</summary>
+    private const int MaxForward = 1000;
+    private readonly StringBuilder _csi = new();
     private readonly Decoder _decoder = new UTF8Encoding(false, false).GetDecoder();
     private readonly Queue<string> _expectedEcho = new();
     private readonly StringBuilder _echoMatched = new();
     private EscapeState _escape;
     private int _echoPosition;
+    private int _forward;
 
     private enum EscapeState
     {
@@ -61,6 +67,13 @@ internal sealed class TerminalTextFilter
             {
                 Emit(visible, output);
             }
+            else if (_forward > 0)
+            {
+                for (; _forward > 0; _forward--)
+                {
+                    Emit(' ', output);
+                }
+            }
         }
 
         return output.ToString();
@@ -80,6 +93,7 @@ internal sealed class TerminalTextFilter
         switch (_escape)
         {
             case EscapeState.Escape:
+                _csi.Clear();
                 _escape = c switch
                 {
                     '[' => EscapeState.Csi,
@@ -91,6 +105,14 @@ internal sealed class TerminalTextFilter
                 if (c is >= '@' and <= '~')
                 {
                     _escape = EscapeState.None; // the final byte
+                    if (c == 'C')
+                    {
+                        _forward = ForwardCount(_csi.ToString());
+                    }
+                }
+                else if (_csi.Length < 32)
+                {
+                    _csi.Append(c);
                 }
 
                 return null;
@@ -119,6 +141,15 @@ internal sealed class TerminalTextFilter
         }
 
         return char.IsControl(c) ? null : c;
+    }
+
+    /// <summary>The count of a cursor-forward sequence: its first parameter, 1 when absent or zero.</summary>
+    private static int ForwardCount(string parameters)
+    {
+        string first = parameters.Split(';')[0];
+        return int.TryParse(first, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int n) && n > 0
+            ? Math.Min(n, MaxForward)
+            : 1;
     }
 
     private void Emit(char c, StringBuilder output)

@@ -9,8 +9,14 @@ public sealed record GuestPrefix(string Prefix, int UserId, string Home);
 /// <content>The operations of protocol 2 (work item 10): prefixes, files, sync.</content>
 public sealed partial class AgentClient
 {
-    /// <summary>How many bytes of a file one <c>put-file</c> request carries: its base64 fits a request line of the agent (64 KiB).</summary>
-    public const int PutFileChunkBytes = 36 * 1024;
+    /// <summary>
+    /// How many bytes of a file one <c>put-file</c> request carries (a line of about 8 KiB). Not the
+    /// 64 KiB a line of the agent may have: v86 hands a host write to the guest in 1 KiB pieces, one
+    /// receive buffer of the guest each, and drops what finds no buffer free; a line of 49 KiB was
+    /// lost in the first guest test of work item 10. One request at a time, each answered before the
+    /// next, leaves the guest the time to post its buffers again.
+    /// </summary>
+    public const int PutFileChunkBytes = 6 * 1024;
 
     /// <summary>The time the agent leaves <c>prefix-admin</c> (180 s; copying the Wine template takes 4 to 6 s in the VM).</summary>
     public static readonly TimeSpan PrefixAdminTimeout = TimeSpan.FromSeconds(180);

@@ -6,7 +6,8 @@
  *                           user name, and exits with code 7
  *   osx86-hello --exit N    prints the same line and exits with code N
  *   osx86-hello --wait      prints "osx86-hello waiting" and waits until it is interrupted (Ctrl+C)
- *   osx86-hello --read      reads one line from its input and prints "osx86-hello read <line>" */
+ *   osx86-hello --read      prints "osx86-hello reading", reads one line from its input and prints
+ *                           "osx86-hello read <line>" */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +26,8 @@ int main(int argc, char **argv)
     }
     if (argc == 2 && strcmp(argv[1], "--read") == 0) {
         char line[512] = "";
+        printf("osx86-hello reading\n");
+        fflush(stdout);
         if (!fgets(line, sizeof line, stdin))
             return 3;
         line[strcspn(line, "\r\n")] = 0;

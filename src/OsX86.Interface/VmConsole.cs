@@ -8,7 +8,7 @@ namespace OsX86.Interface;
 /// </summary>
 public sealed record ProgramRunOptions
 {
-    /// <summary>The largest program accepted, in bytes (copied through the agent, about 36 KiB per request).</summary>
+    /// <summary>The largest program accepted, in bytes (copied through the agent, 6 KiB per request).</summary>
     public const int MaxContentBytes = 256 * 1024 * 1024;
 
     /// <summary>The file name of the program, with its extension (<c>hello.exe</c>); a path is reduced to its last part.</summary>
