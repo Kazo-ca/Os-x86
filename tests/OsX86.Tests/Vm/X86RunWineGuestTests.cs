@@ -113,15 +113,11 @@ public sealed class X86RunWineGuestTests(ITestOutputHelper output)
                 // Typed only once the program reads: the console of Wine puts the terminal in raw
                 // mode when it starts, which drops what was typed before.
                 Assert.True(await reading.Output.WaitForAsync("osx86-hello reading", Soon, 0), $"no reading line: {reading.Errors.Text}");
-                // The console of Wine sets the terminal raw when the program first reads, dropping what
-                // was typed just before (a race with the "reading" line): the line is typed again until read.
-                bool read = false;
-                for (int attempt = 0; attempt < 10 && !read; attempt++)
-                {
-                    reading.Input.Add("bonjour");
-                    read = await reading.Output.WaitForAsync("osx86-hello read bonjour", TimeSpan.FromSeconds(3), 0);
-                    output.WriteLine($"--read: attempt {attempt + 1}, read {read}");
-                }
+                // Typed once, right after the program says it reads: before work item 10b this raced the
+                // console of Wine, which sets the terminal raw only at its first read (a CR typed before
+                // became LF, Ctrl+J for Wine, and the line never ended). The pty now starts raw.
+                reading.Input.Add("bonjour");
+                bool read = await reading.Output.WaitForAsync("osx86-hello read bonjour", Soon, 0);
 
                 output.WriteLine($"--read: {reading.Output.Text}{reading.Errors.Text}");
                 Assert.True(read, "the typed line did not reach the program");
