@@ -44,6 +44,17 @@ public sealed partial class VmInstance
         return network?.AddressOf(prefix);
     }
 
+    /// <summary>
+    /// Runs a command in a prefix and waits for it (the prefix and its namespace made first, as for a
+    /// program): what the guest tests of the network run as a prefix's user.
+    /// </summary>
+    internal async Task<ExecResult> ExecInPrefixAsync(PrefixId prefix, string program, IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        AgentClient agent = RequireAgent();
+        await EnsureGuestPrefixAsync(agent, prefix, CurrentRun(), cancellationToken).ConfigureAwait(false);
+        return await AgentCallAsync(() => agent.ExecInPrefixAsync(new ExecOptions { Prefix = prefix.Value, Program = program, Arguments = arguments, Timeout = timeout }, cancellationToken)).ConfigureAwait(false);
+    }
+
     /// <summary>The start options with the network card, when this VM gets one.</summary>
     private EngineStartOptions WithNetworkCard(EngineStartOptions options) =>
         _manager.Network is not null && Record.Profile.Kind != Interface.VmKind.Dos ? options with { Network = true } : options;

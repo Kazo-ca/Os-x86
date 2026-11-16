@@ -13,6 +13,7 @@ table inet osx86 {
     chain input {
         type filter hook input priority filter; policy accept;
         meta nfproto ipv6 counter drop
+        ct state established,related accept
         iifname "vx*" meta l4proto tcp counter reject with tcp reset
         iifname "vx*" counter drop
     }
