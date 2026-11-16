@@ -301,17 +301,17 @@ page.
 
 | Measurement | Value |
 | --- | --- |
-| startup of a `linux-base` VM up to its address (agent and `vm-up` included) | 17.3 to 20.7 s |
+| startup of a `linux-base` VM up to its address (agent and `vm-up` included) | 17.3 to 20.7 s (three series) |
 | GET of 110 bytes from a prefix (injected window, relay, return) | 39 to 45 ms |
-| throughput of an 8 MiB GET, VM namespace (no netns), two warm passes | 6.7 and 6.9 MiB/s (warm-up pass: 3.5) |
-| throughput of an 8 MiB GET, prefix namespace (netns, veth, nftables), two warm passes | 6.1 and 6.4 MiB/s (warm-up pass: 4.9) |
-| guest memory taken by two prefix namespaces (`MemAvailable`) | 1.5 to 1.6 MiB |
+| throughput of an 8 MiB GET, VM namespace (no netns), two warm passes, two series | 5.9 to 6.9 MiB/s (warm-up pass: 3.3 to 3.5) |
+| throughput of an 8 MiB GET, prefix namespace (netns, veth, nftables), two warm passes, two series | 5.1 to 6.4 MiB/s (warm-up pass: 4.9) |
+| guest memory taken by two prefix namespaces (`MemAvailable`) | 1.1 to 1.6 MiB |
 
-Reading: a prefix's network namespace (veth hop, routing, filtering) costs 5 to 11 % of the
+Reading: a prefix's network namespace (veth hop, routing, filtering) costs 1 to 14 % of the
 throughput, less than the 15 to 30 % of E6 on `localhost`: here the passage of the frames through
 Playwright weighs more and erases part of the gap. The throughput stays bounded by the emulation
 (one core) and the bridge, not by the gateway. A VM with two prefixes costs the price of one VM
-(E6: about 1.45 GiB on the browser side against 2.4 GiB for two VMs) plus 1.5 MiB in the guest.
+(E6: about 1.45 GiB on the browser side against 2.4 GiB for two VMs) plus 1.1 to 1.6 MiB in the guest.
 
 ## Tests
 

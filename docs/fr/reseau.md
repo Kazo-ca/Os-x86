@@ -308,17 +308,17 @@ page de Kazo.
 
 | Mesure | Valeur |
 | --- | --- |
-| démarrage d'une VM `linux-base` jusqu'à son adresse (agent et `vm-up` compris) | 17,3 à 20,7 s |
+| démarrage d'une VM `linux-base` jusqu'à son adresse (agent et `vm-up` compris) | 17,3 à 20,7 s (trois séries) |
 | GET de 110 octets d'un préfixe (fenêtre injectée, relais, retour) | 39 à 45 ms |
-| débit d'un GET de 8 Mio, espace de la VM (sans netns), deux passes à chaud | 6,7 et 6,9 Mio/s (passe de chauffe : 3,5) |
-| débit d'un GET de 8 Mio, espace d'un préfixe (netns, veth, nftables), deux passes à chaud | 6,1 et 6,4 Mio/s (passe de chauffe : 4,9) |
-| mémoire de l'invité prise par deux espaces de préfixes (`MemAvailable`) | 1,5 à 1,6 Mio |
+| débit d'un GET de 8 Mio, espace de la VM (sans netns), deux passes à chaud, deux séries | 5,9 à 6,9 Mio/s (passe de chauffe : 3,3 à 3,5) |
+| débit d'un GET de 8 Mio, espace d'un préfixe (netns, veth, nftables), deux passes à chaud, deux séries | 5,1 à 6,4 Mio/s (passe de chauffe : 4,9) |
+| mémoire de l'invité prise par deux espaces de préfixes (`MemAvailable`) | 1,1 à 1,6 Mio |
 
-Lecture : l'espace réseau d'un préfixe (saut veth, routage, filtrage) coûte 5 à 11 % du débit,
+Lecture : l'espace réseau d'un préfixe (saut veth, routage, filtrage) coûte 1 à 14 % du débit,
 moins que les 15 à 30 % d'E6 sur `localhost` : ici le passage des trames par Playwright pèse plus
 lourd et efface une part de l'écart. Le débit reste borné par l'émulation (un cœur) et le pont,
 pas par la passerelle. Une VM à deux préfixes coûte le prix d'une VM (E6 : environ 1,45 Gio côté
-navigateur contre 2,4 Gio pour deux VM) plus 1,5 Mio dans l'invité.
+navigateur contre 2,4 Gio pour deux VM) plus 1,1 à 1,6 Mio dans l'invité.
 
 ## Tests
 
