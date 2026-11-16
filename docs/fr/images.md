@@ -54,8 +54,9 @@ trois raisons mesurées :
 
 Le dossier partagé de Kazo (D22, E8) a donc le périphérique 9p pour lui seul ; la racine est
 montée en lecture seule (`root=/dev/sda rootfstype=ext4 ro`), les endroits inscriptibles sont des
-tmpfs montés par l'init (`/run`, `/tmp`, `/var/tmp`, `/var/log`, `/home`) ; le disque des
-préfixes vient avec les chantiers 9 et 10 (211 A). Coût : la racine décompressée est un fichier
+tmpfs montés par l'init (`/run`, `/tmp`, `/var/tmp`, `/var/log`) ; depuis le chantier 10, `/home`
+(les préfixes) est sur le disque de la VM, seul endroit inscriptible de la racine
+([`programmes.md`](programmes.md#où-vivent-les-préfixes-dans-linvité-choix)). Coût : la racine décompressée est un fichier
 ext4 (138 Mio pour linux-base) et non des fichiers dédoublonnés par hachage ; c'est ce que la
 compression par blocs ci-dessous rattrape, puisque l'OPFS garde les octets compressés.
 
@@ -155,8 +156,8 @@ d'abord par `build-linux-base.py`) dont l'étape `base` copie les deux binaires 
 
 `build-linux-base.py` construit et vérifie l'agent, exporte le conteneur (`docker export`),
 vérifie que l'export porte exactement ce binaire (SHA-256, root, 0755), lance dans `osx86-tools`
-l'extraction avec propriétaires et modes, le test d'image, puis `mkfs.ext4 -d` (sans journal,
-UUID et graine fixes, `SOURCE_DATE_EPOCH`), écrit `sources.json`, paquette et mesure.
+l'extraction avec propriétaires et modes, le test d'image, puis `mkfs.ext4 -d` (avec un journal de
+8 Mio et 256 Mio de place libre pour les préfixes depuis le chantier 10, UUID et graine fixes, `SOURCE_DATE_EPOCH`), écrit `sources.json`, paquette et mesure.
 
 **Init** (`init.sh`, PID 1 après l'initramfs) : montages (`/proc` avec `hidepid`, `/dev`
 devtmpfs, `/dev/pts`, `/dev/shm`, `/run` en `mode=0755`, `/tmp` et `/var/tmp` en 1777 `nosuid`,
@@ -260,8 +261,9 @@ exister) : `cp -a` (les liens restent des liens : quelques Mio écrits), renomma
 `drive_c/users/osx86-template` et de l'usager dans `system.reg`, `user.reg` et `userdef.reg`
 (Wine prend le nom de l'usager Windows dans `$USER` ; sans ce renommage, `%TEMP%` et les dossiers
 du profil pointeraient vers `osx86-template`), puis `chown` à l'usager (Wine refuse un préfixe qui
-n'est pas à lui). C'est la référence pour le chantier 10, qui décide où vivent les préfixes ;
-l'image n'a pas d'usager de préfixe (le test `guest` en ajoute un en mémoire). Après un
+n'est pas à lui). Depuis le chantier 10, `/usr/lib/osx86/prefix.d/50-wine` l'appelle à la création de chaque préfixe
+(`prefix-admin`, [`programmes.md`](programmes.md)), et `/usr/lib/osx86/wine/prefix-session` démarre
+la session Wine d'un préfixe (`wineserver` et services dans un lancement à part). Après un
 changement de version de Wine dans l'image, un préfixe copié de l'ancien gabarit garde des liens
 vers des fichiers de la nouvelle version : à traiter avec la migration des préfixes.
 

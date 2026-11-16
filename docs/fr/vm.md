@@ -299,8 +299,10 @@ Le pas de 10 % est un minimum : un morceau de 32 Mio en couvre 46 %, d'où les s
 `VmRecord`) ; une VM créée avant le chantier 6b prend le même nom, tiré de son GUID.
 `x86 vm remove` supprime la couche avant la VM : refusé (`vm-busy`) tant qu'un moteur la tient,
 `storage-failed` (code 1) pour une autre panne ; la VM reste alors listée et la suppression peut
-être refaite. La racine de linux-base est montée en lecture seule et `/home`, `/tmp`, `/run`,
-`/var/log` sont en mémoire : ce qui doit rester s'écrit après `mount -o remount,rw /`.
+être refaite. La racine de linux-base est montée en lecture seule ; `/tmp`, `/run` et `/var/log` sont
+en mémoire ; depuis le chantier 10, `/home` (les préfixes) est sur le disque. Depuis la console série
+root, `mount -o remount,rw /` rend la racine inscriptible (vérifié par le test `guest` du 6b) ; un
+`mount -o remount,ro /` ensuite rend aussi `/home` en lecture seule jusqu'au redémarrage suivant.
 
 ### `x86 shell` sur un profil sans préfixe (décision)
 

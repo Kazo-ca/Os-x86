@@ -297,8 +297,10 @@ set name is kept with the VM in the registry (`layerSet` of `VmRecord`); a VM cr
 item 6b takes the same name, from its GUID. `x86 vm remove` deletes the layer before the VM:
 refused (`vm-busy`) while an engine holds it, `storage-failed` (code 1) for another failure; the
 VM then stays listed and the removal can be done again. The root of linux-base is mounted
-read-only and `/home`, `/tmp`, `/run`, `/var/log` are in memory: what must stay is written after
-`mount -o remount,rw /`.
+read-only; `/tmp`, `/run` and `/var/log` are in memory; since work item 10, `/home` (the prefixes)
+is on the disk. From the root serial console, `mount -o remount,rw /` makes the root writable
+(checked by the guest test of 6b); a later `mount -o remount,ro /` also makes `/home` read-only
+until the next boot.
 
 ### `x86 shell` on a profile without prefix (decision)
 
