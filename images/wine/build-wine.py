@@ -136,6 +136,7 @@ DEFAULT_OUTPUT = REPO_ROOT / "images" / "build" / IMAGE_ID
 def load_linux_base():
     """images/linux-base/build-linux-base.py as a module: its agent build, Docker build, export
     helpers, image test, source listing and pack are those of this image too."""
+    sys.dont_write_bytecode = True  # no __pycache__ next to the recipe of linux-base
     spec = importlib.util.spec_from_file_location("osx86_build_linux_base", LINUX_BASE_DIR / "build-linux-base.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
