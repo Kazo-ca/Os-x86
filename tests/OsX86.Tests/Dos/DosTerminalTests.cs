@@ -95,6 +95,27 @@ public sealed class DosTerminalTests
     }
 
     [Fact]
+    public async Task A_change_of_the_blink_mode_formats_every_row_again()
+    {
+        await using VmTestRig rig = DosRig();
+        var screen = new FakeFullScreen();
+        Task<(int, string, string)> run = RunAsync(rig, Files(), ["run", "hello.com"], screen);
+        await VmTestRig.WaitUntilAsync(() => rig.Engines.Created.Count == 1 && rig.Engines.Last.State == EngineState.Running, "the DOS VM started");
+        FakeEngine engine = rig.Engines.Last;
+        EngineTextScreen bright = ProgramScreen("READY", 5);
+        bright.Attributes!.AsSpan(80, 5).Fill(0x9F);
+        engine.Screen = bright with { BlinkEnabled = true };
+        engine.SendSerialLine("OSX86-START");
+        await screen.WaitForAsync(frame => frame.Lines[1].StartsWith(VgaColors.Sgr(0x9F, true), StringComparison.Ordinal), "row 1 with blink");
+
+        engine.Screen = bright with { BlinkEnabled = false }; // INT 10h AX=1003h: bright backgrounds, same cells
+        await screen.WaitForAsync(frame => frame.Lines[1].StartsWith(VgaColors.Sgr(0x9F, false), StringComparison.Ordinal), "row 1 with a bright background");
+
+        engine.SendSerialLine("OSX86-EXIT 0");
+        Assert.Equal(0, (await run.WaitAsync(VmTestRig.Soon)).Item1);
+    }
+
+    [Fact]
     public async Task A_dos_program_that_turns_graphical_is_stopped_with_its_vm()
     {
         await using VmTestRig rig = DosRig();

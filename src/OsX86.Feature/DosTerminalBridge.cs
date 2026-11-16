@@ -24,6 +24,9 @@ internal sealed class DosTerminalBridge(DosProgramSession session, IGuestScreenT
     /// <summary>The polling period of 214 A (33 ms: E14 measured about 50 ms per refresh for an idle DOS).</summary>
     public static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(33);
 
+    /// <summary>How long the end of a program is awaited once its screen can no longer be read.</summary>
+    private static readonly TimeSpan EndWait = TimeSpan.FromSeconds(2);
+
     private long _lastKey;
     private volatile bool _resized;
 
@@ -54,9 +57,10 @@ internal sealed class DosTerminalBridge(DosProgramSession session, IGuestScreenT
                 {
                     await keys.ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
+                catch (Exception)
                 {
-                    // The key pump ends with the program.
+                    // The key pump ends with the program (cancelled), or ended before it when the
+                    // terminal failed: either way the outcome of the program is what is returned.
                 }
             }
         }
@@ -104,9 +108,11 @@ internal sealed class DosTerminalBridge(DosProgramSession session, IGuestScreenT
             {
                 await RefreshAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (X86Exception) when (session.Exited.IsCompleted)
+            catch (X86Exception failure)
             {
-                return await EndAsync(cancellationToken).ConfigureAwait(false);
+                // The VM went away: its serial reader sees the end a little after the screen does.
+                await Task.WhenAny(session.Exited, Task.Delay(EndWait, time, cancellationToken)).ConfigureAwait(false);
+                return session.Exited.IsCompleted ? await EndAsync(cancellationToken).ConfigureAwait(false) : new DosBridgeOutcome(null, null, failure);
             }
 
             await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false);
@@ -140,7 +146,8 @@ internal sealed class DosTerminalBridge(DosProgramSession session, IGuestScreenT
         long started = time.GetTimestamp();
         EngineTextScreen screen = await session.ReadScreenAsync(cancellationToken).ConfigureAwait(false);
         double readMs = time.GetElapsedTime(started).TotalMilliseconds;
-        bool resized = _resized;
+        // A resize, or a change of the blink mode (it changes the colours of every row), shows all rows.
+        bool resized = _resized || (LastScreen is not null && LastScreen.BlinkEnabled != screen.BlinkEnabled);
         _resized = false;
         IReadOnlyList<int> rows = resized ? [.. Enumerable.Range(0, screen.Lines.Count)] : TextScreenDiff.ChangedRows(LastScreen, screen);
         bool cursor = TextScreenDiff.CursorChanged(LastScreen, screen);
@@ -217,9 +224,9 @@ internal sealed class DosTerminalBridge(DosProgramSession session, IGuestScreenT
             {
                 await session.SendKeyAsync(key, cancellationToken).ConfigureAwait(false);
             }
-            catch (X86Exception)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                return; // the VM stopped: the mirror reports it
+                return; // the VM or its worker went away: the mirror reports it
             }
         }
     }
