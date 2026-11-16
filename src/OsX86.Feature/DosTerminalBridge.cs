@@ -211,10 +211,11 @@ internal sealed class DosTerminalBridge(DosProgramSession session, IGuestScreenT
 
         foreach (GuestKey key in keys)
         {
+            // From the key the terminal gave to the first frame that changes: the delay the user sees.
+            Interlocked.CompareExchange(ref _lastKey, time.GetTimestamp(), 0);
             try
             {
                 await session.SendKeyAsync(key, cancellationToken).ConfigureAwait(false);
-                Interlocked.CompareExchange(ref _lastKey, time.GetTimestamp(), 0);
             }
             catch (X86Exception)
             {
