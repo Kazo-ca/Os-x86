@@ -179,7 +179,8 @@ A profile is the **recipe** of a VM (121): a versioned `.x86profile` JSON docume
 
 Unknown properties are ignored, comments and trailing commas accepted, 256 KiB at most. Shipped
 profiles: **`linux-base`** (256 MiB, serial, no prefix: its guest users come with the prefixes,
-work items 9 and 10; default of `x86 vm create` since work item 6b) and **`alpine-test`** (the
+work items 9 and 10; default of `x86 vm create` since work item 6b) **`wine`** (the wine image of work item 9, VM of Windows programs, 512 MiB, serial, default
+prefix `default`; work item 10, [`programs.md`](programs.md)) and **`alpine-test`** (the
 Alpine test image with the agent, 128 MiB, serial, prefix `test`). An imported profile (`x86 profile import`) is kept in the
 user's registry and hides a shipped profile of the same name.
 
@@ -250,7 +251,8 @@ Until ADR 0252 lands, the Kazo terminal is line-based. `x86 shell` relays the ag
 - **output**: the pty bytes become text (UTF-8 decoded across chunks; carriage returns and CSI, OSC
   and ESC sequences removed; other control characters removed except LF, tab and BEL); the pty's
   echo of each line sent is removed once, since the Kazo terminal already shows the typed line;
-- **input**: each line read is sent with LF. A `^C` line sends Ctrl+C to the guest program, as
+- **input**: each line read is sent with CR, as the Enter key sends it (since work item 10; a
+  shell's line discipline turns it into LF, Wine's console, raw, sees Enter). A `^C` line sends Ctrl+C to the guest program, as
   does the interruption of the command itself (Ctrl+C in the Kazo terminal, 216 A). A `~.` line
   closes the console, as in ssh. The end of input sends Ctrl+D;
 - **end**: the exit code of the shell is returned. The console was an application of the VM, which
@@ -419,9 +421,12 @@ clients (BoxedWine, work items 10 and 13). The service is bound to a user
   Kazo process and each child a child process (207 A).
 - **Hosting of the images**: the production catalog (R2 or Pages addresses and hashes) waits for
   the hosting; no address is written in the code.
-- **10 (prefixes)**: `--prefix` will create its guest users; the `linux-base` profile may then get
-  a default prefix; `x86 run` and `./hello.exe` will go
-  through `VmInstance.LaunchAsync`.
+- **10 (prefixes)**: done, see [`programs.md`](programs.md). `x86 shell --prefix <p>` now needs a
+  prefix of the VM (made by `x86 prefix create`, or the default prefix of its profile), made in the
+  guest at its first use; an unknown name answers `prefix-not-found` (code 4). Without `--prefix`,
+  nothing changes: the profile's prefix, else the serial console (6b). `x86 run` has its own way
+  (`VmInstance.RunProgramAsync`: pty console, Wine session). The `linux-base` profile keeps "no
+  prefix": its default shell stays the serial console.
 - **ADR 0252**: once the Terminal has its full screen, `x86 shell` will relay the raw bytes to a VT
   emulator instead of the line filter.
 

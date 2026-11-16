@@ -48,7 +48,7 @@ of every launch. **No operation blocks another** (correction 1 of 205 A): `exec-
 goes to the host passes through one queue per port: the agent never waits for a port to drain,
 and a line or a frame is queued whole or not at all, never written in part.
 
-## The protocol (version 1)
+## The protocol (version 2)
 
 Request: `{"id":N,"op":"…", …}` followed by LF, 64 KiB at most; numbers out of range are brought
 back to their bound, `nan` and `inf` are not JSON and get the line refused. Reply:
@@ -71,6 +71,11 @@ byte of a program's output becomes U+FFFD).
 | `close-console` | `console` or `launch`, `graceMs`, `keep[]` (pids to keep) | `keptCount`, `kept` (the launch of the kept processes); immediate |
 | `console-resize` | `console`, `cols`, `rows` | `console`, `cols`, `rows` |
 | `list-windows` | — | error `no-x-server` until the image has an X server (work item 9) |
+| `prefix-ensure` (v2) | `prefix` | `created`, `prefix`, `uid`, `home`, `ms`; runs `/usr/lib/osx86/prefix-admin ensure` (180 s at most); without that script, answers for a user the image ships, else `no-prefix-support` |
+| `prefix-delete` (v2) | `prefix` | `deleted`, `ms`; ends the whole cgroup of the prefix, then `prefix-admin delete` |
+| `prefix-list` (v2) | — | `prefixes[]`: `prefix`, `uid`, `home`; `admin` (the script is there) |
+| `put-file` (v2) | `prefix`, `path` (relative to the home, no `.`, `..` or empty component), `data` (base64), `offset`, `truncate`, `mode` (0600 by default, never writable by others) | `size`, `ms`; written as the prefix's user (30 s at most) |
+| `sync` (v2) | — | `timedOut`, `ms` |
 
 ```json
 → {"id":12,"op":"launch","prefix":"test","program":"sleep","args":["300"]}
@@ -97,7 +102,7 @@ byte of a program's output becomes U+FFFD).
 `unknown-prefix`, `program-not-found`, `exec-failed`, `cgroup-failed`, `no-cgroup`,
 `unknown-launch`, `kill-pending`, `unknown-pid`, `root-process`, `kill-failed`, `no-x-server`,
 `no-console-port`, `unknown-console`, `pty-failed`, `too-many-launches`, `too-many-consoles`,
-`too-many-jobs`. The client adds its own: `timeout`, `not-ready`, `closed`, `protocol`,
+`too-many-jobs`, and since version 2 `no-prefix-support`, `prefix-failed`, `put-failed`. The client adds its own: `timeout`, `not-ready`, `closed`, `protocol`,
 `unsupported-version` (`AgentErrorCodes`).
 
 ## Life cycle of a launch (206 A)
@@ -322,5 +327,18 @@ Known limits:
   of the agent.~~ Done in work item 6a ([`engine.md`](engine.md)): 22 checks out of 22, once users
   could open `/dev/null` and the agent's pid was given to the script (third argument).
 - Decide how the agent is watched (periodic ping) and what happens when it stops answering.
-- Create the `osx86-<prefix>` users with the prefixes (work items 9 and 10); the agent has no
-  operation for that.
+- Create the `osx86-<prefix>` users with the prefixes: done in work item 10, protocol 2
+  ([`programs.md`](programs.md)).
+
+## Protocol 2 (work item 10)
+
+Version 2 of the protocol: `prefix-ensure`, `prefix-delete`, `prefix-list`, `put-file` and `sync`
+(table of operations above; design in [`programs.md`](programs.md)). The prefix operations run only
+the fixed script `/usr/lib/osx86/prefix-admin`, owned by root and writable by no one else (otherwise
+it is not run), with a prefix name already checked, in a child (the loop does not wait); `put-file`
+writes in a child that has become the prefix's user before it opens anything. The client speaks
+version 2 and still accepts an agent of version 1 (`AgentStatus.ProtocolVersion`,
+`AgentClient.HasPrefixOperations`); it refuses any other version. The client cuts a file into
+requests of 6 KiB: v86 hands a host write over in 1 KiB pieces, one receive buffer of the guest
+each, and drops what finds none; a line of 49 KiB was lost. The smoke test covers the new operations
+(`build-agent.py --smoke`). Binary: 119,848 bytes.

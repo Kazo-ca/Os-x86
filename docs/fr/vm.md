@@ -181,7 +181,8 @@ Un profil est la **recette** d'une VM (121) : un document JSON `.x86profile` ver
 Les propriétés inconnues sont ignorées, les commentaires et virgules finales acceptés, 256 Kio
 au plus. Profils livrés : **`linux-base`** (256 Mio, série, sans préfixe : ses usagers invités
 viennent avec les préfixes, chantiers 9 et 10 ; défaut de `x86 vm create` depuis le chantier 6b)
-et **`alpine-test`** (image Alpine de test avec agent, 128 Mio, série, préfixe `test`). Un profil importé
+**`wine`** (image Wine du chantier 9, VM de programmes Windows, 512 Mio, série, préfixe par défaut
+`default` ; chantier 10, [`programmes.md`](programmes.md)) et **`alpine-test`** (image Alpine de test avec agent, 128 Mio, série, préfixe `test`). Un profil importé
 (`x86 profile import`) est rangé dans le registre de l'usager et masque un profil livré du même nom.
 
 ## La commande `x86`
@@ -252,7 +253,8 @@ la console de l'agent (213 A) ainsi :
   retours chariot et séquences CSI, OSC et ESC retirés ; autres caractères de contrôle retirés
   sauf LF, tabulation et BEL) ; l'écho par le pty de chaque ligne envoyée est retiré une fois,
   puisque le terminal de Kazo a déjà affiché la ligne tapée ;
-- **entrée** : chaque ligne lue part avec LF. La ligne `^C` envoie Ctrl+C au programme invité,
+- **entrée** : chaque ligne lue part avec CR, comme la touche Entrée (depuis le chantier 10 ; la
+  discipline de ligne d'un shell en fait LF, la console de Wine, en mode brut, y voit Entrée). La ligne `^C` envoie Ctrl+C au programme invité,
   comme l'interruption de la commande elle-même (Ctrl+C dans le terminal de Kazo, 216 A). La ligne
   `~.` ferme la console, comme dans ssh. La fin de l'entrée envoie Ctrl+D ;
 - **fin** : le code de sortie du shell est rendu. La console était une application de la VM, qui
@@ -425,9 +427,12 @@ un usager (`new X86Service(manager, userId)`) ; son enregistrement dans Kazo est
   VM un processus Kazo et de chaque enfant un processus enfant (207 A).
 - **Hébergement des images** : le catalogue de production (adresses R2 ou Pages et empreintes)
   attend l'hébergement ; aucune adresse n'est écrite dans le code.
-- **10 (préfixes)** : `--prefix` créera ses usagers invités ; le profil `linux-base` pourra alors
-  recevoir un préfixe par défaut ; `x86 run` et `./hello.exe` passeront
-  par `VmInstance.LaunchAsync`.
+- **10 (préfixes)** : fait, voir [`programmes.md`](programmes.md). `x86 shell --prefix <p>` exige
+  désormais un préfixe de la VM (créé par `x86 prefix create`, ou le préfixe par défaut de son
+  profil), fait dans l'invité à sa première utilisation ; un nom inconnu répond `prefix-not-found`
+  (code 4). Sans `--prefix`, rien ne change : le préfixe du profil, sinon la console série (6b).
+  `x86 run` passe par sa propre voie (`VmInstance.RunProgramAsync` : console par pty, session Wine).
+  Le profil `linux-base` garde « sans préfixe » : son shell par défaut reste la console série.
 - **ADR 0252** : quand le Terminal aura son écran plein, `x86 shell` relaiera les octets bruts à un
   émulateur VT au lieu du filtre ligne par ligne.
 
