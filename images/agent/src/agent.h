@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#define AGENT_PROTOCOL_VERSION 1
+#define AGENT_PROTOCOL_VERSION 2   /* 2: prefix-ensure, prefix-delete, prefix-list, put-file, sync (work item 10) */
 #define AGENT_PORT "/dev/hvc0"
 #define AGENT_CONSOLE_PORT "/dev/hvc1"
 #define AGENT_RUN_DIR "/run/osx86"
@@ -151,15 +151,28 @@ typedef struct job {
     int timed_out;
     char id[64];
     int seq;                   /* the launch of an exec (its cgroup) */
+    int action;                /* JOB_PREFIX: ensure or delete */
+    char prefix[AGENT_MAX_PREFIX + 1];
+    char path[256];            /* JOB_PUT: the file, for the error message */
+    long long put_end;         /* JOB_PUT: the size the file has once written */
 } job;
-enum { JOB_EXEC = 1, JOB_MOUNTS = 2 };
+enum { JOB_EXEC = 1, JOB_MOUNTS = 2, JOB_PREFIX = 3, JOB_PUT = 4, JOB_SYNC = 5 };
 extern job jobs[AGENT_MAX_JOBS];
+job *job_new(int kind, const char *id, double timeout_ms, size_t max_out);
 void op_exec_in_prefix(const char *id, jn *req);
 void op_mounts(const char *id, jn *req);
 void job_on_readable(job *j);
 void job_on_timer(double now);
 double job_next_deadline(void);
 int job_on_child_exit(pid_t pid, int status);   /* 1 when pid was the child of a job */
+
+/* ---------------------------------------------------------------- prefixes and files, protocol 2 (prefix.c) */
+void op_prefix_ensure(const char *id, jn *req);
+void op_prefix_delete(const char *id, jn *req);
+void op_prefix_list(const char *id, jn *req);
+void op_put_file(const char *id, jn *req);
+void op_sync(const char *id, jn *req);
+void prefix_job_reply(job *j, int status, sb *b);   /* the reply of a finished JOB_PREFIX, JOB_PUT or JOB_SYNC */
 
 /* ---------------------------------------------------------------- consoles and the mux port (console.c) */
 typedef struct console {

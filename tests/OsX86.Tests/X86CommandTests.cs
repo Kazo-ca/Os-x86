@@ -19,7 +19,12 @@ public sealed class X86CommandTests
     {
         public Dictionary<string, string> Files { get; } = new(StringComparer.Ordinal);
 
+        public Dictionary<string, byte[]> Binaries { get; } = new(StringComparer.Ordinal);
+
         public ValueTask<string?> ReadTextAsync(string path, CancellationToken cancellationToken) => ValueTask.FromResult(Files.GetValueOrDefault(path));
+
+        public ValueTask<byte[]?> ReadBytesAsync(string path, int maxBytes, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(Binaries.TryGetValue(path, out byte[]? bytes) ? bytes[..Math.Min(bytes.Length, maxBytes)] : null);
 
         public ValueTask WriteTextAsync(string path, string text, CancellationToken cancellationToken)
         {
@@ -281,7 +286,8 @@ public sealed class X86CommandTests
         Assert.Equal(
             "NAME                  KIND              IMAGE                 MEMORY  ORIGIN\n"
             + "alpine-test           linux             alpine-test 0.1.0       128M  built-in\n"
-            + "linux-base            linux             linux-base 0.1.0        256M  built-in\n",
+            + "linux-base            linux             linux-base 0.1.0        256M  built-in\n"
+            + "wine                  windows-programs  wine 0.1.0              512M  built-in\n",
             output);
 
         (code, output, _) = await RunAsync(rig, files, ["profile", "show", "alpine-test"]);
@@ -356,7 +362,7 @@ public sealed class X86CommandTests
         Assert.Equal(string.Empty, error);
         Assert.Equal(7, code);
         Assert.Equal("console$ hi\nconsole$ ^C\nconsole$ bye\n", output);
-        Assert.Equal(["echo hi\n", "\u0003", "exit 7\n", "\u0004"], Received(received).Select(b => Encoding.UTF8.GetString(b)));
+        Assert.Equal(["echo hi\r", "\u0003", "exit 7\r", "\u0004"], Received(received).Select(b => Encoding.UTF8.GetString(b)));
         Assert.Equal(100, rig.Engines.Last.Agent!.Request("open-console").GetProperty("cols").GetInt32());
         Assert.Equal(0, vm.Applications);
         rig.Time.Advance(TimeSpan.FromSeconds(5));
@@ -403,7 +409,7 @@ public sealed class X86CommandTests
 
         // "exit 3" is read, then the terminal blocks forever, deaf to cancellation, as a real stdin can.
         Task<(int, string, string)> run = RunAsync(rig, null, ["shell"], new StubbornReader("exit 3"));
-        await VmTestRig.WaitUntilAsync(() => Received(received).Any(b => Encoding.UTF8.GetString(b) == "exit 3\n"), "the exit line");
+        await VmTestRig.WaitUntilAsync(() => Received(received).Any(b => Encoding.UTF8.GetString(b) == "exit 3\r"), "the exit line");
         rig.Engines.Last.Agent!.SendConsoleBytes(VmTestRig.Closed(3, 3, 0)); // the guest shell ends by itself
 
         var (code, output, _) = await run.WaitAsync(VmTestRig.Soon);
@@ -447,7 +453,7 @@ public sealed class X86CommandTests
 
         Assert.Equal(0, code);
         Assert.Equal("osx86# ", output);
-        Assert.Equal(["uname\n"], rig.Engines.Last.SerialWritten.Select(b => Encoding.UTF8.GetString(b)));
+        Assert.Equal(["uname\r"], rig.Engines.Last.SerialWritten.Select(b => Encoding.UTF8.GetString(b)));
         Assert.Equal(0, vm.Applications);
     }
 
@@ -535,12 +541,12 @@ internal static class SimulatedAgentFixtures
                 }
                 else if (text.StartsWith("echo ", StringComparison.Ordinal))
                 {
-                    Send(text.TrimEnd('\n') + "\r\n" + text[5..].TrimEnd('\n') + "\r\nconsole$ ");
+                    Send(text.TrimEnd('\r') + "\r\n" + text[5..].TrimEnd('\r') + "\r\nconsole$ ");
                 }
                 else if (text.StartsWith("exit ", StringComparison.Ordinal))
                 {
                     exitCode = int.Parse(text[5..].Trim(), System.Globalization.CultureInfo.InvariantCulture);
-                    Send(text.TrimEnd('\n') + "\r\nbye\r\n");
+                    Send(text.TrimEnd('\r') + "\r\nbye\r\n");
                 }
             }
         };

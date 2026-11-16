@@ -1,5 +1,38 @@
 namespace OsX86.Interface;
 
+/// <summary>
+/// A program to run in a console (<see cref="Ix86.RunProgramAsync"/>, work item 10): the bytes of
+/// the program file, its name, its arguments, and where it runs. Os-x86 detects its type (162 A),
+/// chooses a compatible VM and the prefix (193 A) when they are not given, copies the file into the
+/// prefix and starts it on a pseudo-terminal (213 A).
+/// </summary>
+public sealed record ProgramRunOptions
+{
+    /// <summary>The largest program accepted, in bytes (copied through the agent, 6 KiB per request).</summary>
+    public const int MaxContentBytes = 256 * 1024 * 1024;
+
+    /// <summary>The file name of the program, with its extension (<c>hello.exe</c>); a path is reduced to its last part.</summary>
+    public required string FileName { get; init; }
+
+    /// <summary>The bytes of the program file.</summary>
+    public required ReadOnlyMemory<byte> Content { get; init; }
+
+    /// <summary>The arguments after the program name, passed as they are (never through a shell).</summary>
+    public IReadOnlyList<string> Arguments { get; init; } = [];
+
+    /// <summary>The VM, or <see langword="null"/> to let Os-x86 choose one of the caller's compatible VMs (and make one when there is none).</summary>
+    public Guid? VmId { get; init; }
+
+    /// <summary>The prefix (decision 200 B), or <see langword="null"/> for the VM's default prefix (decision 193 A).</summary>
+    public string? Prefix { get; init; }
+
+    /// <summary>The width of the terminal in character cells (1 to 1000).</summary>
+    public int Columns { get; init; } = 80;
+
+    /// <summary>The height of the terminal in character cells (1 to 1000).</summary>
+    public int Rows { get; init; } = 25;
+}
+
 /// <summary>How a console is opened (<see cref="Ix86.OpenConsoleAsync"/>).</summary>
 public sealed record VmConsoleOptions
 {

@@ -13,7 +13,7 @@ namespace OsX86.Vm;
 /// pings the agent and declares it lost. Every lifecycle operation runs under one lock, so a start
 /// and a stop never overlap; the state and its changes are reported through events.
 /// </summary>
-public sealed class VmInstance
+public sealed partial class VmInstance
 {
     private readonly VmManager _manager;
     private readonly TimeProvider _time;
@@ -354,6 +354,11 @@ public sealed class VmInstance
 
                 string prefix = options.Prefix ?? Record.Profile.Prefix
                     ?? throw new X86Exception(X86ErrorCodes.NoPrefix, "No prefix was given and the profile of this virtual machine has no default one: use --prefix.");
+                if (Prefixes.PrefixId.TryParse(prefix, out Prefixes.PrefixId known) && Record.KnowsPrefix(known))
+                {
+                    await EnsureGuestPrefixAsync(agent, known, application.Generation, cancellationToken).ConfigureAwait(false); // work item 10: made in the guest on first use
+                }
+
                 ConsoleHandle handle;
                 try
                 {
@@ -817,10 +822,18 @@ public sealed class VmInstance
             _applications = 0;
             _held = false;
             CancelGraceUnsafe();
+            ResetProgramsUnsafe();
         }
 
         try
         {
+            // Work item 10: what the prefixes wrote reaches the disk before the engine stops (the
+            // guest's file systems keep a second or so of writes in memory).
+            if (agent is not null && engine is { State: EngineState.Running })
+            {
+                await SyncQuietlyAsync(agent).ConfigureAwait(false);
+            }
+
             runStop?.Cancel();
             foreach (SerialVmConsole serial in serials)
             {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using OsX86.Interface;
+using OsX86.Prefixes;
 using OsX86.Profiles;
 
 namespace OsX86.Vm;
@@ -33,8 +34,53 @@ public sealed class VmRecord
     /// <summary>The layer set of a new VM: <c>vm-</c> and the 32 hexadecimal digits of its identifier.</summary>
     public static string LayerSetOf(Guid vmId) => "vm-" + vmId.ToString("N");
 
+    /// <summary>
+    /// The prefixes the user made in the VM (work item 10, decision 200 B), in creation order; the
+    /// default prefix is added on its first use. <see langword="null"/> in a registry written before
+    /// work item 10: read as none.
+    /// </summary>
+    public IReadOnlyList<Prefix>? Prefixes { get; init; }
+
+    /// <summary>
+    /// Prefixes deleted while the VM was stopped: their guest user and files are removed at the next
+    /// start, before anything runs (the disk is the VM's, only its guest can delete in it).
+    /// </summary>
+    public IReadOnlyList<PrefixId>? PendingPrefixDeletions { get; init; }
+
+    /// <summary>The prefixes, never <see langword="null"/>.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<Prefix> EffectivePrefixes => Prefixes ?? [];
+
+    /// <summary>The prefixes deleted while stopped, never <see langword="null"/>.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<PrefixId> EffectivePendingPrefixDeletions => PendingPrefixDeletions ?? [];
+
+    /// <summary>
+    /// The prefix used when a caller names none (193 A: Os-x86 chooses): the profile's prefix when it
+    /// has one, otherwise <see cref="PrefixId.Default"/>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public PrefixId DefaultPrefix => Profile.Prefix is { } named && PrefixId.TryParse(named, out PrefixId id) ? id : PrefixId.Default;
+
+    /// <summary>Whether a prefix may be used in this VM: one the user made, or the default prefix.</summary>
+    public bool KnowsPrefix(PrefixId prefix) => prefix == DefaultPrefix || EffectivePrefixes.Any(p => p.Id == prefix);
+
     /// <summary>The same VM under another name.</summary>
-    public VmRecord WithName(string name) => new() { Id = Id, Name = name, Created = Created, Profile = Profile, LayerSet = LayerSet };
+    public VmRecord WithName(string name) => With(name, EffectivePrefixes, EffectivePendingPrefixDeletions);
+
+    /// <summary>The same VM with other prefixes.</summary>
+    public VmRecord WithPrefixes(IReadOnlyList<Prefix> prefixes, IReadOnlyList<PrefixId> pendingDeletions) => With(Name, prefixes, pendingDeletions);
+
+    private VmRecord With(string name, IReadOnlyList<Prefix> prefixes, IReadOnlyList<PrefixId> pendingDeletions) => new()
+    {
+        Id = Id,
+        Name = name,
+        Created = Created,
+        Profile = Profile,
+        LayerSet = LayerSet,
+        Prefixes = prefixes.Count == 0 ? null : prefixes,
+        PendingPrefixDeletions = pendingDeletions.Count == 0 ? null : pendingDeletions,
+    };
 
     /// <summary>The summary a client sees, with the given state.</summary>
     public VmSummary ToSummary(VmState state) => new(Id, Name, Profile.Kind, state, Profile.Image, Profile.ImageVersion, Profile.MemoryMiB);
@@ -124,6 +170,11 @@ public sealed class VmRegistryDocument
             }
 
             vm.Profile.Validate();
+            if (vm.EffectivePrefixes.Any(prefix => prefix is null) || vm.EffectivePrefixes.Select(prefix => prefix.Id).Distinct().Count() != vm.EffectivePrefixes.Count)
+            {
+                throw new X86Exception(X86ErrorCodes.InvalidProfile, $"The VM registry is invalid: {vm.Name} has a null or duplicate prefix.");
+            }
+
             if (vm.LayerSet is not null && !Storage.StorageLayout.IsValidImageId(vm.LayerSet))
             {
                 throw new X86Exception(X86ErrorCodes.InvalidProfile, $"The VM registry is invalid: the layer set '{vm.LayerSet}' of {vm.Name} is not an identifier.");

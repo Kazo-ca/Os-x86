@@ -34,7 +34,8 @@ public static class X86ExitCodes
 /// The <c>x86</c> command (decision 185 A: <c>vm</c>, <c>shell</c>, <c>run</c>, <c>detect</c>,
 /// <c>rules</c>, <c>profile</c>, <c>snapshot</c>; <c>sudo x86 admin</c>). Work item 6 gives it
 /// <c>vm list|create|start|stop|remove|rename|info</c>, <c>shell</c> and
-/// <c>profile list|show|import|export</c>; the other verbs come with their work items. Every
+/// <c>profile list|show|import|export</c>; work item 10 adds <c>prefix list|create|delete|export</c>,
+/// <c>detect</c> and <c>run</c>; the other verbs come with their work items. Every
 /// subcommand acts for the user running it (decision 190 A: the stable identifier Kazo gives).
 /// </summary>
 public sealed partial class X86Command : TerminalAppBase
@@ -81,7 +82,12 @@ public sealed partial class X86Command : TerminalAppBase
             return X86ExitCodes.Ok;
         }
 
-        if (args[0] is not ("vm" or "shell" or "profile"))
+        if (args[0] == "detect")
+        {
+            return await DetectAsync(context, [.. args.Skip(1)], cancellationToken).ConfigureAwait(false);
+        }
+
+        if (args[0] is not ("vm" or "shell" or "profile" or "prefix" or "run"))
         {
             return await UsageErrorAsync(context, $"unknown command: {string.Join(" ", args)}", cancellationToken).ConfigureAwait(false);
         }
@@ -98,6 +104,8 @@ public sealed partial class X86Command : TerminalAppBase
             {
                 "vm" => await VmAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 "shell" => await ShellAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
+                "prefix" => await PrefixAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
+                "run" => await RunAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 _ => await ProfileAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
             };
         }
@@ -117,10 +125,10 @@ public sealed partial class X86Command : TerminalAppBase
     /// <summary>The exit code of an error of Os-x86.</summary>
     internal static int ExitCodeOf(X86Exception exception) => exception.Code switch
     {
-        X86ErrorCodes.VmNotFound => X86ExitCodes.NotFound,
+        X86ErrorCodes.VmNotFound or X86ErrorCodes.PrefixNotFound => X86ExitCodes.NotFound,
         X86ErrorCodes.VmBusy => X86ExitCodes.Busy,
         X86ErrorCodes.MemoryBudgetExceeded => X86ExitCodes.MemoryBudget,
-        X86ErrorCodes.EngineUnavailable or X86ErrorCodes.ImageUnavailable or X86ErrorCodes.NoConsole => X86ExitCodes.Unavailable,
+        X86ErrorCodes.EngineUnavailable or X86ErrorCodes.ImageUnavailable or X86ErrorCodes.NoConsole or X86ErrorCodes.ProgramNotSupported => X86ExitCodes.Unavailable,
         _ => X86ExitCodes.Failed,
     };
 
@@ -170,10 +178,18 @@ public sealed partial class X86Command : TerminalAppBase
         "  vm rename <vm> <name>                  Rename a virtual machine",
         "  vm info <vm>                           Show a virtual machine",
         "  shell [--vm <vm>] [--prefix <p>]       Open a shell in a virtual machine (started when needed)",
+        "  run [--vm <vm>] [--prefix <p>] <program> [args...]",
+        "                                         Run a Windows console program; returns its exit code",
+        "  detect <file>                          Tell what kind of program a file is (media type)",
+        "  prefix list [--vm <vm>]                List the prefixes of a virtual machine",
+        "  prefix create <name> [--vm <vm>]       Make a prefix (its own guest user and Wine files)",
+        "  prefix delete <name> [--vm <vm>] [--force]",
+        "                                         Delete a prefix, its programs and files",
+        "  prefix export <name> [--vm <vm>]       Not available yet (comes with disk export)",
         "  profile list                           List the profiles",
         "  profile show <profile>                 Print a profile",
         "  profile import <file>                  Import a .x86profile file",
         "  profile export <profile> <file>        Write a profile to a .x86profile file",
-        "<vm> is a name or an identifier (GUID).",
+        "<vm> is a name or an identifier (GUID). Without --prefix, the virtual machine's default prefix.",
     ], cancellationToken);
 }

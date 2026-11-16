@@ -224,7 +224,7 @@ public sealed class X86ShellLinuxBaseGuestTests(ITestOutputHelper output)
     }
 
     /// <summary>A standard output the test reads while the command writes it.</summary>
-    private sealed class LiveWriter : TextWriter
+    internal sealed class LiveWriter : TextWriter
     {
         private readonly StringBuilder _text = new();
         private readonly Lock _lock = new();

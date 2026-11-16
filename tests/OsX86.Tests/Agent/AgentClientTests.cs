@@ -126,7 +126,7 @@ public sealed class AgentClientTests
     public async Task Connect_refuses_another_version_of_the_protocol()
     {
         var channel = new SimulatedAgentChannel();
-        channel.On("ping", _ => """{"ok":true,"version":2}""");
+        channel.On("ping", _ => """{"ok":true,"version":3}""");
         await using var client = new AgentClient(channel, Fast);
 
         AgentProtocolException error = await Assert.ThrowsAsync<AgentProtocolException>(() => client.ConnectAsync(None));

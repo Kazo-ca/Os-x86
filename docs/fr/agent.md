@@ -49,7 +49,7 @@ quand il a fini ; `kill` répond quand le lancement a disparu. Ce qui part vers 
 une file d'attente par port : l'agent n'attend jamais qu'un port se vide, et une ligne ou une
 trame est mise en file entière ou pas du tout, jamais écrite en partie.
 
-## Le protocole (version 1)
+## Le protocole (version 2)
 
 Requête : `{"id":N,"op":"…", …}` suivie de LF, 64 Kio au plus ; les nombres hors bornes sont
 ramenés à leur borne, `nan` et `inf` ne sont pas du JSON et font refuser la ligne. Réponse :
@@ -72,6 +72,11 @@ valide (un octet invalide d'une sortie de programme devient U+FFFD).
 | `close-console` | `console` ou `launch`, `graceMs`, `keep[]` (pid à garder) | `keptCount`, `kept` (lancement des processus gardés) ; immédiate |
 | `console-resize` | `console`, `cols`, `rows` | `console`, `cols`, `rows` |
 | `list-windows` | — | erreur `no-x-server` tant que l'image n'a pas de serveur X (chantier 9) |
+| `prefix-ensure` (v2) | `prefix` | `created`, `prefix`, `uid`, `home`, `ms` ; lance `/usr/lib/osx86/prefix-admin ensure` (180 s au plus) ; sans ce script, répond pour un usager que l'image porte, sinon `no-prefix-support` |
+| `prefix-delete` (v2) | `prefix` | `deleted`, `ms` ; fin de tout le cgroup du préfixe, puis `prefix-admin delete` |
+| `prefix-list` (v2) | — | `prefixes[]` : `prefix`, `uid`, `home` ; `admin` (le script est là) |
+| `put-file` (v2) | `prefix`, `path` (relatif au home, sans `.`, `..` ni composant vide), `data` (base64), `offset`, `truncate`, `mode` (0600 par défaut, jamais inscriptible par d'autres) | `size`, `ms` ; écrit comme l'usager du préfixe (30 s au plus) |
+| `sync` (v2) | — | `timedOut`, `ms` |
 
 ```json
 → {"id":12,"op":"launch","prefix":"test","program":"sleep","args":["300"]}
@@ -98,7 +103,7 @@ valide (un octet invalide d'une sortie de programme devient U+FFFD).
 `unknown-prefix`, `program-not-found`, `exec-failed`, `cgroup-failed`, `no-cgroup`,
 `unknown-launch`, `kill-pending`, `unknown-pid`, `root-process`, `kill-failed`, `no-x-server`,
 `no-console-port`, `unknown-console`, `pty-failed`, `too-many-launches`, `too-many-consoles`,
-`too-many-jobs`. Le client y ajoute les siens : `timeout`, `not-ready`, `closed`, `protocol`,
+`too-many-jobs`, et depuis la version 2 `no-prefix-support`, `prefix-failed`, `put-failed`. Le client y ajoute les siens : `timeout`, `not-ready`, `closed`, `protocol`,
 `unsupported-version` (`AgentErrorCodes`).
 
 ## Cycle de vie d'un lancement (206 A)
@@ -326,5 +331,19 @@ Limites connues :
   22 contrôles sur 22, une fois `/dev/null` rendu ouvrable aux usagers et le pid de l'agent passé
   au script (troisième argument).
 - Décider de la surveillance de l'agent (ping périodique) et de ce qu'on fait s'il ne répond plus.
-- Créer les usagers `osx86-<préfixe>` avec les préfixes (chantiers 9 et 10) ; l'agent n'a pas
-  d'opération pour cela.
+- Créer les usagers `osx86-<préfixe>` avec les préfixes : fait au chantier 10, protocole 2
+  ([`programmes.md`](programmes.md)).
+
+## Protocole 2 (chantier 10)
+
+Version 2 du protocole : `prefix-ensure`, `prefix-delete`, `prefix-list`, `put-file` et `sync`
+(tableau des opérations ci-dessus ; conception dans [`programmes.md`](programmes.md)). Les
+opérations de préfixe n'exécutent que le script fixe `/usr/lib/osx86/prefix-admin`, possédé par root
+et non inscriptible par d'autres (sinon il n'est pas lancé), avec un nom de préfixe déjà vérifié,
+dans un enfant (la boucle n'attend pas) ; `put-file` écrit dans un enfant devenu l'usager du préfixe
+avant d'ouvrir quoi que ce soit. Le client parle la version 2 et accepte encore un agent de version 1
+(`AgentStatus.ProtocolVersion`, `AgentClient.HasPrefixOperations`) ; il refuse toute autre version.
+Le client découpe un fichier en requêtes de 6 Kio : v86 livre une écriture de l'hôte par morceaux
+de 1 Kio, un par tampon de réception de l'invité, et jette ce qui n'en trouve pas ; une ligne de
+49 Kio s'est perdue. Le test de fumée couvre les nouvelles opérations (`build-agent.py --smoke`).
+Binaire : 119 848 octets.

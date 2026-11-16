@@ -19,7 +19,7 @@
 
 job jobs[AGENT_MAX_JOBS];
 
-static job *job_new(int kind, const char *id, double timeout_ms, size_t max_out)
+job *job_new(int kind, const char *id, double timeout_ms, size_t max_out)
 {
     for (int i = 0; i < AGENT_MAX_JOBS; i++) {
         if (jobs[i].used) continue;
@@ -82,10 +82,12 @@ static void job_finish(job *j, int status)
                j->timed_out ? "true" : "false", ms, j->total > j->out.len ? "true" : "false");
         sb_jstr(&b, j->out.buf ? j->out.buf : "", j->out.len);
         sb_puts(&b, "}");
-    } else {
+    } else if (j->kind == JOB_MOUNTS) {
         sb_fmt(&b, ",\"ok\":true,\"timedOut\":%s,\"ms\":%.1f,\"mounts\":[", j->timed_out ? "true" : "false", ms);
         mounts_reply_body(j, &b);
         sb_puts(&b, "]}");
+    } else {
+        prefix_job_reply(j, status, &b);
     }
     send_line(&b);
     if (j->fd >= 0) close(j->fd);

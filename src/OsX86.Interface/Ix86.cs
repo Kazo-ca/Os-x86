@@ -7,8 +7,9 @@ namespace OsX86.Interface;
 /// consoles, never Wine (29 C). The service is bound to the calling user: every VM it names belongs
 /// to that user (decision 190 A), and nothing of another user's VMs is reachable through it.
 /// This surface is what the Terminal and BoxedWine need first (work item 6): the list and state of
-/// the VMs, starting and stopping one, opening a console in it. Launching programs, prefixes and
-/// the rest of the plan (§1.1) are added by the work items that implement them.
+/// the VMs, starting and stopping one, opening a console in it; then (work item 10) detecting the
+/// type of a program and running a console program with its exit code. Managing prefixes and the
+/// rest of the plan (§1.1) are added by the work items whose clients need them.
 /// </summary>
 public interface Ix86
 {
@@ -55,6 +56,32 @@ public interface Ix86
     /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.NoConsole"/>, <see cref="X86ErrorCodes.NoPrefix"/> or a start failure.</exception>
     /// <exception cref="VmMemoryBudgetExceededException">Starting the VM would exceed the memory budget (decision 165 A).</exception>
     ValueTask<IVmConsole> OpenConsoleAsync(Guid vmId, VmConsoleOptions options, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Tells what kind of program a file is (decisions 162 A and 240 D): its header first, its
+    /// extension when the header says nothing, a contradiction refused; the answer carries a media
+    /// type (255 A). Pure: no VM is started. BoxedWine and the Terminal call it before
+    /// <see cref="RunProgramAsync"/>; 64 bytes suffice for the media type, 4 KiB give the details
+    /// (width, console or windowed, .NET).
+    /// </summary>
+    /// <param name="header">The first bytes of the file.</param>
+    /// <param name="fileName">The file name or its extension, or <see langword="null"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    ValueTask<ProgramDetection> DetectProgramAsync(ReadOnlyMemory<byte> header, string? fileName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs a console program in a console (work item 10; decisions 110, 193 A, 213 A, 216 A): the
+    /// program is detected, a compatible VM and the prefix are chosen when not given, the VM starts
+    /// when needed, the file is copied into the prefix, and the program runs on a pseudo-terminal of
+    /// the guest. The console carries its output, the keystrokes and Ctrl+C (216 A), and
+    /// <see cref="IVmConsole.Exited"/> gives the program's real exit code (110). The console is an
+    /// application of the VM (166 A); disposing it ends the program.
+    /// </summary>
+    /// <param name="options">The program, its arguments, and optionally the VM and the prefix.</param>
+    /// <param name="cancellationToken">Cancels the wait, not the boot.</param>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.ProgramNotSupported"/> (a DOS, Linux, windowed or 64-bit program, not yet), <see cref="X86ErrorCodes.PrefixNotFound"/>, <see cref="X86ErrorCodes.VmNotFound"/> or a start failure.</exception>
+    /// <exception cref="VmMemoryBudgetExceededException">Starting the VM would exceed the memory budget (decision 165 A).</exception>
+    ValueTask<IVmConsole> RunProgramAsync(ProgramRunOptions options, CancellationToken cancellationToken);
 }
 
 /// <summary>What a virtual machine runs (plan §1.1: one VM per kind and image in V1, decision 194 A).</summary>

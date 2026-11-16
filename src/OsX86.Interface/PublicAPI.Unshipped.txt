@@ -94,3 +94,85 @@ const OsX86.Interface.X86ErrorCodes.VmNotFound = "vm-not-found" -> string!
 OsX86.Interface.X86Exception
 OsX86.Interface.X86Exception.Code.get -> string!
 OsX86.Interface.X86Exception.X86Exception(string! code, string! message, System.Exception? innerException = null) -> void
+const OsX86.Interface.ProgramMimeTypes.Batch = "application/x-bat" -> string!
+const OsX86.Interface.ProgramMimeTypes.DosExecutable = "application/x-dosexec" -> string!
+const OsX86.Interface.ProgramMimeTypes.Executable = "application/x-executable" -> string!
+const OsX86.Interface.ProgramMimeTypes.NewExecutable = "application/x-ms-ne-executable" -> string!
+const OsX86.Interface.ProgramMimeTypes.PortableExecutable = "application/vnd.microsoft.portable-executable" -> string!
+const OsX86.Interface.ProgramMimeTypes.Unknown = "application/octet-stream" -> string!
+const OsX86.Interface.ProgramMimeTypes.WindowsInstaller = "application/x-msi" -> string!
+OsX86.Interface.ProgramMimeTypes
+OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramKind.Batch = 4 -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramKind.Dos = 2 -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramKind.Linux = 3 -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramKind.Unknown = 0 -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramKind.Windows = 1 -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramKind.WindowsInstaller = 5 -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramSubsystem
+OsX86.Interface.ProgramSubsystem.Console = 1 -> OsX86.Interface.ProgramSubsystem
+OsX86.Interface.ProgramSubsystem.Other = 3 -> OsX86.Interface.ProgramSubsystem
+OsX86.Interface.ProgramSubsystem.Unknown = 0 -> OsX86.Interface.ProgramSubsystem
+OsX86.Interface.ProgramSubsystem.Windowed = 2 -> OsX86.Interface.ProgramSubsystem
+OsX86.Interface.ProgramDetectionSource
+OsX86.Interface.ProgramDetectionSource.Conflict = 3 -> OsX86.Interface.ProgramDetectionSource
+OsX86.Interface.ProgramDetectionSource.Extension = 2 -> OsX86.Interface.ProgramDetectionSource
+OsX86.Interface.ProgramDetectionSource.Header = 1 -> OsX86.Interface.ProgramDetectionSource
+OsX86.Interface.ProgramDetectionSource.None = 0 -> OsX86.Interface.ProgramDetectionSource
+OsX86.Interface.ProgramDetection
+OsX86.Interface.ProgramDetection.<Clone>$() -> OsX86.Interface.ProgramDetection!
+OsX86.Interface.ProgramDetection.Bits.get -> int?
+OsX86.Interface.ProgramDetection.Bits.init -> void
+OsX86.Interface.ProgramDetection.Deconstruct(out OsX86.Interface.ProgramKind Kind, out string! MimeType, out OsX86.Interface.ProgramDetectionSource Source, out string! Detail) -> void
+OsX86.Interface.ProgramDetection.Detail.get -> string!
+OsX86.Interface.ProgramDetection.Detail.init -> void
+OsX86.Interface.ProgramDetection.Equals(OsX86.Interface.ProgramDetection? other) -> bool
+OsX86.Interface.ProgramDetection.IsComplete.get -> bool
+OsX86.Interface.ProgramDetection.IsComplete.init -> void
+OsX86.Interface.ProgramDetection.IsDotNet.get -> bool
+OsX86.Interface.ProgramDetection.IsDotNet.init -> void
+OsX86.Interface.ProgramDetection.IsLibrary.get -> bool
+OsX86.Interface.ProgramDetection.IsLibrary.init -> void
+OsX86.Interface.ProgramDetection.Kind.get -> OsX86.Interface.ProgramKind
+OsX86.Interface.ProgramDetection.Kind.init -> void
+OsX86.Interface.ProgramDetection.MimeType.get -> string!
+OsX86.Interface.ProgramDetection.MimeType.init -> void
+OsX86.Interface.ProgramDetection.ProgramDetection(OsX86.Interface.ProgramKind Kind, string! MimeType, OsX86.Interface.ProgramDetectionSource Source, string! Detail) -> void
+OsX86.Interface.ProgramDetection.Source.get -> OsX86.Interface.ProgramDetectionSource
+OsX86.Interface.ProgramDetection.Source.init -> void
+OsX86.Interface.ProgramDetection.Subsystem.get -> OsX86.Interface.ProgramSubsystem
+OsX86.Interface.ProgramDetection.Subsystem.init -> void
+override OsX86.Interface.ProgramDetection.Equals(object? obj) -> bool
+override OsX86.Interface.ProgramDetection.GetHashCode() -> int
+override OsX86.Interface.ProgramDetection.ToString() -> string!
+static OsX86.Interface.ProgramDetection.operator !=(OsX86.Interface.ProgramDetection? left, OsX86.Interface.ProgramDetection? right) -> bool
+static OsX86.Interface.ProgramDetection.operator ==(OsX86.Interface.ProgramDetection? left, OsX86.Interface.ProgramDetection? right) -> bool
+OsX86.Interface.Ix86.DetectProgramAsync(System.ReadOnlyMemory<byte> header, string? fileName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<OsX86.Interface.ProgramDetection!>
+OsX86.Interface.Ix86.RunProgramAsync(OsX86.Interface.ProgramRunOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<OsX86.Interface.IVmConsole!>
+const OsX86.Interface.X86ErrorCodes.PrefixExists = "prefix-exists" -> string!
+const OsX86.Interface.X86ErrorCodes.PrefixNotFound = "prefix-not-found" -> string!
+const OsX86.Interface.X86ErrorCodes.ProgramNotSupported = "program-not-supported" -> string!
+const OsX86.Interface.ProgramRunOptions.MaxContentBytes = 268435456 -> int
+OsX86.Interface.ProgramRunOptions
+OsX86.Interface.ProgramRunOptions.<Clone>$() -> OsX86.Interface.ProgramRunOptions!
+OsX86.Interface.ProgramRunOptions.Arguments.get -> System.Collections.Generic.IReadOnlyList<string!>!
+OsX86.Interface.ProgramRunOptions.Arguments.init -> void
+OsX86.Interface.ProgramRunOptions.Columns.get -> int
+OsX86.Interface.ProgramRunOptions.Columns.init -> void
+OsX86.Interface.ProgramRunOptions.Content.get -> System.ReadOnlyMemory<byte>
+OsX86.Interface.ProgramRunOptions.Content.init -> void
+OsX86.Interface.ProgramRunOptions.Equals(OsX86.Interface.ProgramRunOptions? other) -> bool
+OsX86.Interface.ProgramRunOptions.FileName.get -> string!
+OsX86.Interface.ProgramRunOptions.FileName.init -> void
+OsX86.Interface.ProgramRunOptions.Prefix.get -> string?
+OsX86.Interface.ProgramRunOptions.Prefix.init -> void
+OsX86.Interface.ProgramRunOptions.ProgramRunOptions() -> void
+OsX86.Interface.ProgramRunOptions.Rows.get -> int
+OsX86.Interface.ProgramRunOptions.Rows.init -> void
+OsX86.Interface.ProgramRunOptions.VmId.get -> System.Guid?
+OsX86.Interface.ProgramRunOptions.VmId.init -> void
+override OsX86.Interface.ProgramRunOptions.Equals(object? obj) -> bool
+override OsX86.Interface.ProgramRunOptions.GetHashCode() -> int
+override OsX86.Interface.ProgramRunOptions.ToString() -> string!
+static OsX86.Interface.ProgramRunOptions.operator !=(OsX86.Interface.ProgramRunOptions? left, OsX86.Interface.ProgramRunOptions? right) -> bool
+static OsX86.Interface.ProgramRunOptions.operator ==(OsX86.Interface.ProgramRunOptions? left, OsX86.Interface.ProgramRunOptions? right) -> bool

@@ -33,8 +33,24 @@ public static class BuiltInProfiles
         Prefix = null,
     };
 
+    /// <summary>
+    /// The Wine image (work item 9: linux-base with WineHQ 11.0 i386, Mono, Gecko and the template
+    /// prefix), the VM of Windows console programs (work item 10, 194 A). Its default prefix is
+    /// <c>default</c> (193 A); <c>x86 run</c> makes it from this profile when the user has none.
+    /// </summary>
+    public static VmProfile Wine { get; } = new()
+    {
+        Name = "wine",
+        Kind = VmKind.WindowsPrograms,
+        Image = "wine",
+        ImageVersion = "0.1.0",
+        MemoryMiB = 512,
+        SerialConsole = true,
+        Prefix = "default",
+    };
+
     /// <summary>Every built-in profile, in display order.</summary>
-    public static IReadOnlyList<VmProfile> All { get; } = [AlpineTest, LinuxBase];
+    public static IReadOnlyList<VmProfile> All { get; } = [AlpineTest, LinuxBase, Wine];
 
     /// <summary>Finds a built-in profile by name (ordinal, case-insensitive).</summary>
     public static VmProfile? Find(string? name) =>

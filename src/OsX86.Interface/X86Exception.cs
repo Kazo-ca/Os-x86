@@ -50,6 +50,19 @@ public static class X86ErrorCodes
 
     /// <summary>The image store failed an operation on the files of a VM (its write layers, work item 6b).</summary>
     public const string StorageFailed = "storage-failed";
+
+    /// <summary>The VM has no prefix of that name: make it with <c>x86 prefix create</c> (work item 10).</summary>
+    public const string PrefixNotFound = "prefix-not-found";
+
+    /// <summary>The VM already has a prefix of that name.</summary>
+    public const string PrefixExists = "prefix-exists";
+
+    /// <summary>
+    /// The program is not one Os-x86 can run here yet: a DOS program (work item 11), a Linux program,
+    /// a windowed program or an installer (they need a display), a 64-bit program, or a file that is
+    /// not a program. The message says which, and what will come.
+    /// </summary>
+    public const string ProgramNotSupported = "program-not-supported";
 }
 
 /// <summary>An error of Os-x86 reported to a client, with a stable code.</summary>

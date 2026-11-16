@@ -54,8 +54,8 @@ measured reasons:
 
 The Kazo shared folder (D22, E8) therefore has the 9p device to itself; the root is mounted
 read-only (`root=/dev/sda rootfstype=ext4 ro`), the writable places are tmpfs mounted by the init
-(`/run`, `/tmp`, `/var/tmp`, `/var/log`, `/home`); the prefix disk comes with work items 9 and 10
-(211 A). Cost: the decompressed root is one ext4 file (138 MiB for linux-base) rather than files
+(`/run`, `/tmp`, `/var/tmp`, `/var/log`); since work item 10, `/home` (the prefixes) is on the VM's
+disk, the only writable place of the root ([`programs.md`](programs.md#where-prefixes-live-in-the-guest-choice)). Cost: the decompressed root is one ext4 file (138 MiB for linux-base) rather than files
 deduplicated by hash; the block compression below makes up for it, since the OPFS keeps the
 compressed bytes.
 
@@ -154,8 +154,8 @@ Four Docker stages, all `linux/386`, plus the image of the agent (`images/agent`
 
 `build-linux-base.py` builds and checks the agent, exports the container (`docker export`),
 checks that the export carries exactly that binary (SHA-256, root, 0755), runs in `osx86-tools` the
-extraction with owners and modes, the image test, then `mkfs.ext4 -d` (no journal, fixed UUID and
-seed, `SOURCE_DATE_EPOCH`), writes `sources.json`, packs and measures.
+extraction with owners and modes, the image test, then `mkfs.ext4 -d` (with an 8 MiB journal and
+256 MiB of free room for the prefixes since work item 10, fixed UUID and seed, `SOURCE_DATE_EPOCH`), writes `sources.json`, packs and measures.
 
 **Init** (`init.sh`, PID 1 after the initramfs): mounts (`/proc` with `hidepid`, devtmpfs `/dev`,
 `/dev/pts`, `/dev/shm`, `/run` as `mode=0755`, `/tmp` and `/var/tmp` as 1777 `nosuid`,
@@ -250,9 +250,10 @@ template for the guest user `osx86-<prefix>` (by default into `$HOME/.wine`, whi
 exist): `cp -a` (links stay links: a few MiB written), renaming of `drive_c/users/osx86-template`
 and of the user in `system.reg`, `user.reg` and `userdef.reg` (Wine takes the Windows user name
 from `$USER`; without the renaming, `%TEMP%` and the profile folders would point to
-`osx86-template`), then `chown` to the user (Wine refuses a prefix that is not the user's). It is
-the reference for work item 10, which decides where prefixes live; the image has no prefix user
-(the `guest` test adds one in memory). After a change of Wine version in the image, a prefix
+`osx86-template`), then `chown` to the user (Wine refuses a prefix that is not the user's). Since
+work item 10, `/usr/lib/osx86/prefix.d/50-wine` calls it when each prefix is made (`prefix-admin`,
+[`programs.md`](programs.md)), and `/usr/lib/osx86/wine/prefix-session` starts the Wine session of
+a prefix (`wineserver` and services in a launch of their own). After a change of Wine version in the image, a prefix
 copied from the old template keeps links to files of the new version: to handle with the
 migration of prefixes.
 
