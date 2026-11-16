@@ -94,6 +94,10 @@ Une **application** garde la VM en marche : un programme lancé par l'agent, un 
    moteur arrêté et libéré. L'arrêt n'efface rien.
 6. **Mort de l'invité** : si le moteur s'arrête seul (plantage du worker), la marche se termine
    comme un arrêt.
+7. **VM DOS (chantier 11)** : le démarrage n'attend pas d'agent (FreeDOS n'en a pas) ; un programme
+   DOS est l'application d'une marche à lui seul (son disque n'est donné qu'au démarrage) et la VM
+   **s'arrête dès qu'il finit**, sans délai de grâce (`VmInstance.StopIdleRunAsync`) ; voir
+   [`programmes.md`](programmes.md#programmes-dos-chantier-11).
 
 États exposés : `Stopped`, `Starting`, `Running`, `Stopping` (`VmState`), avec l'événement
 `VmManager.InstanceStateChanged` et, filtré par usager, `Ix86.VmStateChanged`.
@@ -182,7 +186,9 @@ Les propriétés inconnues sont ignorées, les commentaires et virgules finales 
 au plus. Profils livrés : **`linux-base`** (256 Mio, série, sans préfixe : ses usagers invités
 viennent avec les préfixes, chantiers 9 et 10 ; défaut de `x86 vm create` depuis le chantier 6b)
 **`wine`** (image Wine du chantier 9, VM de programmes Windows, 512 Mio, série, préfixe par défaut
-`default` ; chantier 10, [`programmes.md`](programmes.md)) et **`alpine-test`** (image Alpine de test avec agent, 128 Mio, série, préfixe `test`). Un profil importé
+`default` ; chantier 10, [`programmes.md`](programmes.md)), **`dos`** (image `freedos` 0.2.0, VM de
+programmes DOS du genre `dos`, 64 Mio, ni agent ni console série, sans préfixe ; chantier 11,
+[`programmes.md`](programmes.md#programmes-dos-chantier-11)) et **`alpine-test`** (image Alpine de test avec agent, 128 Mio, série, préfixe `test`). Un profil importé
 (`x86 profile import`) est rangé dans le registre de l'usager et masque un profil livré du même nom.
 
 ## La commande `x86`
@@ -437,6 +443,10 @@ un usager (`new X86Service(manager, userId)`) ; son enregistrement dans Kazo est
   Le profil `linux-base` garde « sans préfixe » : son shell par défaut reste la console série.
 - **ADR 0252** : quand le Terminal aura son écran plein, `x86 shell` relaiera les octets bruts à un
   émulateur VT au lieu du filtre ligne par ligne.
+- **11 (DOS)** : fait, voir [`programmes.md`](programmes.md#programmes-dos-chantier-11). Une VM du
+  genre `dos` démarre sans attendre d'agent ; `x86 run` d'un programme DOS la démarre avec un second
+  disque (`hdb`) et le clavier, et l'arrête dès la fin du programme ; `x86 shell --vm dos` est refusé
+  (`no-console`, le profil `dos` ne déclare pas de console série).
 
 ## Limites connues et non vérifié
 

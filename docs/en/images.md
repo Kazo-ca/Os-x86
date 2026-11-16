@@ -22,7 +22,7 @@ rebuilt from official sources pinned by their SHA-256.
 | `images/wine/` | the recipe of the wine image (work item 9): `build-wine.py`, `install-wine.sh`, `winehq-trixie.sources`, `make-prefix.sh`, `prefix-copy.sh`, `trace-hot.sh`, `preload.sh`, `slim-wine.sh`, `osx86-hello.c` |
 | `images/alpine-test/` | the Alpine test image of work item 2, now packed; it carries the agent of work item 5 |
 | `images/agent/` | the guest agent (work item 5): C sources, `Dockerfile`, `build-agent.py`; see [`agent.md`](agent.md) |
-| `images/freedos/` | the FreeDOS recipe: `build-freedos.py`, `FDAUTO.BAT` |
+| `images/freedos/` | the FreeDOS recipe: `build-freedos.py`, `FDAUTO.BAT`; `programs/`: the DOS test programs and the `Dockerfile` of `osx86-nasm` (work item 11) |
 | `images/build/<image>/` | the output (git-ignored); `pack/` is the published form |
 | `tests/OsX86.Tests/Images/` | `unit` tests of the tools and the `guest` test of the Alpine pack |
 | `.github/workflows/images.yml` | CI build, artifacts, Pages and R2 publication |
@@ -298,6 +298,16 @@ image of the agent's `guest` test of work item 5; linux-base has its own since w
 replaced (text prompt instead of the installer, `FDAPM APMDOS` for idling, `OSX86-READY` on
 screen), `SETUP.BAT` removed. Entry `disk`, `boot.kind` = `dos`, VGA text display read every
 33 ms (214 A). Native mtools when on the PATH, else the `osx86-tools` container.
+
+**Version 0.2.0 (work item 11)**: `FDAUTO.BAT` ends with `if exist D:\OSX86RUN.BAT call
+D:\OSX86RUN.BAT`, the call of the program disk `x86 run` gives a DOS VM
+([`programs.md`](programs.md#dos-programs-work-item-11)); without that disk, the prompt comes as
+before. The recipe also assembles the two DOS test programs of `images/freedos/programs/`
+(`osx86key.asm`, `osx86gfx.asm`) with NASM 3.01 pinned (`nasm=3.01-r0` of Alpine 3.24, container
+`osx86-nasm:3.01`, network off) into `images/build/freedos/programs/` (`OSX86KEY.COM`,
+`OSX86GFX.COM`, never committed, not in the image); `--programs-only` builds those alone. In
+`images.yml`, the `freedos` job keeps them in the `freedos-test-programs` artifact (outside the
+published `image-*` pattern) and the `guest` job gives them to `X86RunFreeDosGuestTests`.
 
 ## The image test (210 A)
 

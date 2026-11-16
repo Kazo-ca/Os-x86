@@ -15,7 +15,7 @@ tests. Le registre des VM, le stockage des images et l'agent invité viennent av
 | --- | --- |
 | `src/OsX86/Engine/` | `IEngine`, `EngineState`, `EngineStateMachine`, `EngineStartOptions`, `ConsoleId`, `IEngineConsole`, `LineFramer`, les exceptions |
 | `src/OsX86/Engine/V86/` | `V86Engine` (l'implémentation), `IEngineWorkerChannel` et `JsEngineWorkerChannel` (l'interop JS), `V86Console`, le protocole |
-| `src/OsX86/wwwroot/engine/` | `v86-host.js` (module importé par le C#, crée le worker), `v86-worker.js` (héberge v86), `zstd-seekable.js` (table de recherche zstd) et `disk.js` (disques, cache de trames, couches d'écriture), chantier 6a |
+| `src/OsX86/wwwroot/engine/` | `v86-host.js` (module importé par le C#, crée le worker), `v86-worker.js` (héberge v86), `zstd-seekable.js` (table de recherche zstd) et `disk.js` (disques, cache de trames, couches d'écriture), chantier 6a ; `vga-text.js` (écran texte avec attributs et curseur), chantier 11 |
 | `src/OsX86/Engine/ImageBoot.cs`, `EngineDisk.cs` | le démarrage décrit par le manifeste et la règle de la version majeure (169) ; sources, disques et couches des options de démarrage (chantier 6a) |
 | `src/OsX86/wwwroot/v86/` | v86 vendorisé : `libv86.js` (corrigé), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
 | `tools/v86/` | `vendor-v86.py` (télécharge, vérifie, applique les correctifs) et `patches/` |
@@ -82,6 +82,33 @@ livrée comme une ligne.
 rapporte les changements de mode VGA (colonnes et lignes en mode texte, pixels sinon, `bpp` 0 =
 texte : le signal « DOS graphique » de 164 A, essai E14). Dans ce chantier le worker ne fait que
 redimensionner et noircir le canvas ; le rendu arrive avec les invités graphiques du jalon 1.
+Le chantier 11 s'en sert : un passage à `bpp ≠ 0` pendant un programme DOS l'arrête (217 A).
+
+## La voie DOS : écran avec attributs, clavier, disque en mémoire (chantier 11)
+
+Ce que le chantier 11 ajoute au moteur pour `x86 run` d'un programme DOS
+([`programmes.md`](programmes.md#programmes-dos-chantier-11)) :
+
+- **`ITextModeEngine`** (`EngineTextScreen.cs`), implémentée par `V86Engine` : `ReadTextScreenAsync`
+  rend désormais un `EngineTextScreen` avec `Attributes` (un octet VGA par cellule), `Cursor`
+  (`EngineTextCursor` : ligne, colonne, montré), `BlinkEnabled` et `Graphical` ; `SendScancodesAsync`
+  envoie des scancodes PS/2 du jeu 1 (commande `keys`).
+- **`vga-text.js`** : le seul fichier qui lit des champs internes de v86 (218 A) — le périphérique
+  VGA (`emulator.v86.cpu.devices.vga`), sa mémoire texte, l'adresse de départ, le curseur, le mode
+  d'attributs — en suivant `text_mode_redraw()` et `update_cursor()` de `vga.js` ; sans ces champs
+  (une autre version de v86), il retombe sur les caractères de `screen-put-char`, sans attributs ni
+  curseur (`source: "events"`). La table CP437 y est passée de caractères de contrôle aux glyphes VGA
+  (`☺`, `♥`, `⌂`…).
+- **Réponse `screen`** : `cols`, `rows`, `lines`, `attributes` (base64), `cursor` (`{row, col,
+  visible}` ou `null`), `blink`, `graphical`, `source`.
+- **Clavier** : l'option de démarrage `keyboard` (`EngineStartOptions.Keyboard`) ; sans elle, le
+  worker refuse `keys` (`invalid-state`). `disable_keyboard` de v86 reste vrai : il ne coupe que
+  l'adaptateur du DOM (absent d'un worker), le clavier PS/2 de l'invité est toujours là et
+  `keyboard_send_scancodes` l'alimente. Au plus 256 scancodes par message ; les pauses (Alt tenu) sont
+  faites côté C#.
+- **Disque en mémoire** : `EngineFileSource.InMemory(octets)` (au plus 64 Mio) devient la source
+  `{inline: base64}` ; `disk.js` en fait une `InlineEntry` (pas de fichier OPFS), à mettre sur une
+  couche jetable. C'est le disque du programme d'une exécution DOS (`hdb`).
 
 ## Disques et démarrage décrit par le manifeste (chantier 6a)
 

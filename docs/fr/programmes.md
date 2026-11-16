@@ -1,6 +1,6 @@
 > [English version](../en/programs.md)
 
-# Préfixes, détection et `x86 run`
+# Préfixes, détection, `x86 run` et programmes DOS
 
 Jalon 0, chantier 10 (`j0/10-prefixes-and-detection`). Ce chantier ouvre l'exécution des
 programmes Windows console : les préfixes (un usager invité et une copie de la bouteille gabarit
@@ -8,7 +8,8 @@ par préfixe), la détection du type d'un programme par son en-tête puis son ex
 `x86 prefix` et `x86 run`, qui lance un programme dans un préfixe sur un pty relié au terminal et
 rend son vrai code de sortie ([ordre du jalon](../conception/jalon-0-execution.md)). Le passage par
 le shell de Kazo (`./hello.exe` tapé au terminal, ADR Kazo 0251 et 0252) attend que Kazo ait codé
-ces ADR ; tout ce qui se fait côté Os-x86 sans elles est ici.
+ces ADR ; tout ce qui se fait côté Os-x86 sans elles est ici. Le chantier 11 y ajoute les programmes
+DOS, montrés dans le terminal ([plus bas](#programmes-dos-chantier-11)).
 
 Décisions : 110 (vrai code de sortie), 144 (ce qui s'exécute dans un préfixe a ses droits), 146
 (dossiers entre préfixes), 152 A (gabarit copié, jamais de `wineboot` chez l'usager), 162 A et
@@ -155,7 +156,7 @@ osx86-hello.exe: application/vnd.microsoft.portable-executable
 $ x86 detect old.exe
 old.exe: application/x-dosexec
   DOS MZ executable (by its header)
-  x86 run: no, this is a DOS program: DOS programs will run in a FreeDOS VM in the terminal (work item 11, with ADR 0251 and 0252 of Kazo).
+  x86 run: runs it in a FreeDOS virtual machine, its screen in the terminal
 ```
 
 ## `x86 run`
@@ -173,11 +174,11 @@ Les options de `x86 run` se mettent **avant** le programme : tout ce qui suit le
 passé tel quel, options comprises (`x86 run outil.exe --help`). Pas à pas :
 
 1. **Détection** sur les 4 premiers Kio. Ce qui ne peut pas encore tourner est refusé avec la
-   raison et ce qui viendra (`program-not-supported`, code 6) : DOS (chantier 11), Linux (pas encore
+   raison et ce qui viendra (`program-not-supported`, code 6) : Linux (pas encore
    par `x86 run` ; `x86 shell`), fenêtré, 16 bits et `.msi` (il leur faut un affichage : BoxedWine,
    chantier 13), 64 bits (le processeur émulé, v86, est 32 bits), DLL, autre machine. Passent : les
    programmes console PE32 i386, .NET compris (Mono est dans l'image), et les `.bat`/`.cmd` (par
-   `cmd.exe /c`).
+   `cmd.exe /c`). Un programme DOS prend sa propre voie ([plus bas](#programmes-dos-chantier-11)).
 2. **La VM (194 A)** : `--vm`, sinon la VM « programmes Windows » de l'usager (la seule ; parmi
    plusieurs, celle qui tourne, sinon la plus ancienne). S'il n'en a aucune, Os-x86 en crée une,
    `windows`, depuis le profil livré `wine` (512 Mio, préfixe par défaut `default`), et le dit sur la
@@ -258,6 +259,270 @@ l'autre).
 - **Code de sortie.** Celui de `wine`, donc celui du programme modulo 256 (un code Windows plus
   grand, comme `0xC000013A`, arrive tronqué) : après Ctrl+C, le programme sort avec 58.
 
+## Programmes DOS (chantier 11)
+
+Jalon 0, chantier 11 (`j0/11-dos`). `x86 run` d'un programme DOS (`application/x-dosexec` : un
+`.com`, ou un MZ sans en-tête plus récent) le fait tourner dans une VM FreeDOS et montre son écran
+texte dans le terminal, clavier compris. Décisions : 111 (FreeDOS), 164 A (DOS graphique), 166 A
+(arrêt de la VM avec sa dernière application), 212 A (image sans agent), 214 A (voie VGA à 33 ms,
+comparaison par ligne, attributs), 215 A (écran plein, Ctrl+lettre, accord Échap), 216 A (Ctrl+C au
+programme), 217 A (signal du mode graphique), 218 A (champs internes de v86 dans un seul
+adaptateur). Le passage par le shell de Kazo (`./prog.com`, ADR Kazo 0251) et l'affichage enrichi
+d'un programme invité par le Terminal (ADR Kazo 0252) attendent que Kazo ait codé ces ADR ; d'ici
+là, la Feature se sert de l'`IFullScreenTerminalSession` du SDK de Kazo 3.4.0.
+
+| Chemin | Contenu |
+| --- | --- |
+| `src/OsX86/Dos/DosProgramDisk.cs` | le disque du programme : MBR, une partition FAT12, les fichiers à la racine |
+| `src/OsX86/Dos/DosRunScript.cs` | noms 8.3, ligne de commande DOS, `OSX86RUN.BAT`, lecture des marqueurs de COM1 |
+| `src/OsX86/Dos/GuestKeyboard.cs` | `GuestKey`, traduction en scancodes PS/2 (jeu 1, clavier US), accord Échap (`EscapeChord`) |
+| `src/OsX86/Dos/TextScreenDiff.cs` | la comparaison par ligne (texte et attributs) et du curseur |
+| `src/OsX86/Vm/VmManager.Dos.cs`, `VmInstance.Dos.cs`, `DosProgramSession.cs` | choix de la VM DOS, démarrage avec le disque du programme et le clavier, session (écran, touches, début, fin, mode graphique), arrêt |
+| `src/OsX86/Engine/EngineTextScreen.cs` | l'écran texte avec attributs et curseur, `ITextModeEngine` |
+| `src/OsX86/wwwroot/engine/vga-text.js` | le seul lecteur des champs internes de la VGA de v86 (218 A) |
+| `src/OsX86.Feature/X86Command.Dos.cs` | `x86 run` d'un programme DOS |
+| `src/OsX86.Feature/GuestScreenTerminal.cs` | `IGuestScreenTerminal` (la frontière que l'ADR 0252 enrichira), son adaptateur `KazoFullScreenTerminal` (SDK 3.4.0), les couleurs VGA |
+| `src/OsX86.Feature/DosTerminalBridge.cs` | le pont : sondage, comparaison, rendu, touches, mesures |
+| `images/freedos/FDAUTO.BAT`, `images/freedos/programs/` | l'appel de `D:\OSX86RUN.BAT` ; les programmes de test en assembleur (NASM) |
+| `tests/OsX86.Tests/Dos/`, `Engine/TextModeEngineTests.cs` | tests `unit` |
+| `tests/OsX86.Tests/Vm/X86RunFreeDosGuestTests.cs` | test `guest` sur FreeDOS |
+
+```text
+$ x86 detect old.exe
+old.exe: application/x-dosexec
+  DOS MZ executable (by its header)
+  x86 run: runs it in a FreeDOS virtual machine, its screen in the terminal
+$ x86 run outil.com a1 b2
+x86: created the virtual machine dos (…) for DOS programs, from the profile dos.
+        (l'écran du programme occupe le terminal jusqu'à sa fin)
+OSX86 DOS TEST                          (puis son dernier écran reste dans l'historique)
+ARGS:[ a1 b2]
+…
+```
+
+### `x86 run` d'un programme DOS
+
+1. **Détection** (162 A) : un programme `application/x-dosexec` prend la voie DOS. `--prefix`,
+   `--cols` et `--rows` sont refusés (code 2) : une VM DOS n'a pas de préfixe et l'écran a la taille
+   que le programme lui donne.
+2. **Le terminal doit offrir l'écran plein** (`TerminalExecutionContext.FullScreen`) ; sinon (script,
+   tube), refus avec code 6.
+3. **La VM DOS** : `--vm` (une VM du genre `dos`, arrêtée), sinon la plus ancienne VM DOS arrêtée de
+   l'usager ; s'il n'en a pas d'arrêtée, Os-x86 en crée une, `dos` (puis `dos-2`…), depuis le profil
+   livré `dos` (image `freedos` 0.2.0, 64 Mio, sans agent ni console série, 212 A), et le dit.
+4. **Le disque du programme** est fait en mémoire (choix plus bas) et la VM démarre avec lui comme
+   `hdb` et le clavier actif ; l'image est téléchargée au besoin avec sa progression (chantier 6b).
+5. **L'écran** du terminal passe en écran alterné : « starting the DOS virtual machine… » pendant que
+   FreeDOS démarre, puis l'écran du programme dès que le lot l'annonce sur COM1.
+6. **Les touches** tapées vont au programme ; Ctrl+C aussi (216 A).
+7. **La fin** : quand le lot écrit le code du programme sur COM1, le dernier écran est lu, l'écran
+   alterné rendu, ce dernier écran écrit sur la sortie (il reste dans l'historique du terminal), et la
+   VM **s'arrête aussitôt** (166 A, sans délai de grâce : voir plus bas). Le code du programme
+   (`ERRORLEVEL`, 0 à 255) est celui de la commande (110).
+8. **Mode graphique** : message, arrêt du programme et de la VM, code 6 (217 A).
+
+`OSX86_DOS_STATS=1` dans l'environnement fait écrire les mesures des rafraîchissements sur la sortie
+d'erreur (`x86: DOS screen: … polls, … frames, … rows changed; read …; frame …; key to screen …`,
+médiane, 90e centile et maximum en millisecondes).
+
+### La VM DOS (choix)
+
+- **Un programme par démarrage.** Le programme arrive sur un disque qu'on ne peut donner qu'au
+  démarrage (v86 ne branche pas de disque à chaud) : une VM DOS en marche est occupée ; nommée par
+  `--vm`, elle est refusée (`vm-busy`, code 5) ; sans `--vm`, Os-x86 prend une VM DOS arrêtée ou en
+  crée une autre (165 A : pas de question sous la limite de mémoire, que le démarrage vérifie).
+- **Arrêt aussitôt la fin.** Le programme est l'application de la VM (166 A). À sa fin, la VM
+  s'arrête sans attendre le délai de grâce, qui ne garderait qu'une VM que personne ne peut plus
+  utiliser. Une VM DOS tenue par `x86 vm start` (sans programme) ne prend pas de programme.
+- **Pas d'agent.** FreeDOS n'en a pas (212 A) : le démarrage d'une VM `dos` n'attend aucune connexion
+  d'agent. `x86 shell --vm dos` est refusé (`no-console`) : le profil ne déclare pas de console
+  série, COM1 ne porte que le début et la fin d'un programme.
+- **Le disque de FreeDOS (`hda`)** garde la couche d'écriture persistante de la VM (chantier 6b) : ce
+  qu'un programme écrit sur `C:` reste d'un lancement à l'autre.
+
+### Le programme sur un second disque (choix)
+
+Le programme et son lot vont sur un **second disque dur** (`hdb`), fait en mémoire par le C# à chaque
+lancement et envoyé avec les options de démarrage (`EngineFileSource.InMemory`, source `{inline}` de
+`disk.js`) : jamais rangé dans l'OPFS, ses écritures jetées avec le moteur. Écarté : écrire le
+programme dans la couche d'écriture de `hda`, qui demanderait de tenir à jour depuis l'hôte la FAT16
+de FreeDOS (allocation, répertoire) dans une couche que l'invité écrit lui aussi, et laisserait des
+copies sur le disque de la VM.
+
+- **Format** : un MBR, une partition primaire FAT12 (type 0x01) au secteur 63, géométrie de v86
+  (16 têtes, 63 secteurs par piste), taille arrondie au cylindre. FreeDOS la monte en `D:` (`hda` a
+  une seule partition, `C:`). FAT12 parce que le disque est petit : au plus 16 Mio de fichiers, plus
+  1 Mio de place libre pour ce que le programme écrit à côté de lui (perdu à l'arrêt).
+- **Fichiers** : le programme sous un nom 8.3 (`ToShortName` : dernier élément du nom, majuscules,
+  lettres, chiffres, `_` et `-`, 8 caractères, extension `.COM` ou `.EXE` gardée, sinon `.EXE` pour un
+  MZ et `.COM` pour le reste ; un nom de périphérique comme `CON`, ou celui du lot, prend un `_`) et
+  `OSX86RUN.BAT`.
+- **Arguments** : joints par des blancs, un argument avec un blanc entre guillemets, `%` doublé pour
+  le lot ; refusés (code 6) : ce qui n'est pas de l'ASCII imprimable, `|`, `<`, `>`, `"`, et une ligne
+  de plus de 125 caractères (la queue de commande de DOS).
+
+### Lancement et fin sans agent
+
+Le `FDAUTO.BAT` de l'image (version 0.2.0) finit par `if exist D:\OSX86RUN.BAT call D:\OSX86RUN.BAT`.
+Le lot, écrit par Os-x86 :
+
+```bat
+@ECHO OFF
+REM Os-x86 (work item 11): runs one DOS program, its end and ERRORLEVEL told on COM1.
+CLS
+D:
+CD \
+ECHO OSX86-START >COM1
+D:\OUTIL.COM a1 b2
+ECHO OSX86-EXIT %ERRORLEVEL% >COM1
+PAUSE >NUL
+```
+
+Les deux marqueurs passent par **COM1** (le port série, jamais l'écran) ; la session les lit sur
+`serial0`. `OSX86-START` dit que FreeDOS a démarré et que le programme part (l'écran est montré à
+partir de là) ; `OSX86-EXIT <n>` donne le **vrai code de sortie** (`%ERRORLEVEL%` de FreeCOM, vérifié
+par le test `guest` : 3 et 42). `PAUSE >NUL` attend une touche qui ne vient jamais (FreeDOS reste
+oisif avec `FDAPM APMDOS`) : le dernier écran du programme ne bouge plus jusqu'à l'arrêt de la VM.
+Sans le disque `D:`, `FDAUTO.BAT` rend l'invite comme avant, sans message (vérifié par
+`FreeDosGuestTests`).
+
+### L'écran (214 A, 218 A)
+
+- **Lecture** : le pont lit l'écran toutes les **33 ms** (`ReadTextScreenAsync`). Le worker le lit
+  dans la mémoire VGA de v86 par `vga-text.js`, **seul fichier qui touche les champs internes de
+  v86** (`vga_memory`, `start_address`, `cursor_address`, `attribute_mode`… de v86 0.5.473, 218 A) :
+  caractères CP437 rendus en Unicode (glyphes VGA, `☺`, `╔`…), un octet d'attribut par cellule, le
+  curseur matériel (position, montré ou caché), le clignotement. Si une version de v86 n'a plus ces
+  champs, il retombe sur les caractères de l'événement public `screen-put-char`, en gris sur noir,
+  sans curseur.
+- **Comparaison par ligne** (`TextScreenDiff`) : seules les lignes dont le texte ou les attributs ont
+  changé sont reformatées ; rien n'est envoyé au terminal quand ni une ligne ni le curseur n'ont
+  changé.
+- **Rendu** (`IGuestScreenTerminal`, adaptateur `KazoFullScreenTerminal`) : le SDK 3.4.0 remplace la
+  trame entière à chaque `RenderAsync` ; chaque ligne porte ses couleurs en séquences SGR 24 bits
+  (palette VGA par défaut ; le thème du terminal ne change pas l'allure d'un programme DOS), comme
+  `htop` colore ses lignes ; le curseur suit celui de la VGA. Quand la fenêtre a moins de lignes que
+  l'écran du programme, les lignes montrées suivent le curseur ; les colonnes au-delà de la largeur
+  sont coupées (80 x 25 voulus, 215 A). Un redimensionnement redessine tout.
+- **L'ADR 0252** enrichira `IGuestScreenTerminal` (couleurs par cellule et touches de fonction
+  natives, envoi des seules lignes changées si le Terminal le permet) sans toucher au pont : les
+  capacités (`GuestTerminalCapabilities`) disent déjà ce qu'un terminal sait faire.
+
+### Le clavier et les accords (215 A, 216 A)
+
+Le clavier PS/2 de v86 reçoit des **scancodes du jeu 1** (commande `keys` du worker), pour la voie
+DOS seulement : le worker refuse `keys` à un moteur démarré sans `keyboard: true`.
+
+| Touche du terminal | Ce que reçoit le programme |
+| --- | --- |
+| lettres, chiffres, ponctuation du clavier US | la touche, avec Maj quand il le faut (`A`, `!`) |
+| Entrée, Retour arrière, Tab, Maj+Tab, Échap | la touche |
+| flèches, Début, Fin, Suppr, Page préc., Page suiv. | la touche étendue (préfixe 0xE0) ; Kazo 3.4.0 les a |
+| Ctrl+lettre | Ctrl tenu autour de la lettre ; **Ctrl+C va au programme** (216 A) |
+| Alt+lettre (préfixe Méta décodé par Kazo) | Alt tenu |
+| **Échap puis lettre** | **Alt+lettre** (accord, 215 A) |
+| **Échap puis 1 à 9, 0** | **F1 à F10** |
+| **Échap puis `-`, `=`** | **F11, F12** (les deux touches qui suivent 0 sur la même rangée : proposition de ce chantier) |
+| Échap puis Échap | un Échap |
+| Échap seul | envoyé après 800 ms sans seconde touche |
+| Échap puis une autre touche | Échap puis cette touche |
+| caractère sans touche sur un clavier US (`é`…) | rien |
+
+Alt est tenu en trois envois espacés de **40 ms** (Alt enfoncé, la touche, Alt relâché) : E14 a
+mesuré qu'EDIT ignore Alt+F envoyé d'une rafale. En écran plein, le Terminal de Kazo 3.4.0 donne
+Ctrl+C au programme comme une touche quand rien n'est sélectionné (une sélection est copiée). Pour
+**tuer** un programme DOS qui ne rend pas la main : `x86 vm stop --force dos` dans un autre onglet du
+terminal (la commande rend alors `console-closed`) ; ni Ctrl+Pause ni bouton du Terminal en 3.4.0.
+
+### Mode graphique (217 A, 164 A)
+
+Le signal est l'événement `screen-set-size` de v86 avec `bpp ≠ 0`, remonté par le worker
+(`screen-size`) puis `IEngine.ScreenSizeChanged`. Seul compte un passage après le début du
+programme (le BIOS et FreeDOS changent de mode en démarrant) ; un passage vu avant la ligne
+`OSX86-START` compte dès qu'elle arrive (COM1 est vidé toutes les 4 ms alors que le changement de
+mode part aussitôt : le test `guest` l'a montré). Sans BoxedWine, l'écran alterné est rendu, le
+message dit le mode et la décision, le programme et la VM sont arrêtés, code 6 :
+
+```text
+x86: the DOS program switched to a graphical mode (320x200, 8 bits per pixel). Graphical DOS programs are shown by BoxedWine (decisions 164 A and 217 A), which is not installed: the program and its virtual machine dos were stopped.
+```
+
+La reprise de la VM par BoxedWine (217 A : même VM, canvas dans une fenêtre, retour au Terminal en
+mode texte) viendra avec BoxedWine (chantier 13).
+
+### Mesures (DOS)
+
+Test `guest` `X86RunFreeDosGuestTests`, trois passages, même hôte que plus bas (Windows 11, Ryzen 7
+3700X, Chrome sans tête par Playwright, pack FreeDOS depuis une origine locale) :
+
+| Mesure | Valeur |
+| --- | --- |
+| Premier `x86 run` : VM créée, pack téléchargé et vérifié (16,4 Mio), démarrage de FreeDOS jusqu'à l'écran du programme | 2,7 à 2,9 s |
+| `x86 run` suivant (image installée), jusqu'à l'écran du programme | 2,5 à 2,7 s |
+| Programme graphique, du lancement à l'arrêt de la VM | 2,6 à 2,9 s |
+| **Touche → écran** (de la touche reçue du terminal au rendu qui la montre ; 20 touches une à une) | médiane 47,8 à 48,6 ms, p90 49,5 à 51,6 ms, max 64 à 65 ms |
+| Lecture de l'écran (aller-retour C# → worker, 80 x 25 avec attributs) | médiane 1,8 à 2,0 ms, max 2,8 à 3,9 ms |
+| Formatage et rendu d'une trame | ≤ 0,3 ms |
+| Tours de sondage utiles | 22 trames pour 35 tours pendant la frappe ; aucun envoi à l'oisiveté |
+
+La touche → écran rejoint E14 (environ 50 ms en médiane, moins de 100 ms) : la part de FreeDOS
+(réveil de v86 au tic du PIT, 55 ms, avec `FDAPM APMDOS`) domine, pas le terminal.
+
+### Vérifié dans l'hôte de développement
+
+Dans le Terminal de Kazo 3.4.0 de `OsX86.Os` (session invitée), avec `OSX86KEY.COM` et `OSX86GFX.COM`
+envoyés par le bouton « Upload » de l'Explorateur de fichiers puis copiés dans
+`~/.config/ca.kazo.x86/` (la commande ne lit que son dossier privé, voir les limites) :
+`x86 run …/osx86key.com a1 b2` crée la VM `dos`, télécharge FreeDOS 0.2.0, montre l'écran (titre
+jaune sur bleu, curseur), reçoit `a`, `B`, Tab, Échap+x (`K=2D00`, Alt+X), Échap+1 (`K=3B00`, F1),
+la flèche haut, Ctrl+A, Ctrl+C (code 3) ; un second lancement finit par Entrée (code 42) ; le
+programme graphique rend le message et le code 6 ; `x86 vm list` montre la VM `dos` arrêtée après
+chaque programme. Le Ctrl+C tapé par l'outil d'automatisation du navigateur n'atteignait pas la page
+(l'outil le prend pour « copier ») : envoyé à xterm.js comme une touche, il est arrivé au programme.
+
+### Tests (DOS)
+
+- **`unit`** : `DosProgramDiskTests` (le disque relu comme DOS le lit : MBR, BPB, chaînes de
+  clusters, FAT12 par le nombre de clusters, gros programme, noms 8.3, arguments, lot, marqueurs),
+  `GuestKeyboardTests` (scancodes, Maj, Ctrl+C, Alt tenu 40 ms, touches étendues, F1 à F12, accord
+  Échap, délai d'Échap seul, comparaison des lignes et des attributs), `DosRunTests` (choix et
+  création de la VM DOS, démarrage avec `hdb` en mémoire, clavier et sans agent, marqueurs de COM1,
+  arrêt aussitôt, mode graphique avant et après la ligne de début, VM arrêtée sous le programme,
+  refus), `DosTerminalTests` (`x86 run` sur un écran plein simulé : écran, couleurs, curseur, touches
+  et accords, code de sortie, dernier écran, mesures, mode graphique, VM morte, refus ; trames,
+  fenêtre plus petite, touches de Kazo), `TextModeEngineTests` (commande `keys`, option `keyboard`,
+  source `{inline}`, écran avec attributs), et `disk-tests.js` sous Node (disque `{inline}`,
+  `vga-text.js` sur une VGA simulée et sans ses champs).
+- **`guest`** : `X86RunFreeDosGuestTests`, sur le pack FreeDOS et les programmes de test, dans un
+  vrai navigateur, avec le moteur, le stockage et le `VmManager` de production et un écran plein
+  simulé (le Terminal de Kazo n'existe pas dans le test) : `x86 detect` ; `x86 run osx86key.com a1 b2`
+  (écran, couleurs, curseur, `a`, `B`, Tab, Alt+X et F1 par l'accord, flèche, Ctrl+C → code 3, VM
+  arrêtée) ; un second `x86 run` (20 touches une à une, Entrée → 42) ; `x86 run osx86gfx.com` (mode
+  13h → message, code 6, VM arrêtée). Son nom contient `FreeDosGuestTests` : le job `guest`
+  d'`images.yml` le lance avec le pack et l'artefact `freedos-test-programs`.
+- **Programmes de test** : `images/freedos/programs/osx86key.asm` (titre en couleur, arguments, lit
+  les touches par l'int 16h du BIOS, écrit `K=` scancode et ASCII, Entrée → 42, Ctrl+C → 3, int 23h
+  détourné pour que DOS ne prenne jamais Ctrl+C) et `osx86gfx.asm` (mode 13h, une diagonale, attend
+  une touche) ; assemblés par NASM 3.01 épinglé (`nasm=3.01-r0` d'Alpine 3.24) dans le conteneur
+  `osx86-nasm:3.01`, jamais commis.
+
+### Limites et non vérifié (DOS)
+
+- **Lecture des fichiers de l'usager** : la commande `x86` ne déclare que `filesystem.private.read`
+  et `.write` ; dans Kazo elle ne lit donc pas `~/prog.com` (« no file »), ni un programme Windows
+  (même limite pour le chantier 10). Les permissions déclarées viennent avec la Feature (chantier 8).
+- **Ctrl+C pris par DOS** : un programme qui lit par les fonctions de DOS avec `BREAK` peut être
+  arrêté par DOS lui-même, et FreeCOM demande alors s'il faut arrêter le lot (« Terminate batch job
+  (Y/N)? ») ; non provoqué. Le programme de test lit par le BIOS et détourne l'int 23h.
+- **Non vérifié** : EDIT et d'autres programmes réels de FreeDOS par `x86 run` (seuls les programmes
+  de test) ; un mode texte de 50 lignes ; un programme `.EXE` réel et un programme qui écrit sur
+  `D:` ; Firefox et Safari ; l'ADR 0252 (pas codée).
+- Un seul fichier copié : un programme qui a besoin de fichiers à côté de lui ne les trouve pas.
+- Pas de clavier autre que US (pas de `KEYB` dans FreeDOS, un `é` ne part pas) ; pas d'Alt+pavé
+  numérique.
+- 16 couleurs de la palette VGA par défaut : une palette changée par le programme (DAC) n'est pas
+  suivie ; le clignotement (bit 7 quand il est actif) n'est pas rendu.
+
 ## `Ix86` : ce qui est ajouté, et pourquoi
 
 | Ajout | Pour qui |
@@ -322,7 +587,7 @@ fichiers chauds du chantier 9 tourne au démarrage de l'image et en prend une pa
   pty à son émulateur VT au lieu du filtre ligne par ligne ; la frappe ira caractère par caractère
   (et la frappe perdue au démarrage de la console de Wine disparaîtra avec le mode ligne).
 - **Chantier 8** : permission `x86.programs.launch` sur `RunProgramAsync`, enregistrement d'`Ix86`.
-- **Chantier 11** : programmes DOS ; **chantier 13** : BoxedWine (fenêtrés, installateurs).
+- **Chantier 13** : BoxedWine (fenêtrés, installateurs, DOS graphique).
 
 ## Limites connues et non vérifié
 
