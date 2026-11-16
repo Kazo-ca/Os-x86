@@ -22,6 +22,8 @@ public sealed class DosProgramSession : IAsyncDisposable
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<ScreenSizeChangedEventArgs> _graphics = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Task _markers;
+    private readonly Lock _mode = new();
+    private ScreenSizeChangedEventArgs? _lastMode;
     private VmApplication? _application;
     private int _disposed;
 
@@ -156,11 +158,11 @@ public sealed class DosProgramSession : IAsyncDisposable
             {
                 if (DosRunScript.IsStart(line))
                 {
-                    _started.TrySetResult();
+                    MarkStarted();
                 }
                 else if (DosRunScript.ParseExit(line) is { } code)
                 {
-                    _started.TrySetResult();
+                    MarkStarted();
                     _exited.TrySetResult(code);
                 }
             }
@@ -186,12 +188,34 @@ public sealed class DosProgramSession : IAsyncDisposable
         _exited.TrySetException(stopped);
     }
 
+    /// <summary>
+    /// The start line arrived. The serial port is flushed every few milliseconds while the mode change
+    /// is posted at once: a program that switches to a graphical mode right away can be seen switching
+    /// before its start line, so the last mode is looked at again here.
+    /// </summary>
+    private void MarkStarted()
+    {
+        lock (_mode)
+        {
+            _started.TrySetResult();
+            if (_lastMode is { IsText: false } mode && !_exited.Task.IsCompleted)
+            {
+                _graphics.TrySetResult(mode);
+            }
+        }
+    }
+
     private void OnScreenSizeChanged(object? sender, ScreenSizeChangedEventArgs e)
     {
-        // The BIOS and FreeDOS set text modes while they boot; only the program's own switch counts.
-        if (!e.IsText && _started.Task.IsCompletedSuccessfully && !_exited.Task.IsCompleted)
+        lock (_mode)
         {
-            _graphics.TrySetResult(e);
+            // The BIOS and FreeDOS set text modes while they boot (the batch clears the screen in text
+            // mode before its start line); the program's own switch counts, and the last mode is kept.
+            _lastMode = e;
+            if (!e.IsText && _started.Task.IsCompletedSuccessfully && !_exited.Task.IsCompleted)
+            {
+                _graphics.TrySetResult(e);
+            }
         }
     }
 }

@@ -99,6 +99,7 @@ public sealed partial class DosRunTests
         VmInstance instance = await rig.Manager.GetInstanceAsync(User, session.VmId, None);
 
         engine.RaiseScreenSize(720, 400, 8); // the BIOS while FreeDOS boots: not the program's
+        engine.RaiseScreenSize(80, 25, 0);
         engine.SendSerialLine("Booting...");
         engine.SendSerialLine("OSX86-START ");
         await session.Started.WaitAsync(VmTestRig.Soon);
@@ -128,6 +129,20 @@ public sealed partial class DosRunTests
         ScreenSizeChangedEventArgs mode = await session.GraphicsModeEntered.WaitAsync(VmTestRig.Soon);
         Assert.Equal(320, mode.Columns);
         Assert.Equal(8, mode.BitsPerPixel);
+    }
+
+    [Fact]
+    public async Task A_graphical_mode_seen_before_the_start_line_counts_once_the_program_started()
+    {
+        await using VmTestRig rig = DosRig();
+        await using DosProgramSession session = await rig.Manager.RunDosProgramAsync(User, Run(), None);
+        FakeEngine engine = rig.Engines.Last;
+
+        engine.RaiseScreenSize(320, 200, 8); // posted at once, while the start line waits in the serial buffer
+        Assert.False(session.GraphicsModeEntered.IsCompleted);
+        engine.SendSerialLine("OSX86-START");
+
+        Assert.Equal(200, (await session.GraphicsModeEntered.WaitAsync(VmTestRig.Soon)).Rows);
     }
 
     [Fact]
