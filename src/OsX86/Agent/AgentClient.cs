@@ -250,10 +250,10 @@ public sealed partial class AgentClient : IAsyncDisposable
 
     private AgentStatus Accept(AgentStatus status)
     {
-        if (status.ProtocolVersion != AgentProtocol.Version)
+        if (status.ProtocolVersion is < AgentProtocol.MinimumVersion or > AgentProtocol.Version)
         {
             throw new AgentProtocolException(AgentErrorCodes.UnsupportedVersion,
-                $"The agent speaks version {status.ProtocolVersion} of the protocol; this client speaks version {AgentProtocol.Version}.");
+                $"The agent speaks version {status.ProtocolVersion} of the protocol; this client speaks versions {AgentProtocol.MinimumVersion} to {AgentProtocol.Version}.");
         }
 
         lock (_lock)

@@ -1,4 +1,5 @@
 using OsX86.Interface;
+using OsX86.Programs;
 
 namespace OsX86.Vm;
 
@@ -80,6 +81,17 @@ public sealed class X86Service : Ix86
     /// <inheritdoc />
     public ValueTask<IVmConsole> OpenConsoleAsync(Guid vmId, VmConsoleOptions options, CancellationToken cancellationToken) =>
         Manager.OpenConsoleAsync(UserId, vmId, options, cancellationToken);
+
+    /// <inheritdoc />
+    public ValueTask<ProgramDetection> DetectProgramAsync(ReadOnlyMemory<byte> header, string? fileName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(ProgramDetector.Detect(header.Span, ProgramDetector.ExtensionOf(fileName) ?? fileName));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IVmConsole> RunProgramAsync(ProgramRunOptions options, CancellationToken cancellationToken) =>
+        Manager.RunProgramAsync(UserId, options, cancellationToken);
 
     private void OnInstanceStateChanged(object? sender, VmInstanceEventArgs<VmStateChangedEventArgs> e)
     {

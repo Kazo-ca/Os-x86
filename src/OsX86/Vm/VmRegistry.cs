@@ -1,4 +1,5 @@
 using OsX86.Interface;
+using OsX86.Prefixes;
 using OsX86.Profiles;
 
 namespace OsX86.Vm;
@@ -157,6 +158,66 @@ public sealed class VmRegistry
             VmRegistryDocument document = await ReadAsync(userId, cancellationToken).ConfigureAwait(false);
             IReadOnlyList<VmProfile> others = [.. document.Profiles.Where(p => !string.Equals(p.Name, profile.Name, StringComparison.OrdinalIgnoreCase))];
             await WriteAsync(new VmRegistryDocument { User = userId, Vms = document.Vms, Profiles = [.. others, profile] }, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Adds a prefix to a VM (work item 10): <c>x86 prefix create</c>, or the default prefix on its
+    /// first use (<paramref name="ifMissing"/>: no error when it is already there).
+    /// </summary>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.PrefixExists"/>.</exception>
+    public ValueTask<VmRecord> AddPrefixAsync(Guid userId, Guid vmId, PrefixId prefix, bool ifMissing, CancellationToken cancellationToken) =>
+        UpdateVmAsync(userId, vmId, vm =>
+        {
+            if (vm.EffectivePrefixes.Any(p => p.Id == prefix))
+            {
+                return ifMissing ? vm : throw new X86Exception(X86ErrorCodes.PrefixExists, $"The virtual machine {vm.Name} already has a prefix named '{prefix}'.");
+            }
+
+            return vm.WithPrefixes([.. vm.EffectivePrefixes, new Prefix(prefix, _time.GetUtcNow())], vm.EffectivePendingPrefixDeletions);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Removes a prefix from a VM. When the guest could not delete its user and files (the VM is
+    /// stopped), the prefix is kept for deletion at the next start.
+    /// </summary>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.PrefixNotFound"/>.</exception>
+    public ValueTask<VmRecord> RemovePrefixAsync(Guid userId, Guid vmId, PrefixId prefix, bool deletedInGuest, CancellationToken cancellationToken) =>
+        UpdateVmAsync(userId, vmId, vm =>
+        {
+            if (!vm.KnowsPrefix(prefix))
+            {
+                throw new X86Exception(X86ErrorCodes.PrefixNotFound, $"The virtual machine {vm.Name} has no prefix named '{prefix}'.");
+            }
+
+            IReadOnlyList<PrefixId> pending = deletedInGuest || vm.EffectivePendingPrefixDeletions.Contains(prefix)
+                ? vm.EffectivePendingPrefixDeletions
+                : [.. vm.EffectivePendingPrefixDeletions, prefix];
+            return vm.WithPrefixes([.. vm.EffectivePrefixes.Where(p => p.Id != prefix)], pending);
+        }, cancellationToken);
+
+    /// <summary>Forgets the deletions the guest has done (at the start of the VM).</summary>
+    public ValueTask<VmRecord> CompletePrefixDeletionsAsync(Guid userId, Guid vmId, IReadOnlyCollection<PrefixId> done, CancellationToken cancellationToken) =>
+        UpdateVmAsync(userId, vmId, vm => vm.WithPrefixes(vm.EffectivePrefixes, [.. vm.EffectivePendingPrefixDeletions.Where(p => !done.Contains(p))]), cancellationToken);
+
+    private async ValueTask<VmRecord> UpdateVmAsync(Guid userId, Guid vmId, Func<VmRecord, VmRecord> change, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            VmRegistryDocument document = await ReadAsync(userId, cancellationToken).ConfigureAwait(false);
+            VmRecord existing = document.Vms.FirstOrDefault(vm => vm.Id == vmId) ?? throw NotFound(vmId);
+            VmRecord changed = change(existing);
+            if (!ReferenceEquals(changed, existing))
+            {
+                await WriteAsync(new VmRegistryDocument { User = userId, Vms = [.. document.Vms.Select(vm => vm.Id == vmId ? changed : vm)], Profiles = document.Profiles }, cancellationToken).ConfigureAwait(false);
+            }
+
+            return changed;
         }
         finally
         {

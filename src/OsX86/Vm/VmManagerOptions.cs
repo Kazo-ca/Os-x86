@@ -30,6 +30,15 @@ public sealed record VmManagerOptions
     /// <summary>How long a console is given to end on its own when it is closed (208 A: SIGHUP, then <c>cgroup.kill</c>).</summary>
     public TimeSpan ConsoleCloseGrace { get; init; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// How long the Wine session of a prefix (its wineserver and services, work item 10) is kept once
+    /// its last program ended: a program run again soon finds it up. Zero ends it at once.
+    /// </summary>
+    public TimeSpan PrefixSessionGrace { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>How long the Wine session of a prefix may take to start (wineserver, then wineboot --init).</summary>
+    public TimeSpan PrefixSessionStartTimeout { get; init; } = TimeSpan.FromSeconds(180);
+
     /// <summary>Checks the options; throws <see cref="ArgumentOutOfRangeException"/> naming the first invalid one.</summary>
     public void Validate()
     {
@@ -64,6 +73,16 @@ public sealed record VmManagerOptions
         {
             throw new ArgumentOutOfRangeException(nameof(ConsoleCloseGrace), ConsoleCloseGrace, "The grace must be zero or positive.");
         }
+
+        if (PrefixSessionGrace < TimeSpan.Zero || PrefixSessionGrace > AgentClientOptions.MaximumDelay)
+        {
+            throw new ArgumentOutOfRangeException(nameof(PrefixSessionGrace), PrefixSessionGrace, "The grace must be zero or positive.");
+        }
+
+        if (PrefixSessionStartTimeout < TimeSpan.FromSeconds(1) || PrefixSessionStartTimeout > TimeSpan.FromHours(1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(PrefixSessionStartTimeout), PrefixSessionStartTimeout, "The timeout is 1 s to 1 h.");
+        }
     }
 }
 
@@ -75,6 +94,9 @@ public enum VmChildKind
 
     /// <summary>A console (a pseudo-terminal with a shell) opened through the agent.</summary>
     Console = 1,
+
+    /// <summary>The Wine session of a prefix (work item 10): its wineserver and services, kept between its programs; not an application.</summary>
+    Session = 2,
 }
 
 /// <summary>One child of a running VM: a launch of the agent, registered at <c>launch</c>, removed at <c>exit</c> (207 A).</summary>

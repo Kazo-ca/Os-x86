@@ -13,7 +13,7 @@ namespace OsX86.Vm;
 /// pings the agent and declares it lost. Every lifecycle operation runs under one lock, so a start
 /// and a stop never overlap; the state and its changes are reported through events.
 /// </summary>
-public sealed class VmInstance
+public sealed partial class VmInstance
 {
     private readonly VmManager _manager;
     private readonly TimeProvider _time;
@@ -817,10 +817,18 @@ public sealed class VmInstance
             _applications = 0;
             _held = false;
             CancelGraceUnsafe();
+            ResetProgramsUnsafe();
         }
 
         try
         {
+            // Work item 10: what the prefixes wrote reaches the disk before the engine stops (the
+            // guest's file systems keep a second or so of writes in memory).
+            if (agent is not null && engine is { State: EngineState.Running })
+            {
+                await SyncQuietlyAsync(agent).ConfigureAwait(false);
+            }
+
             runStop?.Cancel();
             foreach (SerialVmConsole serial in serials)
             {

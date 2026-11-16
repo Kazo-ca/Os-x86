@@ -10,7 +10,7 @@ namespace OsX86.Vm;
 /// every user but names only the caller's. One manager per host (the Feature keeps it; the
 /// command of the skeleton shares it through <c>X86Runtime</c>).
 /// </summary>
-public sealed class VmManager : IAsyncDisposable
+public sealed partial class VmManager : IAsyncDisposable
 {
     // Keyed by owner and VM: a GUID copied into another user's registry never reaches this user's instance (190 A).
     private readonly Dictionary<(Guid User, Guid Vm), VmInstance> _instances = [];

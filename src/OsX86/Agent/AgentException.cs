@@ -87,6 +87,15 @@ public static class AgentErrorCodes
 
     /// <summary>Client: the agent speaks another version of the protocol.</summary>
     public const string UnsupportedVersion = "unsupported-version";
+
+    /// <summary>Protocol 2: the image has no <c>/usr/lib/osx86/prefix-admin</c> and no user for the prefix.</summary>
+    public const string NoPrefixSupport = "no-prefix-support";
+
+    /// <summary>Protocol 2: <c>prefix-admin</c> failed; the message carries its last line.</summary>
+    public const string PrefixFailed = "prefix-failed";
+
+    /// <summary>Protocol 2: <c>put-file</c> could not write; the message carries the reason.</summary>
+    public const string PutFailed = "put-failed";
 }
 
 /// <summary>An error of the agent protocol, with the code of <see cref="AgentErrorCodes"/> that names it.</summary>

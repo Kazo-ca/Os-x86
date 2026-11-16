@@ -52,6 +52,16 @@ internal sealed class AgentRequest
     public int? Rows { get; init; }
 
     public IReadOnlyList<int>? Keep { get; init; }
+
+    public string? Path { get; init; }
+
+    public string? Data { get; init; }
+
+    public long? Offset { get; init; }
+
+    public bool? Truncate { get; init; }
+
+    public int? Mode { get; init; }
 }
 
 /// <summary>
@@ -130,6 +140,28 @@ internal sealed class AgentMessage
     public List<AgentMountEntry>? Mounts { get; set; }
 
     public List<AgentWindowEntry>? Windows { get; set; }
+
+    public bool Created { get; set; }
+
+    public bool Deleted { get; set; }
+
+    public string? Home { get; set; }
+
+    public long Size { get; set; }
+
+    public bool Admin { get; set; }
+
+    public List<AgentPrefixEntry>? Prefixes { get; set; }
+}
+
+/// <summary>An entry of the <c>prefix-list</c> reply (protocol 2).</summary>
+internal sealed class AgentPrefixEntry
+{
+    public string? Prefix { get; set; }
+
+    public int Uid { get; set; }
+
+    public string? Home { get; set; }
 }
 
 /// <summary>An entry of the <c>list-processes</c> reply.</summary>
@@ -207,8 +239,11 @@ internal sealed partial class AgentJsonContext : JsonSerializerContext
 /// <summary>Serializes the requests, parses the lines and maps the replies of the agent protocol to the public types.</summary>
 internal static class AgentProtocol
 {
-    /// <summary>The version of the protocol this client speaks.</summary>
-    public const int Version = 1;
+    /// <summary>The version of the protocol this client speaks (2 since work item 10: prefixes, files, sync).</summary>
+    public const int Version = 2;
+
+    /// <summary>The oldest version this client still accepts: version 1 has every operation but those of version 2.</summary>
+    public const int MinimumVersion = 1;
 
     /// <summary>The operation names.</summary>
     public static class Operations
@@ -223,6 +258,11 @@ internal static class AgentProtocol
         public const string OpenConsole = "open-console";
         public const string CloseConsole = "close-console";
         public const string ConsoleResize = "console-resize";
+        public const string PrefixEnsure = "prefix-ensure";
+        public const string PrefixDelete = "prefix-delete";
+        public const string PrefixList = "prefix-list";
+        public const string PutFile = "put-file";
+        public const string Sync = "sync";
     }
 
     /// <summary>The event names.</summary>
@@ -294,6 +334,12 @@ internal static class AgentProtocol
 
     public static IReadOnlyList<WindowInfo> ToWindows(AgentMessage reply) =>
         (reply.Windows ?? []).Select(w => new WindowInfo(w.Id ?? string.Empty, w.Pid, OptionalLaunch(w.Launch), w.Title ?? string.Empty)).ToList();
+
+    public static GuestPrefix ToGuestPrefix(AgentMessage reply, string prefix) =>
+        new(reply.Prefix ?? prefix, reply.Uid, reply.Home ?? string.Empty);
+
+    public static IReadOnlyList<GuestPrefix> ToGuestPrefixes(AgentMessage reply) =>
+        (reply.Prefixes ?? []).Where(p => LaunchId.IsValidPrefix(p.Prefix)).Select(p => new GuestPrefix(p.Prefix!, p.Uid, p.Home ?? string.Empty)).ToList();
 
     public static ExecResult ToExecResult(AgentMessage reply) =>
         new(ToExit(reply), reply.TimedOut, reply.Truncated, reply.Output ?? string.Empty, TimeSpan.FromMilliseconds(reply.Ms));
