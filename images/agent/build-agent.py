@@ -37,6 +37,7 @@ import argparse
 import hashlib
 import json
 import os
+import base64
 import queue
 import shutil
 import struct
@@ -47,7 +48,7 @@ import time
 from pathlib import Path
 
 AGENT_VERSION = "0.1.0"
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 BUILD_IMAGE = f"osx86-agent-build:{AGENT_VERSION}"
 SMOKE_IMAGE = f"osx86-agent-smoke:{AGENT_VERSION}"
 COPY_CONTAINER = "osx86-agent-copy"
@@ -311,8 +312,26 @@ def smoke() -> None:
         expect(event.get("prefix") == "test" and event.get("uid") == 1001 and event.get("url") == "https://example.test/doc?x=1",
                "open-url event with the caller's prefix (SO_PEERCRED)", event)
 
+        # Protocol 2 (work item 10): prefixes and files. The smoke image has no prefix-admin script.
+        listed = agent.request("prefix-list")
+        expect(listed.get("ok") is True and listed.get("admin") is False and any(p["prefix"] == "test" and p["uid"] == 1001 for p in listed["prefixes"]),
+               "prefix-list", listed)
+        ensured = agent.request("prefix-ensure", prefix="test")
+        expect(ensured.get("ok") is True and ensured.get("created") is False and ensured.get("uid") == 1001, "prefix-ensure of a user the image ships", ensured)
+        first = agent.request("put-file", prefix="test", path="drop/in/hello.txt", data=base64.b64encode(b"hello ").decode(), truncate=True)
+        second = agent.request("put-file", prefix="test", path="drop/in/hello.txt", data=base64.b64encode(b"world\n").decode(), offset=6)
+        expect(first.get("ok") is True and second.get("ok") is True and second.get("size") == 12, "put-file in two pieces", second)
+        written = agent.request("exec-in-prefix", prefix="test", program="sh", args=["-c", "cat drop/in/hello.txt; stat -c %a%U drop/in/hello.txt drop"])
+        # (The directory may carry the setgid bit of the home it is made in: only its last three digits are checked.)
+        expect(written.get("output", "").startswith("hello world\n600osx86-test\n") and written["output"].endswith("700osx86-test\n"), "put-file writes as the prefix user", written)
+        synced = agent.request("sync")
+        expect(synced.get("ok") is True, "sync", synced)
+
         errors = {
             "unknown-op": agent.request("no-such-operation"),
+            "no-prefix-support": agent.request("prefix-ensure", prefix="nobody"),
+            "invalid-request": agent.request("put-file", prefix="test", path="../escape.txt", data=""),
+            "put-failed": agent.request("put-file", prefix="test", path="drop/in/hello.txt/below", data=""),
             "invalid-prefix": agent.request("launch", prefix="Bad Prefix", program="sleep"),
             "unknown-prefix": agent.request("launch", prefix="nobody", program="sleep"),
             "program-not-found": agent.request("launch", prefix="test", program="/no/such/program"),

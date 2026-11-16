@@ -219,6 +219,11 @@ static void handle_request(char *line)
     else if (!strcmp(op, "open-console")) op_open_console(id, req);
     else if (!strcmp(op, "close-console")) op_close_console(id, req);
     else if (!strcmp(op, "console-resize")) op_console_resize(id, req);
+    else if (!strcmp(op, "prefix-ensure")) op_prefix_ensure(id, req);
+    else if (!strcmp(op, "prefix-delete")) op_prefix_delete(id, req);
+    else if (!strcmp(op, "prefix-list")) op_prefix_list(id, req);
+    else if (!strcmp(op, "put-file")) op_put_file(id, req);
+    else if (!strcmp(op, "sync")) op_sync(id, req);
     else reply_error(id, "unknown-op", "unknown operation '%s'", op);
     logmsg("op %s id=%s %.1f ms", op, id, (now_s() - t0) * 1000);
 }
