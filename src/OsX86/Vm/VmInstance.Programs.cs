@@ -128,6 +128,7 @@ public sealed partial class VmInstance
             }
 
             await AgentCallAsync(() => agent.DeletePrefixAsync(prefix.Value, cancellationToken)).ConfigureAwait(false);
+            ReleasePrefixNetwork(prefix);
             return true;
         }
         finally
@@ -190,6 +191,7 @@ public sealed partial class VmInstance
             }
 
             (GuestPrefix guest, _) = await AgentCallAsync(() => agent.EnsurePrefixAsync(prefix.Value, cancellationToken)).ConfigureAwait(false);
+            await EnsurePrefixNetworkAsync(agent, prefix, cancellationToken).ConfigureAwait(false);
             return Remember(guest);
         }
         finally

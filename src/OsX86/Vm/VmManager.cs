@@ -28,7 +28,11 @@ public sealed partial class VmManager : IAsyncDisposable
     /// <param name="host">What the browser says of its memory (165 A).</param>
     /// <param name="options">Delays and limits.</param>
     /// <param name="time">The clock, replaced by the tests.</param>
-    public VmManager(IVmRegistryStore store, IEngineFactory engines, IBootImageSource images, IHostMemory host, VmManagerOptions? options = null, TimeProvider? time = null)
+    /// <param name="network">
+    /// The private networks of the users (work item 12); <see langword="null"/>: the VMs get no
+    /// network card. The manager disposes it with itself.
+    /// </param>
+    public VmManager(IVmRegistryStore store, IEngineFactory engines, IBootImageSource images, IHostMemory host, VmManagerOptions? options = null, TimeProvider? time = null, Network.NetworkHub? network = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(engines);
@@ -41,7 +45,11 @@ public sealed partial class VmManager : IAsyncDisposable
         Engines = engines;
         Images = images;
         Budget = new MemoryBudget(host, Options.MemoryLimitMiB);
+        Network = network;
     }
+
+    /// <summary>The private networks of the users, or <see langword="null"/> when the VMs have no network.</summary>
+    public Network.NetworkHub? Network { get; }
 
     /// <summary>Raised when any VM changes state; the service of a user filters its own.</summary>
     public event EventHandler<VmInstanceEventArgs<VmStateChangedEventArgs>>? InstanceStateChanged;
@@ -174,6 +182,10 @@ public sealed partial class VmManager : IAsyncDisposable
         {
             await Images.DeleteLayersAsync(record.EffectiveLayerSet, cancellationToken).ConfigureAwait(false);
             await Registry.RemoveAsync(userId, vmId, cancellationToken).ConfigureAwait(false);
+            if (Network is not null)
+            {
+                await Network.For(userId).ForgetAsync(vmId, null, cancellationToken).ConfigureAwait(false); // a new VM never inherits its rules
+            }
         }
         finally
         {
@@ -271,6 +283,11 @@ public sealed partial class VmManager : IAsyncDisposable
             {
                 ReportBackgroundError(instance, exception);
             }
+        }
+
+        if (Network is not null)
+        {
+            await Network.DisposeAsync().ConfigureAwait(false);
         }
     }
 

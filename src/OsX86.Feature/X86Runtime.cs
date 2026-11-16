@@ -52,7 +52,11 @@ internal static class X86Runtime
             new KazoVmRegistryStore(KazoX86Files.Instance),
             host?.Engines ?? UnavailableEngineFactory.Instance,
             host?.Images ?? StaticBootImageSource.Empty,
-            host?.Memory ?? FixedHostMemory.Unknown);
+            host?.Memory ?? FixedHostMemory.Unknown,
+            network: new Network.NetworkHub(
+                new KazoNetworkStore(KazoX86Files.Instance),
+                host?.Relay ?? Network.UnavailableRelay.Instance,
+                host?.PermissionPrompt ?? Network.UnavailablePermissionPrompt.Instance));
         return new X86CommandServices(manager, KazoX86Files.Instance);
     }
 }
