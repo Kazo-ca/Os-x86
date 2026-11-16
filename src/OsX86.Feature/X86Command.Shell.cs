@@ -95,7 +95,16 @@ public sealed partial class X86Command
             vmId = vms[0].Id;
         }
 
-        var consoleOptions = new VmConsoleOptions { Prefix = parsed.Value("prefix"), Columns = columns, Rows = rows };
+        // Work item 10 (193 A): a named prefix must exist in the VM; the profile's default prefix is
+        // recorded on its first use. Without either, the serial fallback of work item 6b stays.
+        string? prefix = parsed.Value("prefix");
+        VmRecord record = await Manager.ResolveAsync(user, vmId.ToString(), cancellationToken).ConfigureAwait(false);
+        if (prefix is not null || record.Profile.Prefix is not null)
+        {
+            prefix = (await Manager.ResolvePrefixAsync(user, vmId, prefix, cancellationToken).ConfigureAwait(false)).Value;
+        }
+
+        var consoleOptions = new VmConsoleOptions { Prefix = prefix, Columns = columns, Rows = rows };
         IVmConsole console = await WithImageProgressAsync(context, user, vmId, () => Manager.OpenConsoleAsync(user, vmId, consoleOptions, cancellationToken).AsTask()).ConfigureAwait(false);
         if (console.IsSerial)
         {

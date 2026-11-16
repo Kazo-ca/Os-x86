@@ -19,7 +19,12 @@ public sealed class X86CommandTests
     {
         public Dictionary<string, string> Files { get; } = new(StringComparer.Ordinal);
 
+        public Dictionary<string, byte[]> Binaries { get; } = new(StringComparer.Ordinal);
+
         public ValueTask<string?> ReadTextAsync(string path, CancellationToken cancellationToken) => ValueTask.FromResult(Files.GetValueOrDefault(path));
+
+        public ValueTask<byte[]?> ReadBytesAsync(string path, int maxBytes, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(Binaries.TryGetValue(path, out byte[]? bytes) ? bytes[..Math.Min(bytes.Length, maxBytes)] : null);
 
         public ValueTask WriteTextAsync(string path, string text, CancellationToken cancellationToken)
         {
@@ -281,7 +286,8 @@ public sealed class X86CommandTests
         Assert.Equal(
             "NAME                  KIND              IMAGE                 MEMORY  ORIGIN\n"
             + "alpine-test           linux             alpine-test 0.1.0       128M  built-in\n"
-            + "linux-base            linux             linux-base 0.1.0        256M  built-in\n",
+            + "linux-base            linux             linux-base 0.1.0        256M  built-in\n"
+            + "wine                  windows-programs  wine 0.1.0              512M  built-in\n",
             output);
 
         (code, output, _) = await RunAsync(rig, files, ["profile", "show", "alpine-test"]);

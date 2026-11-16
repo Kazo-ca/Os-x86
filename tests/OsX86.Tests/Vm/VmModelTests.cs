@@ -193,10 +193,10 @@ public sealed class VmModelTests
         await registry.ImportProfileAsync(User, mine with { Name = "extra" }, None);
 
         IReadOnlyList<VmProfile> profiles = await registry.ListProfilesAsync(User, None);
-        Assert.Equal(["linux-base", "alpine-test", "extra"], profiles.Select(p => p.Name));
+        Assert.Equal(["linux-base", "wine", "alpine-test", "extra"], profiles.Select(p => p.Name));
         Assert.Equal(96, (await registry.FindProfileAsync(User, "ALPINE-TEST", None))!.MemoryMiB);
         Assert.Null(await registry.FindProfileAsync(User, "none", None));
-        Assert.Equal(2, (await registry.ListProfilesAsync(OtherUser, None)).Count); // another user sees only the built-in ones
+        Assert.Equal(3, (await registry.ListProfilesAsync(OtherUser, None)).Count); // another user sees only the built-in ones
     }
 
     [Fact]

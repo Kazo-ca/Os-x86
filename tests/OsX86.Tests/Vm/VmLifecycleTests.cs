@@ -60,7 +60,7 @@ public sealed class VmLifecycleTests
     public async Task An_agent_of_another_protocol_version_fails_the_start()
     {
         await using var rig = new VmTestRig();
-        rig.Engines.Configure = engine => engine.Agent!.On("ping", _ => """{"ok":true,"version":2,"uptime":3,"rssKb":170,"launches":0,"consoles":0,"cgroups":true}""");
+        rig.Engines.Configure = engine => engine.Agent!.On("ping", _ => """{"ok":true,"version":3,"uptime":3,"rssKb":170,"launches":0,"consoles":0,"cgroups":true}""");
         VmInstance vm = await rig.CreateAsync();
 
         X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await vm.AcquireAsync("shell", None));
