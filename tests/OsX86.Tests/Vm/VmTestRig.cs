@@ -14,11 +14,14 @@ internal sealed class VmTestRig : IAsyncDisposable
     public static readonly Guid OtherUser = Guid.Parse("0000000000000000000000000000b002");
     public static readonly TimeSpan Soon = TimeSpan.FromSeconds(10);
 
-    /// <summary>Short agent delays: an image without agent is detected in a fraction of a second.</summary>
+    /// <summary>
+    /// Agent delays of a guest that has an agent: the connection succeeds at the first reply, so its
+    /// limit is only a guard (work item 6c: 300 ms here made the tests fail on loaded runners).
+    /// </summary>
     public static readonly AgentClientOptions FastAgent = new()
     {
         RequestTimeout = TimeSpan.FromSeconds(5),
-        ConnectTimeout = TimeSpan.FromMilliseconds(300),
+        ConnectTimeout = TimeSpan.FromSeconds(30),
         ConnectProbeInterval = TimeSpan.FromMilliseconds(30),
         ConsoleCloseFallback = TimeSpan.FromMilliseconds(50),
     };
@@ -31,16 +34,24 @@ internal sealed class VmTestRig : IAsyncDisposable
         ConsoleCloseGrace = TimeSpan.FromMilliseconds(100),
     };
 
+    /// <summary>
+    /// An image without agent is only told apart by its silence: a short connection delay, used by
+    /// the rigs built with <c>withAgent: false</c> and nowhere else.
+    /// </summary>
+    public static readonly VmManagerOptions NoAgentOptions = FastOptions with { Agent = FastAgent with { ConnectTimeout = TimeSpan.FromMilliseconds(300) } };
+
     public static readonly VmProfile NoAgentSerial = BuiltInProfiles.AlpineTest with { Name = "plain-serial" };
 
     public static readonly VmProfile NoSerial = BuiltInProfiles.AlpineTest with { Name = "no-serial", SerialConsole = false };
 
-    public VmTestRig(VmManagerOptions? options = null, long? announcedMiB = 1024)
+    public VmTestRig(VmManagerOptions? options = null, long? announcedMiB = 1024, bool withAgent = true)
     {
+        Engines.WithAgent = withAgent;
+        options ??= withAgent ? FastOptions : NoAgentOptions;
         Images = new StaticBootImageSource()
             .Add("alpine-test", "0.1.0", new BootImage("osx86-test/vmlinuz-virt", "osx86-test/initramfs-osx86", "console=ttyS0"))
             .Add("linux-base", "0.1.0", new BootImage("osx86-test/vmlinuz-virt", "osx86-test/initramfs-osx86", "console=ttyS0"));
-        Manager = new VmManager(Store, Engines, Images, new FixedHostMemory(announcedMiB * 1024 * 1024), options ?? FastOptions, Time);
+        Manager = new VmManager(Store, Engines, Images, new FixedHostMemory(announcedMiB * 1024 * 1024), options, Time);
         Manager.BackgroundError += (_, e) => BackgroundErrors.Add(e.Data);
     }
 

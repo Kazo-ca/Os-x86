@@ -433,8 +433,7 @@ public sealed class X86CommandTests
     [Fact]
     public async Task Shell_falls_back_to_the_serial_console_of_an_image_without_agent()
     {
-        await using var rig = new VmTestRig();
-        rig.Engines.WithAgent = false;
+        await using var rig = new VmTestRig(withAgent: false);
         rig.Engines.Configure = engine => engine.SendSerial("\u001b[1mosx86#\u001b[0m ");
         VmInstance vm = await rig.CreateAsync("Plain", VmTestRig.NoAgentSerial);
         var input = new QueueTextReader();

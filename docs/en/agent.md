@@ -206,7 +206,9 @@ ProcessExit shellExit = await console.Exited;
   `EngineAgentChannel.For(engine)` puts them on `virtio0` and `virtio1`; `IEngine`, the worker and
   `Ix86` do not change.
 - **Connection.** `ConnectAsync` sends a `ping` every second until a reply comes: the agent's
-  `ready` event may have been written before anyone listened. Another version of the protocol is
+  `ready` event may have been written before anyone listened. Each `ping` waits until the
+  connection deadline: the late reply of an agent slower than the one-second probe (a loaded guest
+  or host) connects the client (work item 6c). Another version of the protocol is
   refused (`unsupported-version`). After a failure (`not-ready`), `ConnectAsync` may be called
   again on the same client.
 - **Pairing.** Every request has an increasing `id`; the reply goes to whoever waits for it, in
