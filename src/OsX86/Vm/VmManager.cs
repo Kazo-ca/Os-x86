@@ -49,6 +49,9 @@ public sealed class VmManager : IAsyncDisposable
     /// <summary>Raised when the watchdog of a VM gives up on its agent.</summary>
     public event EventHandler<VmInstanceEventArgs<VmAgentLostEventArgs>>? AgentLost;
 
+    /// <summary>Raised while a VM that starts waits for its image to download (work item 6b); never when the image is already there.</summary>
+    public event EventHandler<VmInstanceEventArgs<Storage.DownloadProgress>>? ImageProgress;
+
     /// <summary>Raised for an error of a background task of a VM (a stop after the grace that failed).</summary>
     public event EventHandler<VmInstanceEventArgs<Exception>>? BackgroundError;
 
@@ -144,10 +147,16 @@ public sealed class VmManager : IAsyncDisposable
         return renamed.ToSummary(StateOf(userId, vmId));
     }
 
-    /// <summary>Removes a VM; a running one is refused unless <paramref name="force"/>, which stops it first.</summary>
-    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.VmBusy"/>.</exception>
+    /// <summary>
+    /// Removes a VM; a running one is refused unless <paramref name="force"/>, which stops it first.
+    /// Its write layers go with it (work item 6b): deleted before the record, so that a failure
+    /// leaves the VM listed and the removal can be tried again.
+    /// </summary>
+    /// <exception cref="X86Exception"><see cref="X86ErrorCodes.VmNotFound"/>, <see cref="X86ErrorCodes.VmBusy"/>, <see cref="X86ErrorCodes.StorageFailed"/>.</exception>
     public async ValueTask RemoveAsync(Guid userId, Guid vmId, bool force, CancellationToken cancellationToken)
     {
+        VmRecord record = await Registry.FindAsync(userId, vmId, cancellationToken).ConfigureAwait(false)
+            ?? throw new X86Exception(X86ErrorCodes.VmNotFound, $"No virtual machine with the identifier {vmId}.");
         VmInstance? instance;
         lock (_lock)
         {
@@ -163,6 +172,7 @@ public sealed class VmManager : IAsyncDisposable
 
         try
         {
+            await Images.DeleteLayersAsync(record.EffectiveLayerSet, cancellationToken).ConfigureAwait(false);
             await Registry.RemoveAsync(userId, vmId, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -212,6 +222,18 @@ public sealed class VmManager : IAsyncDisposable
         List<VmSummary> own = [.. running.Where(instance => instance.OwnerId == user).Select(instance => instance.Summary)];
         List<VmSummary> compatible = [.. own.Where(vm => vm.Kind == record.Profile.Kind && vm.Image == record.Profile.Image)];
         throw new VmMemoryBudgetExceededException(record.Profile.MemoryMiB, runningMiB, Budget.LimitMiB, own, compatible);
+    }
+
+    internal void ReportImageProgress(VmInstance instance, Storage.DownloadProgress progress)
+    {
+        try
+        {
+            ImageProgress?.Invoke(this, new VmInstanceEventArgs<Storage.DownloadProgress>(instance, progress));
+        }
+        catch (Exception exception)
+        {
+            ReportBackgroundError(instance, exception); // a listener that fails never fails the download
+        }
     }
 
     internal void ReportBackgroundError(VmInstance instance, Exception exception) =>

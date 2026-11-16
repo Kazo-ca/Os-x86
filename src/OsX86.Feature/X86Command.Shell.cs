@@ -19,6 +19,48 @@ public sealed partial class X86Command
 
     private static readonly byte[] EndOfInput = [0x04];
 
+    /// <summary>What <c>x86 shell</c> prints when it opens the serial console of a VM (an image without agent, or without a default guest user and no <c>--prefix</c>).</summary>
+    internal const string SerialNotice = "x86: this is the serial console of the virtual machine: the guest's root shell, shared with its boot messages. A line ~. closes it.";
+
+    /// <summary>How often, in percent of the image, a download in progress is reported.</summary>
+    internal const int ProgressStepPercent = 10;
+
+    /// <summary>
+    /// Runs an operation that may start a VM and reports, on standard error, the download of its
+    /// image when one happens (work item 6b): when it starts, every <see cref="ProgressStepPercent"/>
+    /// percent, and when it ends. Nothing is written when the image is already in the store.
+    /// </summary>
+    internal async Task<T> WithImageProgressAsync<T>(TerminalExecutionContext context, Guid user, Guid vmId, Func<Task<T>> operation)
+    {
+        var reporter = new DownloadReporter(context.StandardError);
+        void OnProgress(object? sender, VmInstanceEventArgs<Storage.DownloadProgress> e)
+        {
+            if (e.Instance.OwnerId == user && e.Instance.Id == vmId)
+            {
+                reporter.Report(e.Instance.Record.Profile, e.Data);
+            }
+        }
+
+        Manager.ImageProgress += OnProgress;
+        try
+        {
+            return await operation().ConfigureAwait(false);
+        }
+        finally
+        {
+            Manager.ImageProgress -= OnProgress;
+            await reporter.CompleteAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc cref="WithImageProgressAsync{T}"/>
+    internal async Task WithImageProgressAsync(TerminalExecutionContext context, Guid user, Guid vmId, Func<Task> operation) =>
+        await WithImageProgressAsync(context, user, vmId, async () =>
+        {
+            await operation().ConfigureAwait(false);
+            return true;
+        }).ConfigureAwait(false);
+
     private async ValueTask<int> ShellAsync(TerminalExecutionContext context, Guid user, List<string> args, CancellationToken cancellationToken)
     {
         CommandArguments? parsed = CommandArguments.Parse(args, ["vm", "prefix", "cols", "rows"], NoOptions, out string? error);
@@ -53,7 +95,14 @@ public sealed partial class X86Command
             vmId = vms[0].Id;
         }
 
-        IVmConsole console = await Manager.OpenConsoleAsync(user, vmId, new VmConsoleOptions { Prefix = parsed.Value("prefix"), Columns = columns, Rows = rows }, cancellationToken).ConfigureAwait(false);
+        var consoleOptions = new VmConsoleOptions { Prefix = parsed.Value("prefix"), Columns = columns, Rows = rows };
+        IVmConsole console = await WithImageProgressAsync(context, user, vmId, () => Manager.OpenConsoleAsync(user, vmId, consoleOptions, cancellationToken).AsTask()).ConfigureAwait(false);
+        if (console.IsSerial)
+        {
+            // Work item 6b: say which console this is (linux-base has no guest user for an agent shell yet).
+            await context.StandardError.WriteLineAsync(SerialNotice.AsMemory(), CancellationToken.None).ConfigureAwait(false);
+        }
+
         return await RelayAsync(context, console, cancellationToken).ConfigureAwait(false);
     }
 
@@ -216,5 +265,98 @@ public sealed partial class X86Command
         }
 
         return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value is >= 1 and <= 1000;
+    }
+}
+
+/// <summary>
+/// Turns the reports of a download into lines of standard error, written in order by one task:
+/// the reports arrive on the thread of the store, the terminal is written asynchronously.
+/// </summary>
+internal sealed class DownloadReporter(TextWriter output)
+{
+    private readonly System.Threading.Channels.Channel<string> _lines = System.Threading.Channels.Channel.CreateUnbounded<string>(new() { SingleReader = true });
+    private readonly Lock _lock = new();
+    private Task? _pump;
+    private int _lastStep = -1;
+    private Storage.DownloadPhase _lastPhase = Storage.DownloadPhase.Idle;
+
+    /// <summary>The line of one report, or <see langword="null"/> when it says nothing new.</summary>
+    internal string? Format(string image, Storage.DownloadProgress progress)
+    {
+        lock (_lock)
+        {
+            Storage.DownloadPhase previous = _lastPhase;
+            _lastPhase = progress.Phase;
+            switch (progress.Phase)
+            {
+                case Storage.DownloadPhase.FetchingManifest when previous != Storage.DownloadPhase.FetchingManifest:
+                    return $"x86: {image} is not on this machine yet: downloading it.";
+                case Storage.DownloadPhase.Downloading:
+                    int step = (int)(progress.Fraction * 100) / X86Command.ProgressStepPercent;
+                    if (step <= _lastStep)
+                    {
+                        return null;
+                    }
+
+                    _lastStep = step;
+                    string rate = progress.BytesPerSecond > 0 ? string.Create(CultureInfo.InvariantCulture, $", {progress.BytesPerSecond / (1024 * 1024):0.0} MiB/s") : string.Empty;
+                    return string.Create(CultureInfo.InvariantCulture, $"x86: downloading {image}: {step * X86Command.ProgressStepPercent} % ({progress.BytesVerified / (1024.0 * 1024):0.0} of {progress.BytesTotal / (1024.0 * 1024):0.0} MiB{rate})");
+                case Storage.DownloadPhase.Completed when previous != Storage.DownloadPhase.Completed:
+                    return string.Create(CultureInfo.InvariantCulture, $"x86: {image} downloaded and verified ({progress.BytesTotal / (1024.0 * 1024):0.0} MiB).");
+                case Storage.DownloadPhase.Failed when previous != Storage.DownloadPhase.Failed:
+                    return $"x86: the download of {image} failed; what was verified is kept for the next try.";
+                case Storage.DownloadPhase.Cancelled when previous != Storage.DownloadPhase.Cancelled:
+                    return $"x86: the download of {image} was interrupted; what was verified is kept for the next try.";
+                default:
+                    return null;
+            }
+        }
+    }
+
+    /// <summary>Queues the line of a report.</summary>
+    public void Report(Profiles.VmProfile profile, Storage.DownloadProgress progress)
+    {
+        string? line = Format($"{profile.Image} {profile.ImageVersion}", progress);
+        if (line is null)
+        {
+            return;
+        }
+
+        _lines.Writer.TryWrite(line);
+        lock (_lock)
+        {
+            _pump ??= Task.Run(PumpAsync);
+        }
+    }
+
+    /// <summary>Writes what is queued and stops.</summary>
+    public async Task CompleteAsync()
+    {
+        _lines.Writer.TryComplete();
+        Task? pump;
+        lock (_lock)
+        {
+            pump = _pump;
+        }
+
+        if (pump is not null)
+        {
+            await pump.ConfigureAwait(false);
+        }
+    }
+
+    private async Task PumpAsync()
+    {
+        try
+        {
+            await foreach (string line in _lines.Reader.ReadAllAsync().ConfigureAwait(false))
+            {
+                await output.WriteLineAsync(line.AsMemory(), CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
+            // The terminal went away: the download goes on, its end is the command's result.
+        }
     }
 }

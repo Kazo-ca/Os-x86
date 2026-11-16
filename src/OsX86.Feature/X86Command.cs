@@ -163,7 +163,7 @@ public sealed partial class X86Command : TerminalAppBase
         "Usage: x86 <command>",
         "  --version                              Print the version of the feature",
         "  vm list                                List your virtual machines",
-        "  vm create <name> [--profile <p>]       Create a virtual machine from a profile (default: alpine-test)",
+        "  vm create <name> [--profile <p>]       Create a virtual machine from a profile (default: linux-base)",
         "  vm start <vm>                          Start a virtual machine and keep it running",
         "  vm stop <vm> [--force]                 Stop a virtual machine (--force: even with applications open)",
         "  vm remove <vm> [--force]               Remove a virtual machine (--force: stop it first)",

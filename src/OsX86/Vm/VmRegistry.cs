@@ -77,7 +77,8 @@ public sealed class VmRegistry
         {
             VmRegistryDocument document = await ReadAsync(userId, cancellationToken).ConfigureAwait(false);
             RequireFreeName(document, name);
-            var record = new VmRecord { Id = Guid.NewGuid(), Name = name, Created = _time.GetUtcNow(), Profile = profile };
+            Guid id = Guid.NewGuid();
+            var record = new VmRecord { Id = id, Name = name, Created = _time.GetUtcNow(), Profile = profile, LayerSet = VmRecord.LayerSetOf(id) };
             await WriteAsync(new VmRegistryDocument { User = userId, Vms = [.. document.Vms, record], Profiles = document.Profiles }, cancellationToken).ConfigureAwait(false);
             return record;
         }
@@ -102,7 +103,7 @@ public sealed class VmRegistry
                 RequireFreeName(document, name);
             }
 
-            var renamed = new VmRecord { Id = existing.Id, Name = name, Created = existing.Created, Profile = existing.Profile };
+            VmRecord renamed = existing.WithName(name);
             await WriteAsync(new VmRegistryDocument { User = userId, Vms = [.. document.Vms.Select(vm => vm.Id == vmId ? renamed : vm)], Profiles = document.Profiles }, cancellationToken).ConfigureAwait(false);
             return renamed;
         }
