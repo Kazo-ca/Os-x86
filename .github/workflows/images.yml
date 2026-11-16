@@ -13,7 +13,9 @@
 #     goes there, the job refuses it;
 #   - the real images (linux-base, later the Wine image) go to Cloudflare R2 behind a Kazo
 #     domain when the repository variable OSX86_R2_BUCKET and the three OSX86_R2_* secrets are
-#     set; until Kazo provides the origin (202 A) the job never runs.
+#     set; until Kazo provides the origin (202 A) the job never runs. The wine image (work item
+#     9) is built only when its inputs change and kept as the artifact pack-wine, outside the
+#     image-* pattern of the R2 job: not published by this workflow yet.
 # Layout on both hosts: images/<image>/<version>/{manifest.json, manifest.sha256, chunk-NNNNN.bin,
 # sources.json, ...} and images/index.json.
 name: Images
@@ -45,6 +47,12 @@ on:
 
 permissions:
   contents: read
+
+# A new push to the same branch or PR replaces the run in progress (the wine job alone takes about
+# an hour); pushes to j0/base and main are never cancelled (publication).
+concurrency:
+  group: images-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PYTHON_VERSION: "3.14" # compression.zstd in the standard library
@@ -164,6 +172,94 @@ jobs:
         run: >
           dotnet test OsX86.sln -c Release --no-build --logger "console;verbosity=normal"
           --filter "Category=guest&(FullyQualifiedName~LinuxBaseGuestTests|FullyQualifiedName~FreeDosGuestTests)"
+
+  wine-changes:
+    # The wine image takes a long build (WineHQ packages, Mono, Gecko, template prefix, ext4 of
+    # about 1.3 GiB, zstd 19): it is built only when its recipe, the linux-base it starts from, its
+    # guest test or this workflow change (or on a manual run).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      wine: ${{ steps.diff.outputs.wine }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then echo wine=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" = pull_request ]; then range="origin/$BASE_REF...HEAD"; else range="$BEFORE..HEAD"; fi
+          if ! changed=$(git diff --name-only "$range" 2>/dev/null); then echo wine=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          if printf '%s\n' "$changed" | grep -q -E '^(images/wine/|images/linux-base/|tests/OsX86\.Tests/Guest/WineGuestTests\.cs$|\.github/workflows/images\.yml$)'; then
+            echo wine=true >> "$GITHUB_OUTPUT"
+          else
+            echo wine=false >> "$GITHUB_OUTPUT"
+          fi
+
+  wine:
+    # Work item 9: the wine image (Debian i386 + WineHQ 11.0 + Mono + Gecko + template prefix +
+    # hot files), its image test of 210 A, sources.json, pack. Kept as the artifact pack-wine
+    # (not image-*: the R2 job publishes image-* artifacts, and the first publication of the wine
+    # image must carry the sources of Wine, Mono and Gecko, --fetch-sources); never on Pages.
+    needs: wine-changes
+    if: needs.wine-changes.outputs.wine == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Free disk space (the build needs about 9 GB; this job uses no .NET, Android or Haskell)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup
+          df -h /
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Repair the socket rule of the daemon's seccomp profile for 32-bit containers
+        run: bash .github/scripts/repair-i386-seccomp.sh
+      - name: Build the wine image (docker run + commit, linux/386), image test of 210 A, ext4, sources, pack
+        run: python3 -I images/wine/build-wine.py
+      - name: Check the pack
+        run: python3 -I images/tools/pack-image.py check images/build/wine/pack
+      - name: Sizes and hot files
+        run: cat images/build/wine/measurements.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pack-wine
+          path: images/build/wine/pack
+          if-no-files-found: error
+
+  guest-wine:
+    # Work item 9: the wine pack booted from the OPFS (the path of work item 6a); the agent answers;
+    # `wine cmd /c echo` and the console program of the recipe run through exec-in-prefix on a copy
+    # of the template prefix, with and without the preloading; the times are printed.
+    needs: wine
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: pack-wine
+          path: images/build/wine/pack
+      - name: Build (Release, packages)
+        run: dotnet build OsX86.sln -c Release
+      - name: Install the Playwright browser
+        run: pwsh tests/OsX86.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+      - name: Guest test of the wine image
+        env:
+          OSX86_REQUIRE_PACKS: "1"
+        run: >
+          dotnet test OsX86.sln -c Release --no-build --logger "console;verbosity=normal"
+          --filter "Category=guest&FullyQualifiedName~WineGuestTests"
 
   image-tool-tests:
     runs-on: ubuntu-latest
