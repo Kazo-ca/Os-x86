@@ -27,8 +27,11 @@ install -d -m 755 /usr/lib/osx86/wine
 env -i PATH=/usr/bin:/bin HOME=/root USER=osx86-template WINEPREFIX="$template" WINEDEBUG=-all \
   sh -c 'wineboot -u > /dev/null 2>&1; wineserver -w;
          wine reg add "HKCU\\Software\\Wine\\DllOverrides" /v winemenubuilder.exe /t REG_SZ /d "" /f > /dev/null 2>&1;
+         wine reg delete "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\RunServices" /v winemenubuilder /f > /dev/null 2>&1;
          wineserver -w'
 grep -q '"winemenubuilder.exe"=""' "$template/user.reg"
+# (wineboot would otherwise try to start the disabled winemenubuilder at every session start.)
+if grep -q 'winemenubuilder.exe -a -r' "$template/system.reg"; then echo "RunServices still starts winemenubuilder" >&2; exit 1; fi
 rm -rf /root/.local
 test -f "$template/system.reg" -a -f "$template/user.reg" -a -d "$template/drive_c/users/osx86-template"
 

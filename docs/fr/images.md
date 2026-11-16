@@ -249,7 +249,8 @@ l'usager. Ensuite :
 - `winemenubuilder` est coupé dans le registre du gabarit (`DllOverrides`) : la trace du premier
   lancement le montrait écrire des fichiers `.desktop`, des types MIME et des icônes dans `~/.local`
   à chaque début de session, pour un bureau que la VM n'a pas (BoxedWine lit les raccourcis
-  lui-même, BwLib).
+  lui-même, BwLib) ; sa valeur `RunServices` est retirée (sans quoi `wineboot` tente de
+  le lancer à chaque session).
 
 **Copie par préfixe.** `/usr/lib/osx86/wine/prefix-copy <usager> [<destination>]` (root) copie le
 gabarit pour l'usager invité `osx86-<préfixe>` (par défaut dans `$HOME/.wine`, qui ne doit pas

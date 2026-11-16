@@ -240,7 +240,8 @@ Then:
   `/usr/share/wine/gecko`.
 - `winemenubuilder` is disabled in the registry of the template (`DllOverrides`): the trace of the
   first launch showed it writing `.desktop` files, MIME types and icons into `~/.local` at every
-  session start, for a desktop the VM does not have (BoxedWine reads shortcuts itself, BwLib).
+  session start, for a desktop the VM does not have (BoxedWine reads shortcuts itself, BwLib); its `RunServices` value is removed (otherwise `wineboot` tries to
+  start it at every session).
 
 **Per-prefix copy.** `/usr/lib/osx86/wine/prefix-copy <user> [<destination>]` (root) copies the
 template for the guest user `osx86-<prefix>` (by default into `$HOME/.wine`, which must not
