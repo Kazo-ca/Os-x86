@@ -207,7 +207,9 @@ ProcessExit shellExit = await console.Exited;
   `EngineAgentChannel.For(engine)` les pose sur `virtio0` et `virtio1` ; `IEngine`, le worker et
   `Ix86` ne changent pas.
 - **Connexion.** `ConnectAsync` envoie un `ping` toutes les secondes jusqu'à une réponse :
-  l'événement `ready` de l'agent a pu être écrit avant que quiconque écoute. Une autre version
+  l'événement `ready` de l'agent a pu être écrit avant que quiconque écoute. Chaque `ping` attend
+  jusqu'au délai de connexion : la réponse tardive d'un agent plus lent que la seconde de sondage
+  (invité ou hôte chargé) connecte le client (chantier 6c). Une autre version
   du protocole est refusée (`unsupported-version`). Après un échec (`not-ready`), on peut
   rappeler `ConnectAsync` sur le même client.
 - **Appariement.** Chaque requête a un `id` croissant ; la réponse est rendue à qui l'attend,

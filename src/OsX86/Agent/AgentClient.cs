@@ -136,24 +136,53 @@ public sealed partial class AgentClient : IAsyncDisposable
             _consoleLoop ??= ReadConsoleAsync(_channel.ReadConsoleBytesAsync(_stop.Token));
         }
 
+        // Every probe waits until the connection deadline, not just until the next probe: an agent
+        // slower than the probe interval (a loaded guest or host) answers an earlier ping, and that
+        // late reply connects the client. A new ping goes out every probe interval meanwhile, for
+        // an agent that was not listening yet when the earlier ones left.
         long deadline = Environment.TickCount64 + (long)_options.ConnectTimeout.TotalMilliseconds;
-        while (true)
+        var probes = new List<Task<AgentMessage>>();
+        try
         {
-            long remaining = deadline - Environment.TickCount64;
-            if (remaining <= 0)
+            while (true)
             {
-                throw new AgentTimeoutException(AgentErrorCodes.NotReady, "connect", _options.ConnectTimeout);
-            }
+                long remaining = deadline - Environment.TickCount64;
+                if (remaining <= 0)
+                {
+                    throw new AgentTimeoutException(AgentErrorCodes.NotReady, "connect", _options.ConnectTimeout);
+                }
 
-            TimeSpan probe = TimeSpan.FromMilliseconds(Math.Min(remaining, Math.Max(1, _options.ConnectProbeInterval.TotalMilliseconds)));
-            try
-            {
-                AgentMessage reply = await SendAsync(new AgentRequest { Op = AgentProtocol.Operations.Ping }, probe, null, null, cancellationToken).ConfigureAwait(false);
-                return Accept(AgentProtocol.ToStatus(reply));
+                probes.Add(SendAsync(new AgentRequest { Op = AgentProtocol.Operations.Ping }, TimeSpan.FromMilliseconds(remaining), null, null, cancellationToken));
+                TimeSpan interval = TimeSpan.FromMilliseconds(Math.Min(remaining, Math.Max(1, _options.ConnectProbeInterval.TotalMilliseconds)));
+                Task next = Task.Delay(interval, cancellationToken);
+                while (true)
+                {
+                    Task done = await Task.WhenAny([.. probes, next]).ConfigureAwait(false);
+                    if (done == next)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        break; // time for another ping
+                    }
+
+                    var probe = (Task<AgentMessage>)done;
+                    probes.Remove(probe);
+                    if (probe.IsCompletedSuccessfully)
+                    {
+                        return Accept(AgentProtocol.ToStatus(probe.Result));
+                    }
+
+                    if (probe.Exception?.InnerException is not AgentTimeoutException)
+                    {
+                        await probe.ConfigureAwait(false); // a protocol error, a closed client, a cancellation: the caller's
+                    }
+                }
             }
-            catch (AgentTimeoutException)
+        }
+        finally
+        {
+            foreach (Task<AgentMessage> pending in probes)
             {
-                // Not listening yet: ask again until the connection deadline.
+                _ = pending.ContinueWith(static task => _ = task.Exception, TaskScheduler.Default); // observed: they end with the deadline
             }
         }
     }
