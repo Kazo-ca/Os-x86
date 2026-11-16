@@ -262,14 +262,13 @@ public sealed class ProgramRunTests
         X86Exception big = await Assert.ThrowsAsync<X86Exception>(async () => await rig.Manager.RunProgramAsync(User, Run(content: new byte[ProgramRunOptions.MaxContentBytes + 1]), None));
 
         Assert.Equal(X86ErrorCodes.ProgramNotSupported, dos.Code);
-        Assert.Contains("work item 11", dos.Message, StringComparison.Ordinal);
+        Assert.Contains("it needs a screen", dos.Message, StringComparison.Ordinal);
         Assert.Equal(X86ErrorCodes.ProgramNotSupported, big.Code);
         Assert.Empty(await rig.Manager.ListAsync(User, None));
         Assert.Empty(rig.Engines.Created);
     }
 
     [Theory]
-    [InlineData(ProgramKind.Dos, null, ProgramSubsystem.Unknown, false, "work item 11")]
     [InlineData(ProgramKind.Linux, 32, ProgramSubsystem.Unknown, false, "x86 shell")]
     [InlineData(ProgramKind.WindowsInstaller, null, ProgramSubsystem.Unknown, false, "work item 13")]
     [InlineData(ProgramKind.Windows, 32, ProgramSubsystem.Console, true, "library")]
@@ -291,6 +290,8 @@ public sealed class ProgramRunTests
         Assert.Null(VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect(TestPrograms.Pe(), ".exe")));
         Assert.Null(VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect(TestPrograms.Pe(dotNet: true), ".exe")));
         Assert.Null(VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect("echo"u8.ToArray(), ".bat")));
+        Assert.Null(VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect(TestPrograms.Dos(), ".exe")));
+        Assert.Null(VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect([0xB4, 0x4C, 0xCD, 0x21], ".com")));
         Assert.Contains("refused", VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect(TestPrograms.Elf(), ".exe")), StringComparison.Ordinal);
         Assert.Contains("not for an x86", VmManager.WhyNotSupported(OsX86.Programs.ProgramDetector.Detect(TestPrograms.Pe(machine: 0xaa64), ".exe")), StringComparison.Ordinal);
     }

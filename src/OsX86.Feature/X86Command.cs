@@ -35,7 +35,7 @@ public static class X86ExitCodes
 /// <c>rules</c>, <c>profile</c>, <c>snapshot</c>; <c>sudo x86 admin</c>). Work item 6 gives it
 /// <c>vm list|create|start|stop|remove|rename|info</c>, <c>shell</c> and
 /// <c>profile list|show|import|export</c>; work item 10 adds <c>prefix list|create|delete|export</c>,
-/// <c>detect</c> and <c>run</c>; the other verbs come with their work items. Every
+/// <c>detect</c> and <c>run</c>; work item 11 runs DOS programs; the other verbs come with their work items. Every
 /// subcommand acts for the user running it (decision 190 A: the stable identifier Kazo gives).
 /// </summary>
 public sealed partial class X86Command : TerminalAppBase
@@ -179,7 +179,8 @@ public sealed partial class X86Command : TerminalAppBase
         "  vm info <vm>                           Show a virtual machine",
         "  shell [--vm <vm>] [--prefix <p>]       Open a shell in a virtual machine (started when needed)",
         "  run [--vm <vm>] [--prefix <p>] <program> [args...]",
-        "                                         Run a Windows console program; returns its exit code",
+        "                                         Run a Windows console program, or a DOS program on the",
+        "                                         terminal's full screen; returns its exit code",
         "  detect <file>                          Tell what kind of program a file is (media type)",
         "  prefix list [--vm <vm>]                List the prefixes of a virtual machine",
         "  prefix create <name> [--vm <vm>]       Make a prefix (its own guest user and Wine files)",

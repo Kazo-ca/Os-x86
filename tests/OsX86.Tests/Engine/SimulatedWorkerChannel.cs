@@ -130,7 +130,7 @@ internal sealed class SimulatedWorkerChannel : IEngineWorkerChannel
                 await ReportStateAsync(_state, "query");
                 break;
             case "read-screen":
-                await SendAsync(new { type = "screen", cols = 3, rows = 2, lines = new[] { "C:\\", "ok " } });
+                await SendAsync(new { type = "screen", cols = 3, rows = 2, lines = new[] { "C:\\", "ok " }, attributes = Convert.ToBase64String([7, 7, 7, 0x1E, 0x1E, 0x4F]), cursor = new { row = 1, col = 2, visible = true }, blink = true, graphical = false, source = "vga" });
                 break;
             case "query-disks":
                 await SendAsync(new

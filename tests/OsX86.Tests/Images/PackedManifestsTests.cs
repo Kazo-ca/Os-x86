@@ -11,11 +11,11 @@ namespace OsX86.Tests.Images;
 public sealed class PackedManifestsTests
 {
     [SkippableTheory]
-    [InlineData("alpine-test", "kernel", "initramfs")]
-    [InlineData("freedos", "disk")]
-    [InlineData("linux-base", "kernel", "initramfs", "rootfs")]
-    [InlineData("wine", "kernel", "initramfs", "rootfs")]
-    public void A_packed_manifest_is_read_by_the_storage_reader(string image, params string[] entries)
+    [InlineData("alpine-test", "0.1.0", "kernel", "initramfs")]
+    [InlineData("freedos", "0.2.0", "disk")]
+    [InlineData("linux-base", "0.1.0", "kernel", "initramfs", "rootfs")]
+    [InlineData("wine", "0.1.0", "kernel", "initramfs", "rootfs")]
+    public void A_packed_manifest_is_read_by_the_storage_reader(string image, string version, params string[] entries)
     {
         string path = Path.Combine(PythonTools.RepositoryRoot, "images", "build", image, "pack", "manifest.json");
         Skip.IfNot(File.Exists(path), $"{image} not built ({path} missing).");
@@ -23,7 +23,7 @@ public sealed class PackedManifestsTests
         ImageManifest manifest = ImageManifest.Parse(File.ReadAllText(path));
 
         Assert.Equal(image, manifest.Image);
-        Assert.Equal("0.1.0", manifest.Version);
+        Assert.Equal(version, manifest.Version);
         Assert.Equal(entries, manifest.Files.Keys.ToArray());
         long chunkBytes = Directory.GetFiles(Path.GetDirectoryName(path)!, "chunk-*.bin").Sum(file => new FileInfo(file).Length);
         Assert.Equal(chunkBytes, manifest.Size);
