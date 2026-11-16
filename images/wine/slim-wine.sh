@@ -19,8 +19,9 @@ export DEBIAN_FRONTEND=noninteractive
 dropped=" libgphoto2-6t64 libgphoto2-port12t64 libgstreamer-plugins-base1.0-0 libgstreamer1.0-0 libpcap0.8t64 \
 libpulse0 libsane1 libwayland-client0 libwayland-egl1 ocl-icd-libopencl1 libasound2-plugins libglib2.0-0t64 \
 libxkbcommon0 libxkbregistry0 "
-# Wine's hard dependencies (first alternative of each), minus the dropped ones.
-roots="winehq-stable wine-stable wine-stable-i386 libfreetype6 libfontconfig1 libgnutls30t64"
+# Wine's hard dependencies (first alternative of each), minus the dropped ones. The three Wine
+# packages are kept but are not roots: their own dependencies would bring everything back.
+roots="libfreetype6 libfontconfig1 libgnutls30t64"
 for dependency in $(dpkg-query -W -f '${Depends}' wine-stable-i386 | tr ',' '\n' | sed 's/|.*//; s/(.*)//; s/ //g'); do
   case "$dropped" in *" $dependency "*) ;; *) roots="$roots $dependency";; esac
 done

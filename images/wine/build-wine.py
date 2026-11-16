@@ -27,7 +27,8 @@ refuses socket(2) to 32-bit containers on the GitHub runners; images/linux-base 
 Run from the repository root with an isolated interpreter (standard library only; Docker running;
 at least 5 GiB free on the build drive; about 2.5 GiB of Docker images are made):
 
-    python -I images/wine/build-wine.py [--output-dir DIR] [--skip-docker-build] [--fetch-sources]
+    python -I images/wine/build-wine.py [--output-dir DIR] [--skip-docker-build | --from STEP]
+                                         [--fetch-sources]
 
 --fetch-sources also downloads the sources of the copyleft components (Wine, Mono, Gecko and the
 Alpine components of linux-base; Mono's alone is 357 MiB) into build/wine/sources/: for the R2
@@ -226,14 +227,26 @@ def build_mingw_program(output: Path) -> None:
          "i686-w64-mingw32-gcc", "-Os", "-s", "-o", "/out/osx86-hello.exe", "/recipe/osx86-hello.c"])
 
 
-def docker_build(output: Path, agent: dict) -> dict:
-    """Steps 0 and 2 to 6; returns what the trace of step 5 measured."""
-    lb.docker_build(output, agent)
-    downloads = output / "download"
-    run_and_commit("osx86-wine-install", lb.DOCKER_IMAGE_FULL, INSTALLED_IMAGE,
-                   [(HERE, "/recipe:ro"), (downloads, "/download:ro")],
-                   ["sh", "/recipe/install-wine.sh", WINE_VERSION, MONO_VERSION, GECKO_VERSION])
-    build_mingw_program(output)
+def docker_build(output: Path, agent: dict, start: str) -> dict:
+    """Steps 0 and 2 to 6, from `start` on (install: everything; prefix: the osx86-wine-installed
+    image of an earlier run is reused; slim: the osx86-wine-prefix image and the hot list too);
+    returns what the trace of step 5 measured."""
+    if start != "slim":
+        build_until_trace(output, agent, start)
+    run_and_commit("osx86-wine-slim", PREFIX_IMAGE, DOCKER_IMAGE,
+                   [(HERE, "/recipe:ro"), (LINUX_BASE_DIR, "/linux-base:ro"), (output, "/out:ro")],
+                   ["sh", "/recipe/slim-wine.sh", IMAGE_VERSION])
+    return read_trace(output)
+
+
+def build_until_trace(output: Path, agent: dict, start: str) -> None:
+    if start == "install":
+        lb.docker_build(output, agent)
+        downloads = output / "download"
+        run_and_commit("osx86-wine-install", lb.DOCKER_IMAGE_FULL, INSTALLED_IMAGE,
+                       [(HERE, "/recipe:ro"), (downloads, "/download:ro")],
+                       ["sh", "/recipe/install-wine.sh", WINE_VERSION, MONO_VERSION, GECKO_VERSION])
+        build_mingw_program(output)
     run_and_commit("osx86-wine-prefix", INSTALLED_IMAGE, PREFIX_IMAGE, [(HERE, "/recipe:ro"), (output, "/out:ro")], [
         "sh", "-c", "set -eu; sh /recipe/make-prefix.sh; "
                     "install -m 755 /recipe/prefix-copy.sh /usr/lib/osx86/wine/prefix-copy; "
@@ -241,10 +254,6 @@ def docker_build(output: Path, agent: dict) -> dict:
     remove_container("osx86-wine-trace")
     run(["docker", "run", "--rm", "--platform", "linux/386", "--name", "osx86-wine-trace",
          "-v", f"{volume(HERE)}:/recipe:ro", "-v", f"{volume(output)}:/out", PREFIX_IMAGE, "sh", "/recipe/trace-hot.sh"])
-    run_and_commit("osx86-wine-slim", PREFIX_IMAGE, DOCKER_IMAGE,
-                   [(HERE, "/recipe:ro"), (LINUX_BASE_DIR, "/linux-base:ro"), (output, "/out:ro")],
-                   ["sh", "/recipe/slim-wine.sh", IMAGE_VERSION])
-    return read_trace(output)
 
 
 def read_trace(output: Path) -> dict:
@@ -305,8 +314,11 @@ def inspect_export(tar_path: Path) -> dict:
     missing = [path for path in hot_list if path.lstrip("/") not in regular]
     if missing:
         raise SystemExit(f"{len(missing)} hot files are not regular files of the image, e.g. {missing[:3]}")
+    # The links that replace duplicates must reach a file of the image (dosdevices/ holds Wine's
+    # drive links, c: -> ../drive_c and z: -> /, which are directories).
     dangling = [name for name, target in links.items()
-                if name.startswith(TEMPLATE + "/") and target.startswith("/") and target.lstrip("/") not in regular]
+                if name.startswith(TEMPLATE + "/") and not name.startswith(TEMPLATE + "/dosdevices/")
+                and target.lstrip("/") not in regular]
     if dangling:
         raise SystemExit(f"{len(dangling)} links of the template point nowhere, e.g. {dangling[:3]}")
     return {
@@ -408,6 +420,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT, help="build directory (default images/build/wine, git-ignored)")
     parser.add_argument("--skip-docker-build", action="store_true", help="reuse the osx86-wine image already built")
+    parser.add_argument("--from", dest="start", choices=("install", "prefix", "slim"), default="install",
+                        help="first Docker step to run (prefix and slim reuse the images of an earlier run)")
     parser.add_argument("--fetch-sources", action="store_true", help="also download the sources of the copyleft components")
     args = parser.parse_args()
     output: Path = args.output_dir.resolve()
@@ -419,7 +433,7 @@ def main() -> int:
     if args.skip_docker_build:
         trace = read_trace(output)
     else:
-        trace = docker_build(output, agent)
+        trace = docker_build(output, agent, args.start)
     tar_path = docker_export(output)
     print(f"  export: {tar_path.stat().st_size} bytes")
     lb.check_agent_in_export(tar_path, agent)

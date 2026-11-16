@@ -21,8 +21,15 @@ install -d -m 755 /usr/lib/osx86/wine
 
 # HOME=/root has no XDG folders: the shell folders of the template are plain directories, not
 # links into a home of the build machine.
+# winemenubuilder is disabled in the template: it writes .desktop files, MIME types and icons into
+# ~/.local at every session start (seen in the trace of the first launch), for a desktop the VM
+# does not have; BoxedWine reads shortcuts itself (BwLib).
 env -i PATH=/usr/bin:/bin HOME=/root USER=osx86-template WINEPREFIX="$template" WINEDEBUG=-all \
-  sh -c 'wineboot -u > /dev/null 2>&1; wineserver -w'
+  sh -c 'wineboot -u > /dev/null 2>&1; wineserver -w;
+         wine reg add "HKCU\\Software\\Wine\\DllOverrides" /v winemenubuilder.exe /t REG_SZ /d "" /f > /dev/null 2>&1;
+         wineserver -w'
+grep -q '"winemenubuilder.exe"=""' "$template/user.reg"
+rm -rf /root/.local
 test -f "$template/system.reg" -a -f "$template/user.reg" -a -d "$template/drive_c/users/osx86-template"
 
 # Wine compares .update-timestamp with the modification time of wine.inf at every start and runs
