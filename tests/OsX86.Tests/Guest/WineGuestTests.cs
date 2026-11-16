@@ -19,7 +19,8 @@ namespace OsX86.Tests.Guest;
 /// </list>
 /// Each boot: a guest user <c>osx86-test</c> is added in memory from the root serial shell (prefixes
 /// are work item 10), the template prefix is copied for it with <c>/usr/lib/osx86/wine/prefix-copy</c>,
-/// the agent answers, then <c>exec-in-prefix</c> runs <c>wine cmd /c echo</c> and the console program
+/// the agent answers, the prefix's <c>wineserver</c> starts as a launch of its own, then
+/// <c>exec-in-prefix</c> runs <c>wine cmd /c echo</c> and the console program
 /// of the recipe (<c>osx86-hello.exe</c>, built from source with MinGW-w64), and their output and exit
 /// codes are checked. The criterion of 204 A (first program less than 60 s after the prompt) is
 /// printed, not asserted: when it is missed, decision 152 goes back to the maintainer with the numbers.
@@ -100,6 +101,17 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
         var client = new AgentClient(bridge.Channel);
         AgentStatus status = await client.ConnectAsync(None);
         Assert.True(status.HasCgroups, "the wine image has no cgroup v2");
+        // The wineserver of the prefix runs as a launch of its own (persistent, -p): a wineserver started
+        // by an exec-in-prefix command belongs to that command's cgroup, which the agent ends 2 s after
+        // the command exits (SIGHUP then cgroup.kill, 208 A); a second command that connects to it in
+        // that window hangs (seen in this test: 480 s). Work item 10 decides how prefixes keep theirs.
+        LaunchResult server = await client.LaunchAsync(new LaunchOptions
+        {
+            Prefix = "test",
+            Program = "wineserver",
+            Arguments = ["-f", "-p"],
+            Environment = new Dictionary<string, string> { ["WINEDEBUG"] = "-all" },
+        }, None);
         ExecResult cmd = await WineAsync(client, ["cmd", "/c", "echo", "osx86-wine-ok"]);
         long cmdDoneMs = sincePrompt.ElapsedMilliseconds;
         ExecResult program = await WineAsync(client, ["/usr/lib/osx86/wine/osx86-hello.exe", "first", "program"]);
@@ -130,6 +142,7 @@ public sealed partial class WineGuestTests(ITestOutputHelper output)
             preloadText = await PreloadStateAsync(session);
         }
 
+        await client.KillAsync(server.Id, TimeSpan.FromSeconds(2));
         await client.DisposeAsync();
         await session.StopAsync();
         return new FirstRun(what, bootMs, copyDoneMs, cmdDoneMs, (long)cmd.Duration.TotalMilliseconds, programDoneMs, (long)program.Duration.TotalMilliseconds, preloadText);
