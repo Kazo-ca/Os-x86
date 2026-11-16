@@ -18,9 +18,23 @@ mount -t tmpfs -o nodev,nosuid,noexec,mode=0755 tmpfs /run
 mount -t tmpfs -o nodev,nosuid,mode=1777 tmpfs /tmp
 mount -t tmpfs -o nodev,nosuid,mode=1777 tmpfs /var/tmp
 mount -t tmpfs -o nodev,nosuid,noexec,mode=0755 tmpfs /var/log
-# Home directories of the guest users (one per prefix, work items 9 and 10): in memory until a
-# disk replaces this mount; nosuid and nodev whatever the medium (R134.5).
-mount -t tmpfs -o nodev,nosuid,mode=0755 tmpfs /home
+# Work item 10: the prefixes live on the VM's disk (its persistent write layer, work item 6b).
+# The file system becomes writable, the root mount itself stays read-only: only /home (the homes
+# of the guest users, one per prefix, nosuid and nodev for R134.5) is writable, and root alone
+# reaches a writable view of the root under /run/osx86-admin (0700), where
+# /usr/lib/osx86/prefix-admin adds and removes the prefix users in /etc/passwd and /etc/group.
+# The disk has a journal (an unclean stop, a closed page, is replayed at the next boot) and dirty
+# pages reach it within about a second; the agent's "sync" runs before Os-x86 stops the VM.
+if mount -o remount,rw / 2>/dev/null; then
+  mkdir -p /run/osx86-admin/root
+  chmod 700 /run/osx86-admin
+  mount --bind / /run/osx86-admin/root
+  mount -o bind,nodev,nosuid /home /home
+  mount -o remount,bind,ro /
+  sysctl -q -w vm.dirty_expire_centisecs=100 vm.dirty_writeback_centisecs=100 2>/dev/null
+else
+  mount -t tmpfs -o nodev,nosuid,mode=0755 tmpfs /home  # a medium that cannot be written: homes in memory
+fi
 # cgroup v2: one cgroup per launch, created and killed by the agent as root (decision 206 A).
 mount -t cgroup2 -o nodev,noexec,nosuid cgroup2 /sys/fs/cgroup 2>/dev/null
 

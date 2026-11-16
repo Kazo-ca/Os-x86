@@ -50,9 +50,19 @@ done
 rm -rf "$wine_root/include" "$wine_root/share/man" "$wine_root/share/applications"
 
 # --- 3. the pieces of this image -------------------------------------------------------------------
-install -d -m 755 /usr/lib/osx86/wine /usr/lib/osx86/init.d
+install -d -m 755 /usr/lib/osx86/wine /usr/lib/osx86/init.d /usr/lib/osx86/prefix.d
 install -m 644 /out/hot-files.list /usr/lib/osx86/wine/hot-files.list
 install -m 755 /recipe/preload.sh /usr/lib/osx86/init.d/50-preload-wine
+# Work item 10: the template copied for each new prefix, the Wine session of a prefix, and the
+# current test program; then the pieces of linux-base that change with Os-x86, installed again so
+# that a build that reuses the Docker images of an earlier run (--from prefix or slim) has them.
+install -m 755 /recipe/prefix-hook.sh /usr/lib/osx86/prefix.d/50-wine
+install -m 755 /recipe/prefix-session.sh /usr/lib/osx86/wine/prefix-session
+install -m 644 /out/osx86-hello.exe /usr/lib/osx86/wine/osx86-hello.exe
+install -m 755 /linux-base/init.sh /sbin/init
+install -m 755 /linux-base/prefix-admin.sh /usr/lib/osx86/prefix-admin
+install -m 755 /agent/agent /usr/lib/osx86/agent
+install -m 755 /agent/osx86-open-url /usr/bin/osx86-open-url
 echo wine > /etc/osx86-image
 echo "$version" > /etc/osx86-release
 # 210 A: the packages installed after the base stage are hardened the same way.

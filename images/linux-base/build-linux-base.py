@@ -69,7 +69,8 @@ AGENT_IN_IMAGE = "usr/lib/osx86/agent"
 DEFAULT_OUTPUT = REPO_ROOT / "images" / "build" / IMAGE_ID
 
 # What the tools container runs on the exported tree: extraction with owners and modes, the
-# image test, then the ext4 root (no journal: the root is mounted read-only; fixed UUID and
+# image test, then the ext4 root (with a journal since work item 10: the prefixes are written on it
+# and a VM may stop uncleanly, its page closed; OSX86_FREE_MIB of room for them; fixed UUID and
 # hash seed and SOURCE_DATE_EPOCH for a reproducible image: every time later than it is clamped to
 # it; 1 by default, the wine image passes the date of Wine's wine.inf, which Wine compares with its
 # prefix's .update-timestamp).
@@ -83,11 +84,11 @@ chmod 755 rootfs
 python3 -I /tools/image-check.py --tree /work/rootfs --report /work/image-check.json
 used=$(du -sk rootfs | cut -f1)
 inodes=$(find rootfs | wc -l)
-size_kib=$(( used + used / 8 + inodes + 16384 ))
+size_kib=$(( used + used / 8 + inodes + 16384 + 8192 + ${OSX86_FREE_MIB:-256} * 1024 ))
 size_mib=$(( (size_kib + 4095) / 4096 * 4 ))
 rm -f rootfs.ext4
 export E2FSPROGS_FAKE_TIME=1 SOURCE_DATE_EPOCH="${OSX86_SOURCE_DATE_EPOCH:-1}"
-mkfs.ext4 -q -F -d rootfs -L osx86-root -U 0b6f2a3c-4d5e-4f60-8172-839495a6b7c8 -m 0 -O ^has_journal \
+mkfs.ext4 -q -F -d rootfs -L osx86-root -U 0b6f2a3c-4d5e-4f60-8172-839495a6b7c8 -m 0 -J size=8 \
   -E hash_seed=5d8c2e3a-6b7f-4c90-a1b2-c3d4e5f60718,lazy_itable_init=0,root_owner=0:0 rootfs.ext4 "${size_mib}M"
 e2fsck -fn rootfs.ext4 > /dev/null
 rm -rf rootfs

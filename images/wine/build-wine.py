@@ -216,15 +216,21 @@ def fetch_downloads(directory: Path) -> None:
 # --- the Docker steps ------------------------------------------------------------------------------
 
 
-def build_mingw_program(output: Path) -> None:
-    """osx86-hello.exe from its source, with the MinGW-w64 cross compiler of Debian (amd64)."""
-    run_and_commit("osx86-mingw-prepare", lb.DEBIAN_IMAGE, MINGW_IMAGE, [], [
-        "sh", "-c", "set -eu; apt-get -qq -o Acquire::Retries=5 update; DEBIAN_FRONTEND=noninteractive apt-get -qq -o Acquire::Retries=5 "
-                    "install -y --no-install-recommends gcc-mingw-w64-i686-win32 > /dev/null; apt-get clean"], platform="linux/amd64")
+def build_mingw_program(output: Path, reuse_compiler: bool = False) -> None:
+    """osx86-hello.exe from its source, with the MinGW-w64 cross compiler of Debian (amd64); the
+    compiler image of an earlier run is reused when asked and present (--from prefix or slim)."""
+    if not (reuse_compiler and image_size(MINGW_IMAGE) is not None):
+        prepare_mingw()
     remove_container("osx86-mingw-build")
     run(["docker", "run", "--rm", "--platform", "linux/amd64", "--name", "osx86-mingw-build",
          "-v", f"{volume(HERE)}:/recipe:ro", "-v", f"{volume(output)}:/out", MINGW_IMAGE,
          "i686-w64-mingw32-gcc", "-Os", "-s", "-o", "/out/osx86-hello.exe", "/recipe/osx86-hello.c"])
+
+
+def prepare_mingw() -> None:
+    run_and_commit("osx86-mingw-prepare", lb.DEBIAN_IMAGE, MINGW_IMAGE, [], [
+        "sh", "-c", "set -eu; apt-get -qq -o Acquire::Retries=5 update; DEBIAN_FRONTEND=noninteractive apt-get -qq -o Acquire::Retries=5 "
+                    "install -y --no-install-recommends gcc-mingw-w64-i686-win32 > /dev/null; apt-get clean"], platform="linux/amd64")
 
 
 def docker_build(output: Path, agent: dict, start: str) -> dict:
@@ -233,8 +239,12 @@ def docker_build(output: Path, agent: dict, start: str) -> dict:
     returns what the trace of step 5 measured."""
     if start != "slim":
         build_until_trace(output, agent, start)
+    if start != "install":
+        build_mingw_program(output, reuse_compiler=True)  # osx86-hello.c may have changed since that run
+    # The slim step also installs again the pieces of linux-base that change with Os-x86 (the init,
+    # the agent, prefix-admin; work item 10): a build --from prefix or slim carries the current ones.
     run_and_commit("osx86-wine-slim", PREFIX_IMAGE, DOCKER_IMAGE,
-                   [(HERE, "/recipe:ro"), (LINUX_BASE_DIR, "/linux-base:ro"), (output, "/out:ro")],
+                   [(HERE, "/recipe:ro"), (LINUX_BASE_DIR, "/linux-base:ro"), (output, "/out:ro"), (lb.AGENT_DIR, "/agent:ro")],
                    ["sh", "/recipe/slim-wine.sh", IMAGE_VERSION])
     return read_trace(output)
 

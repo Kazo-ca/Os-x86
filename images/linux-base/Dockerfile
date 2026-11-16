@@ -91,13 +91,15 @@ COPY --from=agent /out/agent /usr/lib/osx86/agent
 COPY --from=agent /out/osx86-open-url /usr/bin/osx86-open-url
 COPY init.sh /sbin/init
 COPY verify-console.sh /usr/lib/osx86/verify-console.sh
+# Work item 10: the guest side of the prefixes, run as root by the agent only.
+COPY prefix-admin.sh /usr/lib/osx86/prefix-admin
 # (/etc/hosts and /etc/hostname are read-only mounts during a build: copied, not written.)
 COPY etc/hostname etc/hosts /etc/
 RUN set -eux; \
     release="$(cat /usr/lib/osx86/provenance/kernel.release)"; \
     depmod -a "$release"; \
-    chmod 755 /sbin/init /usr/lib/osx86/verify-console.sh /usr/lib/osx86/osx86-rawsock /usr/lib/osx86/osx86-ptrace; \
-    chown 0:0 /usr/lib/osx86/agent /usr/bin/osx86-open-url; \
+    chmod 755 /sbin/init /usr/lib/osx86/verify-console.sh /usr/lib/osx86/prefix-admin /usr/lib/osx86/osx86-rawsock /usr/lib/osx86/osx86-ptrace; \
+    chown 0:0 /usr/lib/osx86/agent /usr/bin/osx86-open-url /usr/lib/osx86/prefix-admin; \
     chmod 755 /usr/lib/osx86/agent /usr/bin/osx86-open-url; \
     echo "${IMAGE_VERSION}" > /etc/osx86-release; \
     mkdir -p /usr/lib/osx86 /home; \
