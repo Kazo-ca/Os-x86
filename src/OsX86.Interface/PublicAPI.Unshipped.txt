@@ -87,6 +87,7 @@ const OsX86.Interface.X86ErrorCodes.MemoryBudgetExceeded = "memory-budget-exceed
 const OsX86.Interface.X86ErrorCodes.NoConsole = "no-console" -> string!
 const OsX86.Interface.X86ErrorCodes.NoPrefix = "no-prefix" -> string!
 const OsX86.Interface.X86ErrorCodes.StartFailed = "start-failed" -> string!
+const OsX86.Interface.X86ErrorCodes.StorageFailed = "storage-failed" -> string!
 const OsX86.Interface.X86ErrorCodes.UnsupportedFormat = "unsupported-format" -> string!
 const OsX86.Interface.X86ErrorCodes.VmBusy = "vm-busy" -> string!
 const OsX86.Interface.X86ErrorCodes.VmNotFound = "vm-not-found" -> string!

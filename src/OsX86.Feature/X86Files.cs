@@ -1,5 +1,8 @@
+using Kazo.Os.App.Abstractions;
 using Kazo.Os.AppSdk;
 using Kazo.Os.AppSdk.IO;
+using Kazo.Os.Simulation.Abstractions.FileSystem;
+using Kazo.Os.Simulation.Abstractions.Settings;
 using OsX86.Vm;
 
 namespace OsX86.Feature;
@@ -30,14 +33,25 @@ internal sealed class KazoX86Files : IX86Files
         return await KazoFile.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Writes the file, creating its missing directories the way Kazo's own settings do
+    /// (<see cref="SettingsTextFile.EnsureDirectoryAsync"/>): an app may create
+    /// <c>~/.config/&lt;appId&gt;/</c> (its private capability) without being allowed to look at
+    /// <c>~/.config</c> itself, where <see cref="KazoDirectory.CreateDirectoryAsync(string, CancellationToken)"/>
+    /// stops (found in the dev host, work item 6b: the first <c>x86 vm create</c> of a user failed).
+    /// </summary>
     public async ValueTask WriteTextAsync(string path, string text, CancellationToken cancellationToken)
     {
         string full = KazoPath.GetFullPath(path);
         int slash = full.LastIndexOf('/');
         if (slash > 0)
         {
-            await KazoDirectory.CreateDirectoryAsync(full[..slash], cancellationToken).ConfigureAwait(false);
+            string directory = full[..slash];
+            FileSystemError? error = await SettingsTextFile.EnsureDirectoryAsync(KazoExecutionContext.Current.FileSystem, VirtualPath.Parse(directory), cancellationToken).ConfigureAwait(false);
+            if (error is not null)
+            {
+                throw new IOException($"The directory '{directory}' cannot be created ({error.Code}).");
+            }
         }
 
         await KazoFile.WriteAllTextAsync(full, text, cancellationToken).ConfigureAwait(false);

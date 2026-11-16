@@ -318,7 +318,10 @@ public sealed class VmInstance
     /// <summary>
     /// Opens a console (213 A), starting the VM when needed: through the agent, a pseudo-terminal
     /// with the shell of the prefix's user; without agent, the serial console when the profile
-    /// declares one (212 A). The console is an application of the VM.
+    /// declares one (212 A). With an agent but no prefix, neither given nor in the profile (an image
+    /// without guest users yet, linux-base until work items 9 and 10), the serial console too when
+    /// the profile declares one (work item 6b); otherwise <see cref="X86ErrorCodes.NoPrefix"/>.
+    /// The console is an application of the VM.
     /// </summary>
     /// <exception cref="X86Exception"><see cref="X86ErrorCodes.NoConsole"/>, <see cref="X86ErrorCodes.NoPrefix"/>, <see cref="X86ErrorCodes.AgentError"/>, <see cref="X86ErrorCodes.AgentLost"/>, or a start failure.</exception>
     public async ValueTask<IVmConsole> OpenConsoleAsync(VmConsoleOptions options, CancellationToken cancellationToken)
@@ -339,7 +342,10 @@ public sealed class VmInstance
                 agentLost = _agentLost;
             }
 
-            if (hasAgent && agent is not null)
+            // Work item 6b: an image without a default guest user (linux-base) opens its serial
+            // console when the caller names no prefix and the profile declares one.
+            bool serialFallback = options.Prefix is null && Record.Profile.Prefix is null && Record.Profile.SerialConsole;
+            if (hasAgent && agent is not null && !serialFallback)
             {
                 if (agentLost)
                 {
@@ -523,7 +529,17 @@ public sealed class VmInstance
     private async Task StartUnderLockAsync(CancellationToken cancellationToken)
     {
         VmRecord record = Record;
-        BootImage boot = await _manager.Images.ResolveAsync(record.Profile.Image, record.Profile.ImageVersion, cancellationToken).ConfigureAwait(false);
+        BootImage boot = await _manager.Images.ResolveAsync(record.Profile.Image, record.Profile.ImageVersion, new SynchronousProgress(this, _manager), cancellationToken).ConfigureAwait(false);
+        EngineStartOptions options;
+        try
+        {
+            // Work item 6b: the disks of a stored image write to the VM's own persistent layer.
+            options = boot.CreateStartOptions(record.Profile.MemoryMiB, record.EffectiveLayerSet);
+        }
+        catch (EngineException exception)
+        {
+            throw new X86Exception(X86ErrorCodes.ImageUnavailable, $"The image {record.Profile.Image} {record.Profile.ImageVersion} cannot be started by this version ({exception.Code}): {exception.Message}", exception);
+        }
 
         // The check and the move to Starting are one step for the whole machine: two VMs that start
         // together cannot both pass a budget that only one of them fits in. No engine exists before.
@@ -568,14 +584,6 @@ public sealed class VmInstance
         engine.StateChanged += OnEngineStateChanged;
         try
         {
-            var options = new EngineStartOptions
-            {
-                KernelPath = boot.KernelPath,
-                InitrdPath = boot.InitrdPath,
-                KernelCommandLine = boot.KernelCommandLine,
-                MemoryMiB = record.Profile.MemoryMiB,
-                VirtioConsole = true,
-            };
             await engine.StartAsync(options, cancellationToken).ConfigureAwait(false);
             await ConnectAgentAsync(engine, runStop.Token, cancellationToken).ConfigureAwait(false);
             SetState(VmState.Running);
@@ -891,4 +899,10 @@ public sealed class VmInstance
         _graceTimer?.Dispose();
         _graceTimer = null;
     }
+}
+
+/// <summary>Hands each download report to the manager at once, on the thread that reports it (no synchronization context to post to).</summary>
+internal sealed class SynchronousProgress(VmInstance instance, VmManager manager) : IProgress<Storage.DownloadProgress>
+{
+    public void Report(Storage.DownloadProgress value) => manager.ReportImageProgress(instance, value);
 }

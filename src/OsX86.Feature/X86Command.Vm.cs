@@ -8,8 +8,8 @@ namespace OsX86.Feature;
 
 public sealed partial class X86Command
 {
-    /// <summary>The profile <c>x86 vm create</c> uses without <c>--profile</c> (linux-base takes its place once it boots, after work item 6a).</summary>
-    internal const string DefaultProfile = "alpine-test";
+    /// <summary>The profile <c>x86 vm create</c> uses without <c>--profile</c> (work item 6b: the Linux base image; alpine-test stays for the tests).</summary>
+    internal const string DefaultProfile = "linux-base";
 
     private static readonly string[] NoOptions = [];
 
@@ -55,7 +55,7 @@ public sealed partial class X86Command
             case "start":
             {
                 VmRecord vm = await Manager.ResolveAsync(user, words[0], cancellationToken).ConfigureAwait(false);
-                await Manager.HoldAsync(user, vm.Id, cancellationToken).ConfigureAwait(false);
+                await WithImageProgressAsync(context, user, vm.Id, () => Manager.HoldAsync(user, vm.Id, cancellationToken).AsTask()).ConfigureAwait(false);
                 await output.WriteLineAsync($"Started {vm.Name}; it keeps running until `x86 vm stop {vm.Name}`.".AsMemory(), cancellationToken).ConfigureAwait(false);
                 return X86ExitCodes.Ok;
             }

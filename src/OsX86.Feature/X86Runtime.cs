@@ -8,7 +8,8 @@ namespace OsX86.Feature;
 /// machine (the VMs keep running between two <c>x86</c> commands) and the files. Until Kazo OS
 /// has the Feature app kind (work item 8), the command has no emulator of its own (a command gets
 /// no <c>IJSRuntime</c>, ADR 0070 of Kazo): its engine factory refuses, and the hosts that have
-/// one (the guest tests, later the Feature) install theirs through <see cref="Configure"/>.
+/// one install theirs: the dev host through <see cref="VmHost.Configure"/> (work item 6b), the
+/// guest tests through <see cref="Configure"/>, later the Feature.
 /// </summary>
 internal static class X86Runtime
 {
@@ -46,11 +47,12 @@ internal static class X86Runtime
 
     private static X86CommandServices CreateDefault()
     {
+        VmHostEnvironment? host = VmHost.Current; // the dev host installs one (work item 6b), the Feature later (work item 8)
         var manager = new VmManager(
             new KazoVmRegistryStore(KazoX86Files.Instance),
-            UnavailableEngineFactory.Instance,
-            StaticBootImageSource.Empty,
-            FixedHostMemory.Unknown);
+            host?.Engines ?? UnavailableEngineFactory.Instance,
+            host?.Images ?? StaticBootImageSource.Empty,
+            host?.Memory ?? FixedHostMemory.Unknown);
         return new X86CommandServices(manager, KazoX86Files.Instance);
     }
 }

@@ -19,6 +19,23 @@ public sealed class VmRecord
     /// <summary>The recipe of the VM: kind, image and version, memory, serial port, default prefix (183 A).</summary>
     public required VmProfile Profile { get; init; }
 
+    /// <summary>
+    /// The layer set that keeps the writes of the VM's disks (work item 6b: one per VM,
+    /// <c>osx86/layers/&lt;set&gt;/</c>, deleted with the VM). Set at creation; a VM registered
+    /// before it existed (<see langword="null"/>) uses <see cref="LayerSetOf"/> of its identifier.
+    /// </summary>
+    public string? LayerSet { get; init; }
+
+    /// <summary>The layer set of the VM: <see cref="LayerSet"/>, or the one its identifier gives.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string EffectiveLayerSet => LayerSet ?? LayerSetOf(Id);
+
+    /// <summary>The layer set of a new VM: <c>vm-</c> and the 32 hexadecimal digits of its identifier.</summary>
+    public static string LayerSetOf(Guid vmId) => "vm-" + vmId.ToString("N");
+
+    /// <summary>The same VM under another name.</summary>
+    public VmRecord WithName(string name) => new() { Id = Id, Name = name, Created = Created, Profile = Profile, LayerSet = LayerSet };
+
     /// <summary>The summary a client sees, with the given state.</summary>
     public VmSummary ToSummary(VmState state) => new(Id, Name, Profile.Kind, state, Profile.Image, Profile.ImageVersion, Profile.MemoryMiB);
 }
@@ -107,6 +124,10 @@ public sealed class VmRegistryDocument
             }
 
             vm.Profile.Validate();
+            if (vm.LayerSet is not null && !Storage.StorageLayout.IsValidImageId(vm.LayerSet))
+            {
+                throw new X86Exception(X86ErrorCodes.InvalidProfile, $"The VM registry is invalid: the layer set '{vm.LayerSet}' of {vm.Name} is not an identifier.");
+            }
         }
 
         var profileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
