@@ -53,7 +53,7 @@ public sealed partial class LinuxBaseGuestTests(ITestOutputHelper output)
             await using (var client = new AgentClient(bridge.Channel))
             {
                 AgentStatus status = await client.ConnectAsync(None);
-                Assert.Equal(1, status.ProtocolVersion);
+                Assert.Equal(2, status.ProtocolVersion);
                 Assert.True(status.HasCgroups, "linux-base has no cgroup v2");
                 await MeasurePingAsync(client);
                 await AddPrefixUsersAsync(session);
