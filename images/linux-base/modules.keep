@@ -28,7 +28,14 @@ mousedev
 # Sound (v86 emulates a Sound Blaster 16; milestone 2)
 snd_sb16
 snd_pcm_oss
-# Network (v86 emulates an NE2000 PCI card; work item 12)
+# Network (v86 emulates an NE2000 PCI card and virtio-net; work item 12: virtio-net on the private
+# switch, a veth pair per prefix namespace, nftables in defence)
 ne2k-pci
 virtio_net
 tun
+veth
+nf_tables
+nf_conntrack
+nft_ct
+nft_reject
+nft_reject_inet

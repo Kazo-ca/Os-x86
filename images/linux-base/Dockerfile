@@ -13,7 +13,8 @@
 # refuses socket(2) to a 32-bit container on the GitHub runners (measured with strace), so
 # build-linux-base.py installs the packages with `docker run` (the daemon's profile, repaired
 # by the workflow) and commits two prepared images that the two Debian stages start from:
-#   DEBIAN_TOOLS_IMAGE     debian:trixie-slim + kmod (modprobe) + procps (sysctl, ps)
+#   DEBIAN_TOOLS_IMAGE     debian:trixie-slim + kmod (modprobe) + procps (sysctl, ps) + iproute2
+#                          and nftables (the private network of work item 12)
 #   DEBIAN_COMPILER_IMAGE  debian:trixie-slim + gcc + libc6-dev (the static probes only)
 #
 # Stages: kernel (Alpine: kernel, initramfs, pruned modules, provenance) -> probes (two static
@@ -68,10 +69,11 @@ RUN set -eux; \
     cp /boot/config-* /provenance/kernel.config; \
     wc -l /tmp/modules.closure
 
-# --- Stage 2: the probes of the R134.5 checks (two tiny static programs, no compiler in the image)
+# --- Stage 2: the probes of the R134.5 checks and of the private network (tiny static programs, no compiler in the image)
 FROM ${DEBIAN_COMPILER_IMAGE} AS probes
 COPY probes/ /src/
-RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o /osx86-ptrace /src/osx86-ptrace.c && strip /osx86-rawsock /osx86-ptrace
+RUN gcc -Os -static -o /osx86-rawsock /src/osx86-rawsock.c && gcc -Os -static -o /osx86-ptrace /src/osx86-ptrace.c \
+    && gcc -Os -static -Wall -Wextra -Werror -o /osx86-netcheck /src/osx86-netcheck.c && strip /osx86-rawsock /osx86-ptrace /osx86-netcheck
 
 # --- The guest agent (images/agent): only its two binaries are taken from this image ---------------
 FROM ${AGENT_IMAGE} AS agent
@@ -84,7 +86,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=kernel /boot/vmlinuz-virt /boot/initramfs-virt /boot/
 COPY --from=kernel /out/modules /lib/modules
 COPY --from=kernel /provenance /usr/lib/osx86/provenance
-COPY --from=probes /osx86-rawsock /osx86-ptrace /usr/lib/osx86/
+COPY --from=probes /osx86-rawsock /osx86-ptrace /osx86-netcheck /usr/lib/osx86/
 # The agent (root, started by the init on hvc0, user consoles on hvc1) and the program a guest
 # runs to hand a URL to the host.
 COPY --from=agent /out/agent /usr/lib/osx86/agent
@@ -93,13 +95,19 @@ COPY init.sh /sbin/init
 COPY verify-console.sh /usr/lib/osx86/verify-console.sh
 # Work item 10: the guest side of the prefixes, run as root by the agent only.
 COPY prefix-admin.sh /usr/lib/osx86/prefix-admin
+# Work item 12: the guest side of the private network (eth0, a namespace per prefix, nftables in
+# defence), run as root by the agent only.
+COPY net-admin.sh /usr/lib/osx86/net-admin
+COPY net/vm.nft net/prefix.nft /usr/lib/osx86/net/
 # (/etc/hosts and /etc/hostname are read-only mounts during a build: copied, not written.)
 COPY etc/hostname etc/hosts /etc/
 RUN set -eux; \
     release="$(cat /usr/lib/osx86/provenance/kernel.release)"; \
     depmod -a "$release"; \
-    chmod 755 /sbin/init /usr/lib/osx86/verify-console.sh /usr/lib/osx86/prefix-admin /usr/lib/osx86/osx86-rawsock /usr/lib/osx86/osx86-ptrace; \
-    chown 0:0 /usr/lib/osx86/agent /usr/bin/osx86-open-url /usr/lib/osx86/prefix-admin; \
+    chmod 755 /sbin/init /usr/lib/osx86/verify-console.sh /usr/lib/osx86/prefix-admin /usr/lib/osx86/net-admin /usr/lib/osx86/osx86-rawsock /usr/lib/osx86/osx86-ptrace /usr/lib/osx86/osx86-netcheck; \
+    chmod 755 /usr/lib/osx86/net; chmod 644 /usr/lib/osx86/net/vm.nft /usr/lib/osx86/net/prefix.nft; \
+    chown 0:0 /usr/lib/osx86/agent /usr/bin/osx86-open-url /usr/lib/osx86/prefix-admin /usr/lib/osx86/net-admin; \
+    chown -R 0:0 /usr/lib/osx86/net; \
     chmod 755 /usr/lib/osx86/agent /usr/bin/osx86-open-url; \
     echo "${IMAGE_VERSION}" > /etc/osx86-release; \
     mkdir -p /usr/lib/osx86 /home; \
