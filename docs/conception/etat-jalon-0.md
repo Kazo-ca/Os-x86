@@ -24,13 +24,13 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 4, images : outil de paquetage zstd, recettes `linux-base` (Debian i386, 73 Mo), Alpine de test (15 Mo), FreeDOS (17 Mo), durcissement et son test, publication préparée.
 - Chantier 5, agent : agent invité en C statique dans l'image, client C# du protocole, consoles, tests dans l'image Alpine.
 - Chantier 1c, Kazo épinglé sur `v3.4.0` stable (266 A) : fusionné (PR #10).
+- Chantier 6b, `linux-base` image par défaut de `x86 vm create` et `x86 shell`, source d'images configurable, couche d'écriture par VM : fusionné (PR #11).
 - Chantier 6, registre des VM par usager, cycle de vie, budget de mémoire, profils `.x86profile`, `x86 vm`, `x86 shell` par l'agent : fusionné (PR #9).
 - Chantier 6a, disque `hda` depuis l'OPFS : `linux-base` démarre avec son agent (22 contrôles sur 22), couche d'écriture, FreeDOS démarre : fusionné (PR #8).
 
 ## En cours
 
-- **Chantier 6b**, `linux-base` comme image par défaut de `x86 vm create` et `x86 shell` (source d'images configurable, couche d'écriture par VM) : lancé le 2026-11-15, branche `j0/6b-linux-base-default`.
-- **Chantier 9**, image Wine (WineHQ 11.0 i386, Mono, Gecko, bouteille gabarit en fichiers, préchargement 204 A) : lancé le 2026-11-15, branche `j0/9-wine-image`.
+- **Chantier 9**, image Wine (WineHQ 11.0 i386, Mono 10.4.1, Gecko 2.47.4, bouteille gabarit en fichiers, préchargement) : PR #12 verte, en mise à jour après la fusion de #11. Critère de 204 A atteint (premier programme 13 à 17 s après l'invite, contre 60 s visés) ; image 349 Mio contre 250 visés.
 - **Kazo, code de l'ADR 0248**, résolution des dépendances par le Store et kazopkg : lancé le 2026-11-15, branche `feature/18-dependency-resolution-code`.
 
 ## Reste à faire
