@@ -206,6 +206,9 @@ et `osx86-mingw`.
 7. Export, test d'image de 210 A et ext4 dans `osx86-tools` (les fonctions de linux-base),
    vérifications propres à Wine sur l'export, `sources.json`, paquetage.
 
+`--from prefix` ou `--from slim` reprend à l'étape 4 ou 6 sur les images Docker d'une construction
+précédente (mise au point) ; `--skip-docker-build` réutilise `osx86-wine` tel quel.
+
 **Dégraissage.** `wine-stable-i386` dépend en dur de GStreamer, PulseAudio, SANE, libgphoto2,
 OpenCL, libpcap, Wayland et ALSA-plugins : 201 paquets et 1 Gio installés par apt. Ces
 dépendances ne servent qu'à des modules de Wine qu'un programme console n'ouvre pas
@@ -236,6 +239,10 @@ l'usager. Ensuite :
   dans le conteneur, dans l'export et dans la VM par le test `guest` ;
 - Mono est enregistré comme installation partagée (paquet de support seulement) ; Gecko est
   trouvé à la demande dans `/usr/share/wine/gecko`.
+- `winemenubuilder` est coupé dans le registre du gabarit (`DllOverrides`) : la trace du premier
+  lancement le montrait écrire des fichiers `.desktop`, des types MIME et des icônes dans `~/.local`
+  à chaque début de session, pour un bureau que la VM n'a pas (BoxedWine lit les raccourcis
+  lui-même, BwLib).
 
 **Copie par préfixe.** `/usr/lib/osx86/wine/prefix-copy <usager> [<destination>]` (root) copie le
 gabarit pour l'usager invité `osx86-<préfixe>` (par défaut dans `$HOME/.wine`, qui ne doit pas

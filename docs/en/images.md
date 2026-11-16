@@ -201,6 +201,9 @@ socket too); images and containers are named `osx86-wine-*` and `osx86-mingw`.
 7. Export, image test of 210 A and ext4 in `osx86-tools` (linux-base's functions), Wine-specific
    checks of the export, `sources.json`, pack.
 
+`--from prefix` or `--from slim` starts again at step 4 or 6 on the Docker images of an earlier
+build (tuning); `--skip-docker-build` reuses `osx86-wine` as it is.
+
 **Slimming.** `wine-stable-i386` hard-depends on GStreamer, PulseAudio, SANE, libgphoto2, OpenCL,
 libpcap, Wayland and ALSA-plugins: 201 packages and 1 GiB installed by apt. Those only serve Wine
 modules a console program never opens (`winegstreamer`, `winepulse`, `sane`, `gphoto2`, `opencl`,
@@ -229,6 +232,9 @@ Then:
   the `guest` test;
 - Mono is registered as a shared install (support package only); Gecko is found on demand in
   `/usr/share/wine/gecko`.
+- `winemenubuilder` is disabled in the registry of the template (`DllOverrides`): the trace of the
+  first launch showed it writing `.desktop` files, MIME types and icons into `~/.local` at every
+  session start, for a desktop the VM does not have (BoxedWine reads shortcuts itself, BwLib).
 
 **Per-prefix copy.** `/usr/lib/osx86/wine/prefix-copy <user> [<destination>]` (root) copies the
 template for the guest user `osx86-<prefix>` (by default into `$HOME/.wine`, which must not
