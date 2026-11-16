@@ -194,7 +194,7 @@ jobs:
           if [ "$EVENT" = workflow_dispatch ]; then echo wine=true >> "$GITHUB_OUTPUT"; exit 0; fi
           if [ "$EVENT" = pull_request ]; then range="origin/$BASE_REF...HEAD"; else range="$BEFORE..HEAD"; fi
           if ! changed=$(git diff --name-only "$range" 2>/dev/null); then echo wine=true >> "$GITHUB_OUTPUT"; exit 0; fi
-          if printf '%s\n' "$changed" | grep -q -E '^(images/wine/|images/linux-base/|tests/OsX86\.Tests/Guest/WineGuestTests\.cs$|\.github/workflows/images\.yml$)'; then
+          if printf '%s\n' "$changed" | grep -q -E '^(images/wine/|images/linux-base/|images/agent/|src/OsX86/Agent/|src/OsX86/Vm/|src/OsX86\.Feature/|tests/OsX86\.Tests/Guest/WineGuestTests\.cs$|tests/OsX86\.Tests/Vm/X86RunWineGuestTests\.cs$|\.github/workflows/images\.yml$)'; then
             echo wine=true >> "$GITHUB_OUTPUT"
           else
             echo wine=false >> "$GITHUB_OUTPUT"
@@ -228,8 +228,12 @@ jobs:
         run: cat images/build/wine/measurements.json
       - uses: actions/upload-artifact@v4
         with:
+          # The pack and the test program built from images/wine/osx86-hello.c (work item 10: the
+          # guest test of x86 run copies it from the host into a prefix).
           name: pack-wine
-          path: images/build/wine/pack
+          path: |
+            images/build/wine/pack
+            images/build/wine/osx86-hello.exe
           if-no-files-found: error
 
   guest-wine:
@@ -249,7 +253,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: pack-wine
-          path: images/build/wine/pack
+          path: images/build/wine
       - name: Build (Release, packages)
         run: dotnet build OsX86.sln -c Release
       - name: Install the Playwright browser
