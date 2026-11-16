@@ -21,7 +21,10 @@ public sealed partial class VmInstance
 
     private static readonly Dictionary<string, string> WineEnvironment = new() { ["WINEDEBUG"] = "-all" };
 
-    private readonly SemaphoreSlim _prefixGate = new(1, 1);
+    // One gate per prefix: what is slow in the guest (prefix-admin, a session's wineboot) never
+    // holds the other prefixes; one more for the deletions left from a stopped VM.
+    private readonly Dictionary<PrefixId, SemaphoreSlim> _prefixGates = [];
+    private readonly SemaphoreSlim _deletionsGate = new(1, 1);
     private readonly Dictionary<PrefixId, GuestPrefix> _guestPrefixes = [];
     private readonly Dictionary<PrefixId, WineSession> _sessions = [];
     private bool _pendingDeletionsDone;
@@ -39,10 +42,11 @@ public sealed partial class VmInstance
         try
         {
             AgentClient agent = RequireAgent();
-            GuestPrefix guest = await EnsureGuestPrefixAsync(agent, program.Prefix, cancellationToken).ConfigureAwait(false);
+            long run = application.Generation;
+            GuestPrefix guest = await EnsureGuestPrefixAsync(agent, program.Prefix, run, cancellationToken).ConfigureAwait(false);
             string relative = await CopyProgramAsync(agent, program, cancellationToken).ConfigureAwait(false);
             string path = $"{guest.Home.TrimEnd('/')}/{relative}";
-            session = await AcquireSessionAsync(agent, program.Prefix, cancellationToken).ConfigureAwait(false);
+            session = await AcquireSessionAsync(agent, program.Prefix, run, cancellationToken).ConfigureAwait(false);
             var options = new ConsoleOptions
             {
                 Prefix = program.Prefix.Value,
@@ -92,7 +96,7 @@ public sealed partial class VmInstance
             return false;
         }
 
-        await EnsureGuestPrefixAsync(agent, prefix, cancellationToken).ConfigureAwait(false);
+        await EnsureGuestPrefixAsync(agent, prefix, CurrentRun(), cancellationToken).ConfigureAwait(false);
         return true;
     }
 
@@ -108,7 +112,8 @@ public sealed partial class VmInstance
             return false;
         }
 
-        await _prefixGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        SemaphoreSlim gate = GateOf(prefix);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             lock (_lock)
@@ -126,7 +131,7 @@ public sealed partial class VmInstance
         }
         finally
         {
-            _prefixGate.Release();
+            gate.Release();
         }
     }
 
@@ -155,13 +160,15 @@ public sealed partial class VmInstance
     /// deletions left from a stopped VM are done first. An agent of protocol 1 has no prefix
     /// operations: its image ships its users (the Alpine test image).
     /// </summary>
-    private async Task<GuestPrefix> EnsureGuestPrefixAsync(AgentClient agent, PrefixId prefix, CancellationToken cancellationToken)
+    private async Task<GuestPrefix> EnsureGuestPrefixAsync(AgentClient agent, PrefixId prefix, long run, CancellationToken cancellationToken)
     {
-        await _prefixGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        SemaphoreSlim gate = GateOf(prefix);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             lock (_lock)
             {
+                ThrowIfOtherRunUnsafe(run);
                 if (_guestPrefixes.TryGetValue(prefix, out GuestPrefix? known))
                 {
                     return known;
@@ -173,19 +180,27 @@ public sealed partial class VmInstance
                 return Remember(new GuestPrefix(prefix.Value, -1, "/home/" + prefix.GuestUser));
             }
 
-            await DoPendingDeletionsAsync(agent, cancellationToken).ConfigureAwait(false);
+            await DoPendingDeletionsAsync(agent, run, cancellationToken).ConfigureAwait(false);
+
+            // A prefix deleted meanwhile (its record gone) is not made again: the deletion wins.
+            if (!Record.KnowsPrefix(prefix))
+            {
+                throw new X86Exception(X86ErrorCodes.PrefixNotFound, $"The prefix '{prefix}' was deleted.");
+            }
+
             (GuestPrefix guest, _) = await AgentCallAsync(() => agent.EnsurePrefixAsync(prefix.Value, cancellationToken)).ConfigureAwait(false);
             return Remember(guest);
         }
         finally
         {
-            _prefixGate.Release();
+            gate.Release();
         }
 
         GuestPrefix Remember(GuestPrefix guest)
         {
             lock (_lock)
             {
+                ThrowIfOtherRunUnsafe(run); // a run that ended under us keeps nothing for the next one
                 _guestPrefixes[prefix] = guest;
             }
 
@@ -193,67 +208,134 @@ public sealed partial class VmInstance
         }
     }
 
-    private async Task DoPendingDeletionsAsync(AgentClient agent, CancellationToken cancellationToken)
+    private async Task DoPendingDeletionsAsync(AgentClient agent, long run, CancellationToken cancellationToken)
     {
-        bool done;
+        await _deletionsGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            bool done;
+            lock (_lock)
+            {
+                done = _pendingDeletionsDone;
+            }
+
+            IReadOnlyList<PrefixId> pending = Record.EffectivePendingPrefixDeletions;
+            if (done || pending.Count == 0)
+            {
+                return;
+            }
+
+            foreach (PrefixId prefix in pending)
+            {
+                await AgentCallAsync(() => agent.DeletePrefixAsync(prefix.Value, cancellationToken)).ConfigureAwait(false);
+            }
+
+            Record = await _manager.Registry.CompletePrefixDeletionsAsync(OwnerId, Id, pending, cancellationToken).ConfigureAwait(false);
+            lock (_lock)
+            {
+                ThrowIfOtherRunUnsafe(run);
+                _pendingDeletionsDone = true;
+            }
+        }
+        finally
+        {
+            _deletionsGate.Release();
+        }
+    }
+
+    /// <summary>The gate of a prefix, made on first use.</summary>
+    private SemaphoreSlim GateOf(PrefixId prefix)
+    {
         lock (_lock)
         {
-            done = _pendingDeletionsDone;
-        }
+            if (!_prefixGates.TryGetValue(prefix, out SemaphoreSlim? gate))
+            {
+                gate = new SemaphoreSlim(1, 1);
+                _prefixGates[prefix] = gate;
+            }
 
-        IReadOnlyList<PrefixId> pending = Record.EffectivePendingPrefixDeletions;
-        if (done || pending.Count == 0)
-        {
-            return;
+            return gate;
         }
+    }
 
-        foreach (PrefixId prefix in pending)
-        {
-            await AgentCallAsync(() => agent.DeletePrefixAsync(prefix.Value, cancellationToken)).ConfigureAwait(false);
-        }
-
-        Record = await _manager.Registry.CompletePrefixDeletionsAsync(OwnerId, Id, pending, cancellationToken).ConfigureAwait(false);
+    /// <summary>The run (generation) now.</summary>
+    private long CurrentRun()
+    {
         lock (_lock)
         {
-            _pendingDeletionsDone = true;
+            return _generation;
+        }
+    }
+
+    /// <summary>Under the lock: refuses work for a run that ended (its state would leak into the next run).</summary>
+    private void ThrowIfOtherRunUnsafe(long run)
+    {
+        if (_generation != run || _state != VmState.Running)
+        {
+            throw new X86Exception(X86ErrorCodes.ConsoleClosed, "The virtual machine stopped.");
         }
     }
 
     /// <summary>
     /// Copies the program into the prefix (<c>C:\osx86\run\&lt;hash&gt;\&lt;name&gt;</c>), unless a
     /// copy of the same bytes is already there (named by their SHA-256, kept with its size).
-    /// Returns its path relative to the home.
+    /// Returns its path relative to the home. Copies of one prefix go one at a time, and a copy is
+    /// written aside then renamed: a program never starts on a file another run is still writing,
+    /// and a copy cut short never takes the final name.
     /// </summary>
-    private static async Task<string> CopyProgramAsync(AgentClient agent, PreparedProgram program, CancellationToken cancellationToken)
+    private async Task<string> CopyProgramAsync(AgentClient agent, PreparedProgram program, CancellationToken cancellationToken)
     {
         string relative = $"{ProgramDirectory}/{program.ContentHash}/{program.FileName}";
-        ExecResult size = await AgentCallAsync(() => agent.ExecInPrefixAsync(new ExecOptions
+        SemaphoreSlim gate = GateOf(program.Prefix);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            Prefix = program.Prefix.Value,
-            Program = "stat",
-            Arguments = ["-c", "%s", relative],
-        }, cancellationToken)).ConfigureAwait(false);
-        if (size.Exit.Code == 0 && size.Output.Trim() == program.Content.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
-        {
+            ExecResult size = await AgentCallAsync(() => agent.ExecInPrefixAsync(new ExecOptions
+            {
+                Prefix = program.Prefix.Value,
+                Program = "stat",
+                Arguments = ["-c", "%s", relative],
+            }, cancellationToken)).ConfigureAwait(false);
+            if (size.Exit.Code == 0 && size.Output.Trim() == program.Content.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            {
+                return relative;
+            }
+
+            string part = relative + ".part";
+            await AgentCallAsync(async () =>
+            {
+                await agent.PutFileAsync(program.Prefix.Value, part, program.Content, cancellationToken).ConfigureAwait(false);
+                return true;
+            }).ConfigureAwait(false);
+            ExecResult moved = await AgentCallAsync(() => agent.ExecInPrefixAsync(new ExecOptions
+            {
+                Prefix = program.Prefix.Value,
+                Program = "mv",
+                Arguments = ["-f", "--", part, relative],
+            }, cancellationToken)).ConfigureAwait(false);
+            if (moved.Exit.Code != 0)
+            {
+                throw new X86Exception(X86ErrorCodes.AgentError, $"The copy of {program.FileName} could not be put in place: {moved.Output.Trim()}");
+            }
+
             return relative;
         }
-
-        await AgentCallAsync(async () =>
+        finally
         {
-            await agent.PutFileAsync(program.Prefix.Value, relative, program.Content, cancellationToken).ConfigureAwait(false);
-            return true;
-        }).ConfigureAwait(false);
-        return relative;
+            gate.Release();
+        }
     }
 
     /// <summary>The Wine session of the prefix, started when none runs; its count of programs taken.</summary>
-    private async Task<WineSession> AcquireSessionAsync(AgentClient agent, PrefixId prefix, CancellationToken cancellationToken)
+    private async Task<WineSession> AcquireSessionAsync(AgentClient agent, PrefixId prefix, long run, CancellationToken cancellationToken)
     {
-        await _prefixGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        SemaphoreSlim gate = GateOf(prefix);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             lock (_lock)
             {
+                ThrowIfOtherRunUnsafe(run);
                 if (_sessions.TryGetValue(prefix, out WineSession? running) && !running.Exited.IsCompleted)
                 {
                     running.Take();
@@ -270,33 +352,55 @@ public sealed partial class VmInstance
                 Environment = WineEnvironment,
             }, cancellationToken)).ConfigureAwait(false);
             RegisterChild(launch.Id, VmChildKind.Session, launch.Exited);
-            var session = new WineSession(prefix, launch.Id, launch.Exited);
-            int seconds = (int)_options.PrefixSessionStartTimeout.TotalSeconds;
-            ExecResult ready = await AgentCallAsync(() => agent.ExecInPrefixAsync(new ExecOptions
+            try
             {
-                Prefix = prefix.Value,
-                Program = SessionProgram,
-                Arguments = ["wait", token, seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)],
-                Timeout = _options.PrefixSessionStartTimeout + TimeSpan.FromSeconds(10),
-            }, cancellationToken)).ConfigureAwait(false);
-            if (ready.Exit.Code != 0)
+                await WaitForSessionAsync(agent, prefix, launch, token, cancellationToken).ConfigureAwait(false);
+                var session = new WineSession(prefix, launch.Id, launch.Exited);
+                session.Take();
+                lock (_lock)
+                {
+                    ThrowIfOtherRunUnsafe(run);
+                    _sessions[prefix] = session;
+                }
+
+                return session;
+            }
+            catch
             {
+                // Whatever went wrong (refused, cancelled, the run ended), the launch dies: no session lives untracked.
                 _ = KillQuietlyAsync(agent, launch.Id);
-                string why = launch.Exited.IsCompleted ? $"it ended with code {launch.Exited.Result.Code}" : ready.Output.Trim();
-                throw new X86Exception(X86ErrorCodes.StartFailed, $"The Wine session of the prefix '{prefix}' did not start: {why}");
+                throw;
             }
-
-            session.Take();
-            lock (_lock)
-            {
-                _sessions[prefix] = session;
-            }
-
-            return session;
         }
         finally
         {
-            _prefixGate.Release();
+            gate.Release();
+        }
+    }
+
+    /// <summary>Returns once the session is up; fails at once when its launch ends first (a broken Wine is not waited for).</summary>
+    private async Task WaitForSessionAsync(AgentClient agent, PrefixId prefix, LaunchResult launch, string token, CancellationToken cancellationToken)
+    {
+        int seconds = (int)_options.PrefixSessionStartTimeout.TotalSeconds;
+        Task<ExecResult> wait = AgentCallAsync(() => agent.ExecInPrefixAsync(new ExecOptions
+        {
+            Prefix = prefix.Value,
+            Program = SessionProgram,
+            Arguments = ["wait", token, seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)],
+            Timeout = _options.PrefixSessionStartTimeout + TimeSpan.FromSeconds(10),
+        }, cancellationToken));
+        Task first = await Task.WhenAny(wait, launch.Exited).ConfigureAwait(false);
+        if (ReferenceEquals(first, launch.Exited))
+        {
+            _ = wait.ContinueWith(task => _ = task.Exception, TaskScheduler.Default); // observed: the wait ends at its own deadline
+            string code = launch.Exited.IsCompletedSuccessfully ? launch.Exited.Result.Code.ToString(System.Globalization.CultureInfo.InvariantCulture) : "unknown";
+            throw new X86Exception(X86ErrorCodes.StartFailed, $"The Wine session of the prefix '{prefix}' did not start: it ended with code {code}.");
+        }
+
+        ExecResult ready = await wait.ConfigureAwait(false);
+        if (ready.Exit.Code != 0)
+        {
+            throw new X86Exception(X86ErrorCodes.StartFailed, $"The Wine session of the prefix '{prefix}' did not start: {ready.Output.Trim()}");
         }
     }
 
@@ -325,6 +429,14 @@ public sealed partial class VmInstance
             {
                 if (session.Programs > 0 || !_sessions.TryGetValue(session.Prefix, out WineSession? current) || !ReferenceEquals(current, session))
                 {
+                    return;
+                }
+
+                // A console of the prefix (x86 shell) may run Wine on this session: it keeps it, and
+                // the stop is tried again after the grace.
+                if (_options.PrefixSessionGrace > TimeSpan.Zero && _children.Any(child => child.Kind != VmChildKind.Session && child.Launch.Prefix == session.Prefix.Value))
+                {
+                    session.ScheduleStop(_time.CreateTimer(_ => Stop(), null, _options.PrefixSessionGrace, Timeout.InfiniteTimeSpan));
                     return;
                 }
 

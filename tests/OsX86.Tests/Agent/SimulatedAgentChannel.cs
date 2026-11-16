@@ -74,6 +74,12 @@ internal sealed class SimulatedAgentChannel : IAgentChannel
     public void On(string operation, Func<JsonElement, string> reply, params string[] thenLines) =>
         _handlers[operation] = request => [WithId(request, reply(request)), .. thenLines];
 
+    /// <summary>Answers an operation with any number of lines (none leaves that request unanswered); a reply needs its id put in by <see cref="ReplyTo"/>.</summary>
+    public void OnLines(string operation, Func<JsonElement, IEnumerable<string>> lines) => _handlers[operation] = lines;
+
+    /// <summary>The reply line to a request, with its id.</summary>
+    public static string ReplyTo(JsonElement request, string body) => WithId(request, body);
+
     /// <summary>Leaves an operation unanswered.</summary>
     public void Ignore(string operation) => _handlers[operation] = _ => [];
 

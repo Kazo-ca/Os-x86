@@ -168,8 +168,16 @@ public sealed partial class VmManager
             throw new X86Exception(X86ErrorCodes.VmBusy, $"{running} program(s) or console(s) run in the prefix '{prefix}'; end them, or delete it with --force.");
         }
 
+        // The record goes first, kept as a pending deletion: a run that resolved the prefix just before
+        // finds it gone and makes nothing again, and a guest that cannot delete now does it at its next start.
+        await Registry.RemovePrefixAsync(userId, vmId, prefix, deletedInGuest: false, cancellationToken).ConfigureAwait(false);
+        instance = await GetInstanceAsync(userId, vmId, cancellationToken).ConfigureAwait(false);
         bool deleted = await instance.DeleteGuestPrefixAsync(prefix, cancellationToken).ConfigureAwait(false);
-        await Registry.RemovePrefixAsync(userId, vmId, prefix, deleted, cancellationToken).ConfigureAwait(false);
+        if (deleted)
+        {
+            instance.Record = await Registry.CompletePrefixDeletionsAsync(userId, vmId, [prefix], cancellationToken).ConfigureAwait(false);
+        }
+
         return deleted;
     }
 

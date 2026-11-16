@@ -65,7 +65,8 @@ without_user() { grep -v "^$user:" || true; }
 
 # Runs the hooks; returns 0 when one of them did something.
 run_hooks() {
-  changed=1
+  # (Its own variable: a function of sh shares the caller's, and "changed" is the caller's.)
+  hooks_changed=1
   for hook in "$hooks"/*; do
     [ -f "$hook" ] && [ -x "$hook" ] || continue
     set +e
@@ -73,12 +74,12 @@ run_hooks() {
     status=$?
     set -e
     case "$status" in
-      0) changed=0 ;;
+      0) hooks_changed=0 ;;
       "$NOTHING") ;;
       *) fail "$(basename "$hook") $1 $user failed with code $status" ;;
     esac
   done
-  return "$changed"
+  return "$hooks_changed"
 }
 
 if [ "$action" = ensure ]; then
@@ -89,7 +90,8 @@ if [ "$action" = ensure ]; then
       uid=$((uid + 1))
       [ "$uid" -le "$LAST_UID" ] || fail "no free user identifier left"
     done
-    ! getent group "$user" > /dev/null || fail "a group $user exists without its user"
+    # A group left without its user (a stop between the two rewrites, here or in a deletion) goes first.
+    if getent group "$user" > /dev/null; then rewrite group without_user; fi
     rewrite group append_group "$uid"
     rewrite passwd append_user "$uid"
     changed=0
@@ -98,6 +100,11 @@ if [ "$action" = ensure ]; then
   uid="$(echo "$entry" | cut -d: -f3)"
   gid="$(echo "$entry" | cut -d: -f4)"
   [ "$uid" -ne 0 ] && [ "$gid" -ne 0 ] || fail "$user has uid or gid 0"
+  # A user left without its group (a deletion cut short) gets it back.
+  if ! getent group "$user" > /dev/null; then
+    rewrite group append_group "$gid"
+    changed=0
+  fi
   [ "$(echo "$entry" | cut -d: -f6)" = "$home" ] || fail "$user does not have the home $home"
   if [ ! -d "$home" ] || [ -L "$home" ]; then
     rm -f "$home"
@@ -116,6 +123,13 @@ fi
 # delete
 entry="$(getent passwd "$user" || true)"
 if [ -z "$entry" ]; then
+  # What a deletion cut short may have left: the group, the home.
+  if getent group "$user" > /dev/null || [ -e "$home" ]; then
+    rm -rf --one-file-system "$home"
+    if getent group "$user" > /dev/null; then rewrite group without_user; fi
+    sync
+    exit 0
+  fi
   exit "$NOTHING"
 fi
 uid="$(echo "$entry" | cut -d: -f3)"
@@ -124,8 +138,12 @@ uid="$(echo "$entry" | cut -d: -f3)"
 pkill -KILL -U "$uid" 2> /dev/null || true
 run_hooks delete || true
 rm -rf --one-file-system "$home" "/tmp/.wine-$uid" "/var/tmp/.wine-$uid"
-rewrite passwd without_user
+# The next prefix may get the same uid: nothing of this one may be left for it (146).
+find /tmp /var/tmp /dev/shm -xdev -user "$uid" -delete 2> /dev/null || true
+# The group goes before the user: a deletion cut in between leaves a user without its group,
+# which the next deletion finishes (its entry is still there).
 rewrite group without_user
+rewrite passwd without_user
 sync
 echo "prefix-admin: $user deleted"
 exit 0

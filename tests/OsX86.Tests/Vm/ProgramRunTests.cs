@@ -61,7 +61,9 @@ public sealed class ProgramRunTests
         IReadOnlyList<JsonElement> puts = agent.Requests("put-file");
         Assert.Equal((Hello.Length + AgentClient.PutFileChunkBytes - 1) / AgentClient.PutFileChunkBytes, puts.Count);
         string hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Hello))[..16];
-        Assert.All(puts, put => Assert.Equal($".wine/drive_c/osx86/run/{hash}/hello.exe", put.GetProperty("path").GetString()));
+        Assert.All(puts, put => Assert.Equal($".wine/drive_c/osx86/run/{hash}/hello.exe.part", put.GetProperty("path").GetString()));
+        JsonElement moved = agent.Requests("exec-in-prefix").Single(r => r.GetProperty("program").GetString() == "mv");
+        Assert.Equal(["-f", "--", $".wine/drive_c/osx86/run/{hash}/hello.exe.part", $".wine/drive_c/osx86/run/{hash}/hello.exe"], moved.GetProperty("args").EnumerateArray().Select(a => a.GetString()));
         Assert.True(puts[0].GetProperty("truncate").GetBoolean());
         Assert.Equal(AgentClient.PutFileChunkBytes, puts[1].GetProperty("offset").GetInt64());
         JsonElement session = agent.Request("launch");
@@ -137,9 +139,12 @@ public sealed class ProgramRunTests
         rig.Engines.Configure = engine =>
         {
             ScriptWineGuest(engine);
-            engine.Agent!.On("exec-in-prefix", request => request.GetProperty("program").GetString() == "stat"
-                ? """{"ok":true,"code":1,"signal":0,"timedOut":false,"truncated":false,"output":"","ms":9}"""
-                : """{"ok":true,"code":1,"signal":0,"timedOut":false,"truncated":false,"output":"prefix-session: not ready","ms":9}""");
+            engine.Agent!.On("exec-in-prefix", request => request.GetProperty("program").GetString() switch
+            {
+                "stat" => """{"ok":true,"code":1,"signal":0,"timedOut":false,"truncated":false,"output":"","ms":9}""",
+                "mv" => """{"ok":true,"code":0,"signal":0,"timedOut":false,"truncated":false,"output":"","ms":9}""",
+                _ => """{"ok":true,"code":1,"signal":0,"timedOut":false,"truncated":false,"output":"prefix-session: not ready","ms":9}""",
+            });
         };
         rig.Images.Add("wine", "0.1.0", new BootImage("k", "i", "console=ttyS0"));
 
@@ -150,6 +155,80 @@ public sealed class ProgramRunTests
         VmInstance vm = (await rig.Manager.GetInstanceAsync(User, (await rig.Manager.ResolveAsync(User, "windows", None)).Id, None));
         Assert.Equal(0, vm.Applications);
         await WaitUntilAsync(() => rig.Engines.Last.Agent!.Requests("kill").Count == 1, "the failed session killed");
+    }
+
+    [Fact]
+    public async Task A_session_that_dies_before_it_is_ready_fails_at_once_without_waiting_for_its_deadline()
+    {
+        await using var rig = new VmTestRig();
+        rig.Engines.Configure = engine =>
+        {
+            ScriptWineGuest(engine, copied: true);
+            SimulatedAgentChannel agent = engine.Agent!;
+            agent.OnLines("launch", request =>
+            [
+                SimulatedAgentChannel.ReplyTo(request, """{"ok":true,"launch":"default/1","pid":90,"uid":2000,"cgroup":"/x","ms":4}"""),
+                """{"event":"exit","launch":"default/1","pid":90,"code":1,"signal":0,"remaining":0}""",
+            ]);
+            agent.OnLines("exec-in-prefix", request => request.GetProperty("program").GetString() == "stat"
+                ? [SimulatedAgentChannel.ReplyTo(request, $$"""{"ok":true,"code":0,"signal":0,"timedOut":false,"truncated":false,"output":"{{Hello.Length}}\n","ms":9}""")]
+                : []); // the wait never answers
+        };
+        rig.Images.Add("wine", "0.1.0", new BootImage("k", "i", "console=ttyS0"));
+
+        X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await rig.Manager.RunProgramAsync(User, Run(), None).AsTask().WaitAsync(Soon));
+
+        Assert.Equal(X86ErrorCodes.StartFailed, error.Code);
+        Assert.Contains("ended with code 1", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_copy_that_cannot_be_put_in_place_fails_the_run()
+    {
+        await using var rig = new VmTestRig();
+        rig.Engines.Configure = engine =>
+        {
+            ScriptWineGuest(engine);
+            engine.Agent!.On("exec-in-prefix", request => request.GetProperty("program").GetString() == "mv"
+                ? """{"ok":true,"code":1,"signal":0,"timedOut":false,"truncated":false,"output":"mv: cannot move","ms":9}"""
+                : """{"ok":true,"code":1,"signal":0,"timedOut":false,"truncated":false,"output":"","ms":9}""");
+        };
+        rig.Images.Add("wine", "0.1.0", new BootImage("k", "i", "console=ttyS0"));
+
+        X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await rig.Manager.RunProgramAsync(User, Run(), None));
+
+        Assert.Equal(X86ErrorCodes.AgentError, error.Code);
+        Assert.Contains("mv: cannot move", error.Message, StringComparison.Ordinal);
+        Assert.Empty(rig.Engines.Last.Agent!.Requests("launch"));
+    }
+
+    [Fact]
+    public async Task A_console_of_the_prefix_keeps_the_session_past_its_grace()
+    {
+        await using var rig = new VmTestRig(FastOptions with { PrefixSessionGrace = TimeSpan.FromSeconds(30), StopGrace = TimeSpan.FromMinutes(5) });
+        rig.Engines.Configure = engine => ScriptWineGuest(engine);
+        rig.Images.Add("wine", "0.1.0", new BootImage("k", "i", "console=ttyS0"));
+        VmInstance vm = await rig.CreateAsync("w", BuiltInProfiles.Wine);
+        IVmConsole program = await rig.Manager.RunProgramAsync(User, Run(vm: vm.Id), None);
+        SimulatedAgentChannel agent = rig.Engines.Last.Agent!;
+        agent.SendConsoleBytes(Closed(5, 0, 0));
+        await program.Exited.WaitAsync(Soon);
+        await program.DisposeAsync();
+        await WaitUntilAsync(() => vm.Children.All(child => child.Kind != VmChildKind.Program), "the program child gone");
+        ScriptWineGuest(rig.Engines.Last, copied: true, console: 6);
+        IVmConsole shell = await vm.OpenConsoleAsync(new VmConsoleOptions { Prefix = "default" }, None);
+
+        rig.Time.Advance(TimeSpan.FromSeconds(31));
+        await Task.Delay(100);
+        Assert.Empty(agent.Requests("kill"));
+        Assert.True(vm.HasSession(PrefixId.Default));
+
+        agent.SendConsoleBytes(Closed(6, 0, 0));
+        await shell.Exited.WaitAsync(Soon);
+        await shell.DisposeAsync();
+        await WaitUntilAsync(() => vm.Children.All(child => child.Kind == VmChildKind.Session), "the console child gone");
+        rig.Time.Advance(TimeSpan.FromSeconds(31));
+        await WaitUntilAsync(() => agent.Requests("kill").Count == 1, "the session killed once the console closed");
     }
 
     [Fact]

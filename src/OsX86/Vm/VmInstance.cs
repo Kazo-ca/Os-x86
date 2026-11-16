@@ -356,7 +356,7 @@ public sealed partial class VmInstance
                     ?? throw new X86Exception(X86ErrorCodes.NoPrefix, "No prefix was given and the profile of this virtual machine has no default one: use --prefix.");
                 if (Prefixes.PrefixId.TryParse(prefix, out Prefixes.PrefixId known) && Record.KnowsPrefix(known))
                 {
-                    await EnsureGuestPrefixAsync(agent, known, cancellationToken).ConfigureAwait(false); // work item 10: made in the guest on first use
+                    await EnsureGuestPrefixAsync(agent, known, application.Generation, cancellationToken).ConfigureAwait(false); // work item 10: made in the guest on first use
                 }
 
                 ConsoleHandle handle;
