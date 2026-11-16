@@ -26,8 +26,9 @@ env -i PATH=/usr/bin:/bin HOME=/root USER=osx86-template WINEPREFIX="$template" 
 test -f "$template/system.reg" -a -f "$template/user.reg" -a -d "$template/drive_c/users/osx86-template"
 
 # Wine compares .update-timestamp with the modification time of wine.inf at every start and runs
-# a full `wineboot -u` when they differ: they must be equal in the image.
-test "$(cat "$template/.update-timestamp")" = "$(stat -c %Y "$wine_root/share/wine/wine.inf")"
+# a full `wineboot -u` when they differ: they must be equal in the image (wineboot writes the
+# number followed by CR LF).
+test "$(tr -dc 0-9 < "$template/.update-timestamp")" = "$(stat -c %Y "$wine_root/share/wine/wine.inf")"
 
 # Mono is a shared install (/usr/share/wine/mono): wineboot registered its support package only.
 grep -q 'wine-mono-' "$template/system.reg"

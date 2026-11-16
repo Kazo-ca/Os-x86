@@ -14,6 +14,7 @@ public sealed class PackedManifestsTests
     [InlineData("alpine-test", "kernel", "initramfs")]
     [InlineData("freedos", "disk")]
     [InlineData("linux-base", "kernel", "initramfs", "rootfs")]
+    [InlineData("wine", "kernel", "initramfs", "rootfs")]
     public void A_packed_manifest_is_read_by_the_storage_reader(string image, params string[] entries)
     {
         string path = Path.Combine(PythonTools.RepositoryRoot, "images", "build", image, "pack", "manifest.json");
