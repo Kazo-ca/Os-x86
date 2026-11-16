@@ -407,10 +407,48 @@ freedos, linux-base (Docker sur le runner, i386 natif) et les tests des outils, 
 | alpine-test | noyau 7,70 Mo + initramfs 7,66 Mo | **15,21 Mo** | 1 | le bzImage est déjà compressé ; avec l'agent (+73 Ko) |
 | freedos | disque 33,55 Mo | **17,25 Mo** | 1 | le disque contient 17 Mio de paquets zip |
 | linux-base | noyau 8,11 Mo + initramfs 5,06 Mo + ext4 138,41 Mo (export 102,49 Mo) | **73,07 Mo** | 3 | sans Wine ; 56 modules noyau ; avec l'agent ; remesuré au chantier 6a (les 70,67 Mo du chantier 5 venaient d'une construction en CRLF, initramfs sans `sd_mod` ni `ext4`) ; dégraissage : voir `measurements.json` |
+| wine | noyau 8,11 Mo + initramfs 5,06 Mo + ext4 1 304,43 Mo (1 244 Mio ; 1,13 Go de fichiers : Wine 663,2 Mo, Mono 236,2 Mo, Gecko 109,3 Mo, gabarit 2,1 Mo) | **365,84 Mo (348,9 Mio)** | 11 | chantier 9 ; objectif 250 Mio : écart ≈ 99 Mio, voir ci-dessous |
 
-L'objectif de 250 Mio de 201 A porte sur l'image Wine (chantier 9), qui part de l'étape `base` ;
-E17 avait mesuré 380 Mio avec Debian complet, 130 Mio de modules et `apt`. Les mesures sont dans
-`images/build/<image>/measurements.json` et dans `manifest.build.sizes`.
+**Image Wine et objectif de 250 Mio (201 A).** Le pack fait 348,9 Mio, soit ≈ 99 Mio de plus que
+l'objectif (E17 : 380 Mio avec Debian complet, `apt`, 130 Mio de modules, sans Mono ni Gecko).
+Le dégraissage a retiré 176 paquets et les outils de développement de Wine ; ce qui reste est
+pour l'essentiel Wine lui-même (DLL PE intégrées), Mono et Gecko, que 201 A et le plan
+(section 1) mettent dans l'image. La répartition compressée est dans « Mesures de l'image Wine ».
+Les mesures sont dans `images/build/<image>/measurements.json` et dans `manifest.build.sizes`.
+
+### Mesures de l'image Wine (chantier 9, 204 A)
+
+Test `guest` `WineGuestTests`, en local (Windows 11, Ryzen 7 3700X, Chrome headless par
+Playwright, pack copié dans l'OPFS, racine `hda` décompressée à la demande, 512 Mio de mémoire,
+couche jetable). Temps comptés depuis l'invite série ; chaque ligne est un démarrage à froid ; la
+copie du gabarit comprend l'ajout de l'usager en mémoire par la console série :
+
+| Démarrage | Invite | Gabarit copié | `wine cmd /c echo` (lui-même) | `osx86-hello.exe` (lui-même) | **Premier programme** |
+| --- | --- | --- | --- | --- | --- |
+| sans préchargement | 15,2 s | 2,5 s | 11,3 s (8,6 s) | 13,3 s (2,0 s) | **13,3 s** |
+| préchargement, programme tout de suite | 16,3 s | 3,1 s | 11,9 s (8,7 s) | 13,9 s (2,0 s) | **13,9 s** |
+| préchargement, programme après sa fin | 16,5 s | 2,7 s | 10,0 s (7,3 s) | 12,2 s (2,1 s) | **12,2 s** |
+
+- **Critère de 204 A atteint** : premier programme console 12 à 14 s après l'invite (objectif :
+  moins de 60 s), sans état gabarit ; 152 A n'a pas à être reposée.
+- **Le préchargement gagne peu** : ≈ 1,3 s sur `wine cmd` quand il a fini avant (224 fichiers,
+  108 Mo lus en 1,7 s d'uptime invité quand rien d'autre ne tourne), rien quand il tourne en même
+  temps que le premier programme (11 s de lecture en concurrence). Le coût de 62 à 79 s d'E17
+  venait de la racine 9p ; avec la racine ext4 lue depuis l'OPFS (chantier 6a), le premier `wine`
+  est déjà à 8,6 s. Le préchargement reste dans l'image (gain mesuré, aucun coût visible sur
+  l'invite) ; `osx86.preload=off` le coupe.
+- Ce qu'il reste dans `wine cmd` : le démarrage de `wineserver`, `wineboot --init` (services,
+  `plugplay`, `winedevice`), puis `cmd`. Le gabarit n'est jamais refait dans la VM (vérifié :
+  `.update-timestamp` égal à la date de `wine.inf` dans l'invité).
+- **Le `wineserver` du préfixe doit vivre à part.** Un `wineserver` lancé par une commande
+  `exec-in-prefix` appartient au cgroup de cette commande, que l'agent termine 2 s après sa fin
+  (SIGHUP puis `cgroup.kill`, 208 A) : une seconde commande qui s'y connecte dans ce délai reste
+  bloquée (480 s dans un premier essai). Le test lance `wineserver -f -p` comme lancement propre
+  avant les commandes ; le chantier 10 décide comment un préfixe garde le sien.
+- En natif (Docker), `wine cmd` prend 1,2 à 1,5 s et `osx86-hello.exe` 1 s : la VM coûte un
+  facteur 6 à 8.
+- Non mesuré : Firefox, Safari, une machine plus lente, Mono et Gecko en usage (aucun programme
+  .NET ni HTML lancé). La CI imprime les mêmes lignes dans le job `guest-wine`.
 
 ## Tests
 
@@ -418,6 +456,9 @@ E17 avait mesuré 380 Mio avec Debian complet, 130 Mio de modules et `apt`. Les 
   détecte un octet changé et un manifeste modifié, `extract`, refus des mauvais arguments),
   `ImageCheckTests` (tar synthétique, 22 contrôles, sept cassures). Ils lancent Python avec `-I`
   ; sans Python 3.14 ni `zstandard` ils sont ignorés en local et échouent dans la CI.
+- `WineGuestTests` (`guest`) démarre le pack Wine trois fois et lance `wine cmd /c echo` et
+  `osx86-hello.exe` par `exec-in-prefix` (voir « Mesures de l'image Wine ») ; ignoré si le pack
+  n'est pas construit, échoue dans le job `guest-wine` (`OSX86_REQUIRE_PACKS`).
 - `dotnet test --filter "Category=guest"` : `PackedAlpineGuestTests` vérifie le pack Alpine,
   l'extrait et le démarre dans le worker jusqu'à l'invite série (9 s dans Chrome).
 - La CI (`ci.yml`, `guest-tests.yml`) installe Python 3.14 ; `images.yml` construit les images.

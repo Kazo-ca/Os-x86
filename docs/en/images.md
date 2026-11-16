@@ -396,10 +396,48 @@ linux-base (Docker on the runner, native i386) and the tool tests, and keep ever
 | alpine-test | kernel 7.70 MB + initramfs 7.66 MB | **15.21 MB** | 1 | the bzImage is already compressed; with the agent (+73 kB) |
 | freedos | disk 33.55 MB | **17.25 MB** | 1 | the disk holds 17 MiB of zip packages |
 | linux-base | kernel 8.11 MB + initramfs 5.06 MB + ext4 138.41 MB (export 102.49 MB) | **73.07 MB** | 3 | no Wine; 56 kernel modules; with the agent; measured again in work item 6a (the 70.67 MB of work item 5 came from a CRLF build, an initramfs without `sd_mod` nor `ext4`); slimming: see `measurements.json` |
+| wine | kernel 8.11 MB + initramfs 5.06 MB + ext4 1,304.43 MB (1,244 MiB; 1.13 GB of files: Wine 663.2 MB, Mono 236.2 MB, Gecko 109.3 MB, template 2.1 MB) | **365.84 MB (348.9 MiB)** | 11 | work item 9; objective 250 MiB: gap of about 99 MiB, see below |
 
-The 250 MiB objective of 201 A is about the Wine image (work item 9), which starts from the
-`base` stage; E17 had measured 380 MiB with a full Debian, 130 MiB of modules and `apt`. The
-measures are in `images/build/<image>/measurements.json` and in `manifest.build.sizes`.
+**Wine image and the 250 MiB objective (201 A).** The pack is 348.9 MiB, about 99 MiB above the
+objective (E17: 380 MiB with a full Debian, `apt`, 130 MiB of modules, without Mono or Gecko). The
+slimming removed 176 packages and Wine's development tools; what remains is mostly Wine itself
+(builtin PE DLLs), Mono and Gecko, which 201 A and the plan (section 1) put in the image. The
+compressed breakdown is in "Measurements of the Wine image". The measures are in
+`images/build/<image>/measurements.json` and in `manifest.build.sizes`.
+
+### Measurements of the Wine image (work item 9, 204 A)
+
+`guest` test `WineGuestTests`, locally (Windows 11, Ryzen 7 3700X, headless Chrome through
+Playwright, pack copied into the OPFS, `hda` root decompressed on demand, 512 MiB of memory,
+discard layer). Times counted from the serial prompt; each line is a cold boot; the template copy
+includes adding the user in memory from the serial console:
+
+| Boot | Prompt | Template copied | `wine cmd /c echo` (itself) | `osx86-hello.exe` (itself) | **First program** |
+| --- | --- | --- | --- | --- | --- |
+| no preloading | 15.2 s | 2.5 s | 11.3 s (8.6 s) | 13.3 s (2.0 s) | **13.3 s** |
+| preloading, program at once | 16.3 s | 3.1 s | 11.9 s (8.7 s) | 13.9 s (2.0 s) | **13.9 s** |
+| preloading, program after it | 16.5 s | 2.7 s | 10.0 s (7.3 s) | 12.2 s (2.1 s) | **12.2 s** |
+
+- **Criterion of 204 A met**: first console program 12 to 14 s after the prompt (objective: under
+  60 s), without a template state; 152 A does not need to be asked again.
+- **Preloading gains little**: about 1.3 s on `wine cmd` when it finished first (224 files,
+  108 MB read in 1.7 s of guest uptime when nothing else runs), nothing when it runs at the same
+  time as the first program (11 s of competing reads). E17's 62 to 79 s came from the 9p root;
+  with the ext4 root read from the OPFS (work item 6a), the first `wine` is already at 8.6 s. The
+  preloading stays in the image (measured gain, no visible cost on the prompt);
+  `osx86.preload=off` turns it off.
+- What remains in `wine cmd`: starting `wineserver`, `wineboot --init` (services, `plugplay`,
+  `winedevice`), then `cmd`. The template is never remade in the VM (checked: `.update-timestamp`
+  equals the date of `wine.inf` in the guest).
+- **The prefix's `wineserver` must live on its own.** A `wineserver` started by an
+  `exec-in-prefix` command belongs to that command's cgroup, which the agent ends 2 s after it
+  exits (SIGHUP then `cgroup.kill`, 208 A): a second command connecting to it in that window hangs
+  (480 s in a first try). The test starts `wineserver -f -p` as a launch of its own before the
+  commands; work item 10 decides how a prefix keeps its own.
+- Natively (Docker), `wine cmd` takes 1.2 to 1.5 s and `osx86-hello.exe` 1 s: the VM costs a
+  factor of 6 to 8.
+- Not measured: Firefox, Safari, a slower machine, Mono and Gecko in use (no .NET or HTML program
+  run). The CI prints the same lines in the `guest-wine` job.
 
 ## Tests
 
@@ -407,6 +445,9 @@ measures are in `images/build/<image>/measurements.json` and in `manifest.build.
   a changed byte and a modified manifest, `extract`, refusal of bad arguments), `ImageCheckTests`
   (synthetic tar, 22 checks, seven breakages). They run Python with `-I`; without Python 3.14 or
   `zstandard` they are skipped locally and fail in the CI.
+- `WineGuestTests` (`guest`) boots the Wine pack three times and runs `wine cmd /c echo` and
+  `osx86-hello.exe` through `exec-in-prefix` (see "Measurements of the Wine image"); skipped when
+  the pack is not built, fails in the `guest-wine` job (`OSX86_REQUIRE_PACKS`).
 - `dotnet test --filter "Category=guest"`: `PackedAlpineGuestTests` checks the Alpine pack,
   extracts it and boots it in the worker up to the serial prompt (9 s in Chrome).
 - The CI (`ci.yml`, `guest-tests.yml`) installs Python 3.14; `images.yml` builds the images.
