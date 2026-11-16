@@ -23,3 +23,14 @@ Contexte : le Store lit les textes de son `catalog.json`, qui ne porte pas ceux 
 - A) ✨(Recommandé) Le rapport de `kazopkg install` marque les capacités (« (!) » pour les dangereuses, celles d'une Feature comprises) ; `kazopkg info` reste tel quel.
 - B) Ajouter les capacités et leur Feature d'origine à `kazopkg info`, par la lecture du paquet publié.
 - C) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-15
+
+Tes mots : « Oui, A partout ».
+
+| # | Réponse | Effet |
+|---|---|---|
+| 267 | **A** | Titre et phrase de risque d'une permission de Feature tirés du manifeste ; traduction plus tard par ses fichiers `localization/`, sans charger son code. Déjà codé dans #570. |
+| 268 | **A** | Permissions des Features dans le Store avec la résolution des dépendances (ADR 0248). |
+| 269 | **A** | Capacités marquées dans le rapport de `kazopkg install` ; `kazopkg info` inchangé. Déjà codé. |
+

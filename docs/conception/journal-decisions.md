@@ -527,3 +527,19 @@ Série 18 (263 à 266), posée le 2026-11-15 dans [serie-18-envoyee.md](serie-18
 | 265 | Fixture `sdk-compat` et version mineure | **A** : à la publication. | ADR 0262 |
 | 266 | Version de Kazo épinglée dans Os-x86 | **A** : `v3.4.0-preview.4` maintenant, suivre les préliminaires qui apportent une ADR de la série, `v3.4.0` à sa publication. | 220 A (seconde moitié) |
 
+Série 19 (267 à 269), posée le 2026-11-15 dans [serie-19-envoyee.md](serie-19-envoyee.md) (questions du code de l'ADR Kazo 0246, PR Kazo-ca/Os#570), répondue le même jour. Tes mots : « Oui, A partout ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 267 | Langue des textes d'une permission de Feature | **A** : texte du manifeste, traduit par ses fichiers `localization/`, sans charger le code de la Feature. | ADR 0246 §1 |
+| 268 | Permissions des Features dans le Store | **A** : avec la résolution des dépendances de l'ADR 0248. | ADR 0246, 0248 |
+| 269 | Capacités en ligne de commande | **A** : marquées dans le rapport de `kazopkg install`, `kazopkg info` inchangé. | ADR 0246 |
+
+Série 20 (270 à 272), posée le 2026-11-16 dans [serie-20-envoyee.md](serie-20-envoyee.md) (questions du code de l'ADR Kazo 0248, PR Kazo-ca/Os#588), répondue le même jour. Tes mots : « Je suis d'accord avec tes recommandations ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 270 | Télécharger avant le consentement | **A** : télécharger et vérifier d'abord, rien d'écrit avant l'accord de l'administrateur. | ADR 0248 |
+| 271 | Plan sans administrateur dans le Store | **A** : pas de fenêtre, la fiche et le message final nomment les paquets. | ADR 0248 |
+| 272 | Ancien catalogue sans `dependencies` | **A** : rien sur la fiche, plan lu dans le paquet à l'installation. | ADR 0248 §5 |
+
