@@ -24,6 +24,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 4, images : outil de paquetage zstd, recettes `linux-base` (Debian i386, 73 Mo), Alpine de test (15 Mo), FreeDOS (17 Mo), durcissement et son test, publication préparée.
 - Chantier 5, agent : agent invité en C statique dans l'image, client C# du protocole, consoles, tests dans l'image Alpine.
 - Chantier 1c, Kazo épinglé sur `v3.4.0` stable (266 A) : fusionné (PR #10).
+- Chantier 6c, connexion de l'agent qui accepte une réponse tardive, tests VM stables : fusionné (PR #13).
 - Chantier 6b, `linux-base` image par défaut de `x86 vm create` et `x86 shell`, source d'images configurable, couche d'écriture par VM : fusionné (PR #11).
 - Chantier 6, registre des VM par usager, cycle de vie, budget de mémoire, profils `.x86profile`, `x86 vm`, `x86 shell` par l'agent : fusionné (PR #9).
 - Chantier 6a, disque `hda` depuis l'OPFS : `linux-base` démarre avec son agent (22 contrôles sur 22), couche d'écriture, FreeDOS démarre : fusionné (PR #8).
@@ -31,7 +32,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - **Chantier 9**, image Wine (WineHQ 11.0 i386, Mono 10.4.1, Gecko 2.47.4, bouteille gabarit en fichiers, préchargement) : PR #12 verte, en mise à jour après la fusion de #11. Critère de 204 A atteint (premier programme 13 à 17 s après l'invite, contre 60 s visés) ; image 349 Mio contre 250 visés.
-- **Kazo, code de l'ADR 0248**, résolution des dépendances par le Store et kazopkg : lancé le 2026-11-15, branche `feature/18-dependency-resolution-code`.
+- **Kazo, code de l'ADR 0248**, résolution des dépendances par le Store et kazopkg : PR Kazo #588 ouverte ; ses questions sont la [série 20](serie-20-envoyee.md) (270 à 272).
 
 ## Reste à faire
 
@@ -48,6 +49,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0250 à 0255 et 0247, 0249, un chantier par ADR, dans l'ordre 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
+- Répondre à la série 20 (270 à 272), puis fusionner Kazo #588.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
