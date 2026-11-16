@@ -404,7 +404,24 @@ linux-base (Docker on the runner, native i386) and the tool tests, and keep ever
 objective (E17: 380 MiB with a full Debian, `apt`, 130 MiB of modules, without Mono or Gecko). The
 slimming removed 176 packages and Wine's development tools; what remains is mostly Wine itself
 (builtin PE DLLs), Mono and Gecko, which 201 A and the plan (section 1) put in the image. The
-compressed breakdown is in "Measurements of the Wine image". The measures are in
+compressed breakdown is below.
+
+| Part (zstd 19, one stream per part) | Raw | Compressed |
+| --- | --- | --- |
+| Wine's PE DLLs (`/opt/wine-stable/lib/wine/i386-windows`) | 645.8 MB | 143.0 MB |
+| Mono (`/usr/share/wine/mono`) | 238.4 MB | 63.7 MB |
+| Gecko (`/usr/share/wine/gecko`) | 109.3 MB | 44.8 MB |
+| Debian i386 libraries (`/usr/lib/i386-linux-gnu`) | 41.5 MB | 14.0 MB |
+| rest of Wine (`i386-unix`, `share`) | 17.4 MB | 3.6 MB |
+| kernel modules | 4.8 MB | 1.4 MB |
+| kernel + initramfs (pack entries) | 13.2 MB | 13.0 MB |
+
+The sum is about 284 MB; the pack is 365.8: the rest is the Debian base, the prefix and above all
+the cost of independent 1 MiB frames (each frame starts again without a dictionary). Ways to the
+objective, not taken here because they change what 201 A puts in the image or the format of work
+item 4: Gecko and Mono as separate packs downloaded on demand (about 109 MB), larger frames for the
+root (less loss, but more bytes read per access), or dropping DLLs a console never opens
+(Direct3D, `d3dcompiler`…, to measure with a wider trace). The measures are in
 `images/build/<image>/measurements.json` and in `manifest.build.sizes`.
 
 ### Measurements of the Wine image (work item 9, 204 A)

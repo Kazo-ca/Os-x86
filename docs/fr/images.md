@@ -415,7 +415,24 @@ freedos, linux-base (Docker sur le runner, i386 natif) et les tests des outils, 
 l'objectif (E17 : 380 Mio avec Debian complet, `apt`, 130 Mio de modules, sans Mono ni Gecko).
 Le dégraissage a retiré 176 paquets et les outils de développement de Wine ; ce qui reste est
 pour l'essentiel Wine lui-même (DLL PE intégrées), Mono et Gecko, que 201 A et le plan
-(section 1) mettent dans l'image. La répartition compressée est dans « Mesures de l'image Wine ».
+(section 1) mettent dans l'image. La répartition compressée est ci-dessous.
+
+| Partie (zstd 19, un flux par partie) | Brut | Compressé |
+| --- | --- | --- |
+| DLL PE de Wine (`/opt/wine-stable/lib/wine/i386-windows`) | 645,8 Mo | 143,0 Mo |
+| Mono (`/usr/share/wine/mono`) | 238,4 Mo | 63,7 Mo |
+| Gecko (`/usr/share/wine/gecko`) | 109,3 Mo | 44,8 Mo |
+| bibliothèques i386 de Debian (`/usr/lib/i386-linux-gnu`) | 41,5 Mo | 14,0 Mo |
+| reste de Wine (`i386-unix`, `share`) | 17,4 Mo | 3,6 Mo |
+| modules du noyau | 4,8 Mo | 1,4 Mo |
+| noyau + initramfs (entrées du pack) | 13,2 Mo | 13,0 Mo |
+
+La somme fait ≈ 284 Mo ; le pack en fait 365,8 : le reste est la base Debian, la bouteille et
+surtout le coût des trames indépendantes de 1 Mio (chaque trame repart sans dictionnaire).
+Pistes pour l'objectif, non prises ici parce qu'elles changent ce que 201 A met dans l'image ou le
+format du chantier 4 : Gecko et Mono en paquets à part téléchargés à la demande (≈ 109 Mo), des
+trames plus grandes pour la racine (moins de pertes, mais plus d'octets lus par accès), ou retirer
+des DLL que la console n'ouvre jamais (Direct3D, `d3dcompiler`…, à mesurer par une trace plus large).
 Les mesures sont dans `images/build/<image>/measurements.json` et dans `manifest.build.sizes`.
 
 ### Mesures de l'image Wine (chantier 9, 204 A)
