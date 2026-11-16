@@ -212,10 +212,10 @@ public sealed class VmLifecycleTests
     }
 
     [Fact]
-    public async Task A_console_needs_a_prefix_when_the_profile_has_none()
+    public async Task A_console_needs_a_prefix_when_the_profile_has_none_and_no_serial_port()
     {
         await using var rig = new VmTestRig();
-        VmInstance vm = await rig.CreateAsync("base", BuiltInProfiles.LinuxBase);
+        VmInstance vm = await rig.CreateAsync("base", BuiltInProfiles.LinuxBase with { SerialConsole = false });
         X86Exception error = await Assert.ThrowsAsync<X86Exception>(async () => await vm.OpenConsoleAsync(new VmConsoleOptions(), None));
         Assert.Equal(X86ErrorCodes.NoPrefix, error.Code);
         Assert.Equal(0, vm.Applications); // the failed console released the VM

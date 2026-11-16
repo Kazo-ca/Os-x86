@@ -16,9 +16,9 @@ and the write layers of the disks, work item 6a (see "Write layers" below and [`
 
 | Path | Contents |
 | --- | --- |
-| `src/OsX86/Storage/` | `ImageManifest` (reader and validator), `StorageLayout` (OPFS names and paths), `StoredObjectMetadata` (versioned formats), `ResumePlan`, `DownloadStateMachine` and `DownloadProgress`, `ImageStore` (the façade), `IStorageWorkerChannel` and `JsStorageWorkerChannel` (JS interop), the protocol, the exceptions |
+| `src/OsX86/Storage/` | `ImageManifest` (reader and validator), `StorageLayout` (OPFS names and paths), `StoredObjectMetadata` (versioned formats), `ResumePlan`, `DownloadStateMachine` and `DownloadProgress`, `ImageStore` (the façade), `ImageCatalog` and `KnownImage` (the known images, work item 6b), `IStorageWorkerChannel` and `JsStorageWorkerChannel` (JS interop), the protocol, the exceptions |
 | `src/OsX86/wwwroot/storage/` | `storage-host.js` (module imported by the C# side, creates the worker) and `storage-worker.js` (download, SHA-256, OPFS, lock) |
-| `tests/OsX86.Tests/Storage/` | `unit` tests (manifest, metadata, resume plan, state machine, `ImageStore` against a simulated worker, JS channel against a fake `IJSRuntime`) and the `guest` test (`ImageDownloadTests`, `storage.html`, `ChunkImageServer`) |
+| `tests/OsX86.Tests/Storage/` | `unit` tests (manifest, metadata, resume plan, state machine, `ImageStore` against a simulated worker, JS channel against a fake `IJSRuntime`) and the `guest` test (`ImageDownloadTests`, `storage.html`, `ChunkImageServer`); `ImageCatalogTests` (work item 6b) |
 
 As for the engine, the files of `wwwroot/` are served under `_content/OsX86/`.
 
@@ -161,7 +161,43 @@ The writes to a disk never touch `image.bin`: they go to one layer per disk,
 - `ImageStore.DeleteLayersAsync(set)`: deletes the set under the lock
   `osx86:layer:osx86/layers/<set>` the engine also takes; `locked` while an engine runs on it.
 - `StorageLayout.LayerDirectory` and `LayerPath` give the paths; the set name follows the rule of
-  image identifiers (a VM identifier, in work item 6).
+  image identifiers.
+- Since work item 6b, **a VM has its own set**: `vm-<the 32 hexadecimal digits of its GUID>`,
+  kept with it in the registry (`VmRecord.LayerSet`) and deleted by `x86 vm remove`
+  ([VMs](vm.md#linux-base-by-default-work-item-6b)).
+
+## Catalog of the known images (work item 6b)
+
+Where images come from is **configuration**, never an address written in the code: the hosting
+(R2, Pages) is not settled yet. `ImageCatalog` lists, for each image version the app can download,
+the address of its published manifest and the SHA-256 that manifest must have (203 A: the hash
+comes from the configuration, never from the origin):
+
+```json
+{"format": 1, "images": [
+  {"image": "linux-base", "version": "0.1.0",
+   "manifestUrl": "images/build/linux-base/pack/manifest.json",
+   "manifestSha256": "d5c9c8f0…"}
+]}
+```
+
+- `ImageCatalog.Parse(text, baseAddress)` reads this format 1 (unknown properties ignored, comments
+  and trailing commas accepted, 256 KiB at most); another format is refused
+  (`format-unsupported`), an invalid or duplicated entry too (`manifest-invalid`, naming the
+  problem). The address must end with `/manifest.json`; a relative one is resolved against the
+  address of the page, since a worker would resolve it against its own script.
+- `SourceOf(image, version)` returns the `ImageSource` of the download (directory of the manifest,
+  hash), with the rule of `ImageSource`: https, http only on the loopback host.
+- `StoreBootImageSource` (VM layer) uses it: an image complete in the repository is used as is;
+  a missing or partial one is downloaded from the origin of the catalog (resume included); one the
+  catalog does not list is `image-unavailable`.
+
+**Local origin.** The dev host `OsX86.Os` serves each pack built in `images/build/<image>/pack/`
+at the same path (manifest and chunks only, never published), and the build records
+the hash of the pack's `manifest.sha256` as assembly metadata (`OsX86.DevPack`). At start,
+`DevImages` reads each manifest, checks it against that hash and makes the catalog of them.
+`-p:OsX86DevImages=false` leaves them out. The `guest` tests do the same with a local static
+server (`StaticFileServer`). The production catalog comes with the hosting of the images.
 
 ### Write lock (E11) and `flush()` (177 A)
 

@@ -16,9 +16,9 @@ d'écriture des disques, le chantier 6a (voir « Couches d'écriture » plus bas
 
 | Chemin | Contenu |
 | --- | --- |
-| `src/OsX86/Storage/` | `ImageManifest` (lecteur et validateur), `StorageLayout` (noms et chemins OPFS), `StoredObjectMetadata` (formats versionnés), `ResumePlan`, `DownloadStateMachine` et `DownloadProgress`, `ImageStore` (la façade), `IStorageWorkerChannel` et `JsStorageWorkerChannel` (l'interop JS), le protocole, les exceptions |
+| `src/OsX86/Storage/` | `ImageManifest` (lecteur et validateur), `StorageLayout` (noms et chemins OPFS), `StoredObjectMetadata` (formats versionnés), `ResumePlan`, `DownloadStateMachine` et `DownloadProgress`, `ImageStore` (la façade), `ImageCatalog` et `KnownImage` (les images connues, chantier 6b), `IStorageWorkerChannel` et `JsStorageWorkerChannel` (l'interop JS), le protocole, les exceptions |
 | `src/OsX86/wwwroot/storage/` | `storage-host.js` (module importé par le C#, crée le worker) et `storage-worker.js` (téléchargement, SHA-256, OPFS, verrou) |
-| `tests/OsX86.Tests/Storage/` | tests `unit` (manifeste, métadonnées, plan de reprise, machine d'état, `ImageStore` contre un worker simulé, canal JS contre un `IJSRuntime` factice) et test `guest` (`ImageDownloadTests`, `storage.html`, `ChunkImageServer`) |
+| `tests/OsX86.Tests/Storage/` | tests `unit` (manifeste, métadonnées, plan de reprise, machine d'état, `ImageStore` contre un worker simulé, canal JS contre un `IJSRuntime` factice) et test `guest` (`ImageDownloadTests`, `storage.html`, `ChunkImageServer`) ; `ImageCatalogTests` (chantier 6b) |
 
 Comme pour le moteur, les fichiers de `wwwroot/` sont servis sous `_content/OsX86/`.
 
@@ -164,7 +164,43 @@ Les écritures d'un disque ne touchent jamais `image.bin` : elles vont dans une 
   `osx86:layer:osx86/layers/<ensemble>` que le moteur prend aussi ; `locked` tant qu'un moteur
   tourne dessus.
 - `StorageLayout.LayerDirectory` et `LayerPath` donnent les chemins ; le nom d'ensemble suit la
-  règle des identifiants d'image (un identifiant de VM, au chantier 6).
+  règle des identifiants d'image.
+- Depuis le chantier 6b, **une VM a son ensemble** : `vm-<32 chiffres hexadécimaux de son GUID>`,
+  rangé avec elle dans le registre (`VmRecord.LayerSet`) et supprimé par `x86 vm remove`
+  ([VM](vm.md#linux-base-par-défaut-chantier-6b)).
+
+## Catalogue des images connues (chantier 6b)
+
+L'origine des images est une **configuration**, jamais une adresse écrite dans le code :
+l'hébergement (R2, Pages) n'est pas encore décidé. `ImageCatalog` liste, pour chaque version
+d'image que l'app sait télécharger, l'adresse de son manifeste publié et l'empreinte SHA-256 que ce
+manifeste doit avoir (203 A : l'empreinte vient de la configuration, jamais de l'origine) :
+
+```json
+{"format": 1, "images": [
+  {"image": "linux-base", "version": "0.1.0",
+   "manifestUrl": "images/build/linux-base/pack/manifest.json",
+   "manifestSha256": "d5c9c8f0…"}
+]}
+```
+
+- `ImageCatalog.Parse(texte, adresseDeBase)` lit ce format 1 (propriétés inconnues ignorées,
+  commentaires et virgules finales acceptés, 256 Kio au plus) ; un autre format est refusé
+  (`format-unsupported`), une entrée invalide ou en double aussi (`manifest-invalid`, qui nomme le
+  problème). L'adresse doit finir par `/manifest.json` ; relative, elle est résolue contre
+  l'adresse de la page, puisqu'un worker résoudrait une adresse relative contre son propre script.
+- `SourceOf(image, version)` rend l'`ImageSource` du téléchargement (dossier du manifeste,
+  empreinte), avec la règle de `ImageSource` : https, http seulement en boucle locale.
+- `StoreBootImageSource` (couche VM) s'en sert : image complète dans le dépôt, utilisée telle
+  quelle ; absente ou partielle, téléchargée depuis l'origine du catalogue (reprise comprise) ;
+  absente du catalogue, `image-unavailable`.
+
+**Source locale.** L'hôte de développement `OsX86.Os` sert chaque pack construit dans
+`images/build/<image>/pack/` au même chemin (manifeste et morceaux seulement, jamais publiés), et la build inscrit l'empreinte du `manifest.sha256` du pack en métadonnée
+d'assemblée (`OsX86.DevPack`). Au démarrage, `DevImages` lit chaque manifeste, le vérifie contre
+cette empreinte et en fait le catalogue. `-p:OsX86DevImages=false` les retire. Les tests `guest`
+font de même avec un serveur statique local (`StaticFileServer`). Le catalogue de production
+viendra avec l'hébergement des images.
 
 ### Verrou d'écriture (E11) et `flush()` (177 A)
 

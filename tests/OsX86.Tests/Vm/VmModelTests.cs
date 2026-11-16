@@ -460,7 +460,7 @@ public sealed class VmModelTests
     [Fact]
     public async Task The_static_boot_image_source_and_the_unavailable_factory_say_what_is_missing()
     {
-        Assert.Equal(X86ErrorCodes.ImageUnavailable, (await Assert.ThrowsAsync<X86Exception>(async () => await StaticBootImageSource.Empty.ResolveAsync("a", "1", None))).Code);
+        Assert.Equal(X86ErrorCodes.ImageUnavailable, (await Assert.ThrowsAsync<X86Exception>(async () => await StaticBootImageSource.Empty.ResolveAsync("a", "1", null, None))).Code);
         Assert.Equal(X86ErrorCodes.EngineUnavailable, Assert.Throws<X86Exception>(() => UnavailableEngineFactory.Instance.Create()).Code);
         Assert.NotNull(X86Runtime.Services.Manager);
     }

@@ -8,7 +8,10 @@ namespace OsX86.Feature;
 /// terminal command <c>x86</c> until Kazo OS has the Feature app kind (ADR 0243); the capabilities
 /// are those of the work items that landed (private files for the VM registry, work item 6).
 /// </summary>
-[AppManifest]
+// ADR 0070 of Kazo: a command runs by default in a pool worker, a .NET runtime of its own without
+// the engine and the image store the host installs on the main thread (VmHost, work item 6b). The
+// VMs of the machine live on the main thread, so does the command that drives them.
+[AppManifest(Execution = AppExecutionHost.MainThread)]
 public sealed class X86FeatureApp : AppDefinition
 {
     /// <inheritdoc />

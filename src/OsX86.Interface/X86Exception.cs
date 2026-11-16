@@ -47,6 +47,9 @@ public static class X86ErrorCodes
 
     /// <summary>The user identifier of the caller is not a stable identifier (decision 190 A: a GUID).</summary>
     public const string InvalidUser = "invalid-user";
+
+    /// <summary>The image store failed an operation on the files of a VM (its write layers, work item 6b).</summary>
+    public const string StorageFailed = "storage-failed";
 }
 
 /// <summary>An error of Os-x86 reported to a client, with a stable code.</summary>
