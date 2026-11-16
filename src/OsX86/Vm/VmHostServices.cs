@@ -1,4 +1,5 @@
 using OsX86.Engine;
+using OsX86.Engine.V86;
 using OsX86.Interface;
 using OsX86.Storage;
 
@@ -21,6 +22,58 @@ public sealed class UnavailableEngineFactory : IEngineFactory
     /// <inheritdoc />
     public IEngine Create() =>
         throw new X86Exception(X86ErrorCodes.EngineUnavailable, "This host cannot start a virtual machine: no emulator is available to the command (the Feature of work item 8 will run it).");
+}
+
+/// <summary>The engine factory of a browser host: one <see cref="V86Engine"/> per run, its worker started through JS interop (<see cref="JsEngineWorkerChannel"/>).</summary>
+/// <param name="js">The JS runtime of the host (Blazor WebAssembly).</param>
+public sealed class JsEngineFactory(Microsoft.JSInterop.IJSRuntime js) : IEngineFactory
+{
+    private readonly Microsoft.JSInterop.IJSRuntime _js = js ?? throw new ArgumentNullException(nameof(js));
+
+    /// <inheritdoc />
+    public IEngine Create() => new V86Engine(new JsEngineWorkerChannel(_js));
+}
+
+/// <summary>What a host that can run VMs gives the Os-x86 code it loads: the engines, the images, what it knows of its memory.</summary>
+/// <param name="Engines">Creates the engine of each run.</param>
+/// <param name="Images">Finds and downloads the images, keeps the write layers.</param>
+/// <param name="Memory">What the browser says of its memory (165 A).</param>
+public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource Images, IHostMemory Memory);
+
+/// <summary>
+/// Where a host installs its <see cref="VmHostEnvironment"/> before the <c>x86</c> command first
+/// runs (work item 6b: the dev host <c>OsX86.Os</c>, which has the <c>IJSRuntime</c> a command
+/// does not get, ADR 0070 of Kazo; work item 8: the Feature). Without one, the command has no
+/// emulator (<see cref="UnavailableEngineFactory"/>).
+/// </summary>
+public static class VmHost
+{
+    private static VmHostEnvironment? s_current;
+
+    /// <summary>The environment the host installed, or <see langword="null"/>.</summary>
+    public static VmHostEnvironment? Current => Volatile.Read(ref s_current);
+
+    /// <summary>Installs the host's environment; read when the command creates its VM manager.</summary>
+    public static void Configure(VmHostEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        Volatile.Write(ref s_current, environment);
+    }
+
+    /// <summary>Forgets the host's environment (tests).</summary>
+    internal static void Clear() => Volatile.Write(ref s_current, null);
+
+    /// <summary>
+    /// The environment of a browser host: engines through JS interop, the image store of the OPFS
+    /// (its worker started through JS interop too) downloading from <paramref name="catalog"/>.
+    /// </summary>
+    public static VmHostEnvironment ForBrowser(Microsoft.JSInterop.IJSRuntime js, ImageCatalog catalog, IHostMemory? memory = null)
+    {
+        ArgumentNullException.ThrowIfNull(js);
+        ArgumentNullException.ThrowIfNull(catalog);
+        var store = new ImageStore(new JsStorageWorkerChannel(js));
+        return new VmHostEnvironment(new JsEngineFactory(js), new StoreBootImageSource(store, catalog), memory ?? FixedHostMemory.Unknown);
+    }
 }
 
 /// <summary>

@@ -292,7 +292,8 @@ internal sealed class DownloadReporter(TextWriter output)
                 case Storage.DownloadPhase.FetchingManifest when previous != Storage.DownloadPhase.FetchingManifest:
                     return $"x86: {image} is not on this machine yet: downloading it.";
                 case Storage.DownloadPhase.Downloading:
-                    int step = (int)(progress.Fraction * 100) / X86Command.ProgressStepPercent;
+                    int percent = (int)(progress.Fraction * 100);
+                    int step = percent / X86Command.ProgressStepPercent;
                     if (step <= _lastStep)
                     {
                         return null;
@@ -300,7 +301,7 @@ internal sealed class DownloadReporter(TextWriter output)
 
                     _lastStep = step;
                     string rate = progress.BytesPerSecond > 0 ? string.Create(CultureInfo.InvariantCulture, $", {progress.BytesPerSecond / (1024 * 1024):0.0} MiB/s") : string.Empty;
-                    return string.Create(CultureInfo.InvariantCulture, $"x86: downloading {image}: {step * X86Command.ProgressStepPercent} % ({progress.BytesVerified / (1024.0 * 1024):0.0} of {progress.BytesTotal / (1024.0 * 1024):0.0} MiB{rate})");
+                    return string.Create(CultureInfo.InvariantCulture, $"x86: downloading {image}: {percent} % ({progress.BytesVerified / (1024.0 * 1024):0.0} of {progress.BytesTotal / (1024.0 * 1024):0.0} MiB{rate})");
                 case Storage.DownloadPhase.Completed when previous != Storage.DownloadPhase.Completed:
                     return string.Create(CultureInfo.InvariantCulture, $"x86: {image} downloaded and verified ({progress.BytesTotal / (1024.0 * 1024):0.0} MiB).");
                 case Storage.DownloadPhase.Failed when previous != Storage.DownloadPhase.Failed:

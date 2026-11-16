@@ -27,6 +27,28 @@
     <PackageReference Include="Kazo.Os.Ecosystem.Host" Version="$(KazoOsVersion)" />
   </ItemGroup>
 
+  <!--
+    Work item 6b: the local origin of the images. Every pack built in images/build/<image>/pack/
+    (never committed) is served at osx86-images/<image>/pack/ (manifest.json and chunks only,
+    never published), and its expected manifest hash (the pack's manifest.sha256) is recorded as
+    assembly metadata OsX86.DevPack = "<image>|<sha256>"; DevImages.cs turns them into the image
+    catalog. OsX86DevImages=false leaves them out.
+  -->
+  <PropertyGroup>
+    <_OsX86DevPacks>$(MSBuildThisFileDirectory)..\..\images\build\</_OsX86DevPacks>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(OsX86DevImages)' != 'false'">
+    <Content Include="$(_OsX86DevPacks)**\pack\manifest.json;$(_OsX86DevPacks)**\pack\chunk-*.bin"
+             Link="wwwroot\osx86-images\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToPublishDirectory="Never" />
+    <_OsX86DevPackHash Include="$(_OsX86DevPacks)**\pack\manifest.sha256" />
+  </ItemGroup>
+  <Target Name="OsX86DevPackMetadata" BeforeTargets="GetAssemblyAttributes" Condition="'@(_OsX86DevPackHash)' != ''">
+    <ItemGroup>
+      <AssemblyMetadata Include="OsX86.DevPack" Value="$([System.String]::Copy('%(_OsX86DevPackHash.RecursiveDir)').Replace('\pack\', ''))|$([System.IO.File]::ReadAllText('%(_OsX86DevPackHash.FullPath)').Substring(0, 64))" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- The base apps. Add your own apps as ProjectReference or PackageReference items. -->
     <ProjectReference Include="..\OsX86.Feature\OsX86.Feature.csproj" />

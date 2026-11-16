@@ -125,14 +125,17 @@ public sealed class X86CommandTests
         var files = new FakeFiles();
         files.Files["mine.x86profile"] = (BuiltInProfiles.AlpineTest with { Name = "mine", MemoryMiB = 64 }).ToJson();
 
-        var (code, output, _) = await RunAsync(rig, files, ["vm", "create", "Alpine"]);
+        // Work item 6b: without --profile, linux-base; the Alpine test image is a named profile.
+        var (code, output, _) = await RunAsync(rig, files, ["vm", "create", "Base"]);
         Assert.Equal(0, code);
-        VmRecord alpine = await rig.Manager.ResolveAsync(VmTestRig.User, "Alpine", CancellationToken.None);
-        Assert.Equal($"Created Alpine ({alpine.Id}) from the profile alpine-test.\n", output);
+        VmRecord linuxBase = await rig.Manager.ResolveAsync(VmTestRig.User, "Base", CancellationToken.None);
+        Assert.Equal($"Created Base ({linuxBase.Id}) from the profile linux-base.\n", output);
+        Assert.Equal(BuiltInProfiles.LinuxBase, linuxBase.Profile);
+        Assert.Equal(VmRecord.LayerSetOf(linuxBase.Id), linuxBase.LayerSet);
 
-        (code, _, _) = await RunAsync(rig, files, ["vm", "create", "--profile", "linux-base", "Base"]);
+        (code, _, _) = await RunAsync(rig, files, ["vm", "create", "--profile", "alpine-test", "Alpine"]);
         Assert.Equal(0, code);
-        Assert.Equal("linux-base", (await rig.Manager.ResolveAsync(VmTestRig.User, "base", CancellationToken.None)).Profile.Image);
+        Assert.Equal("alpine-test", (await rig.Manager.ResolveAsync(VmTestRig.User, "alpine", CancellationToken.None)).Profile.Image);
 
         (code, output, _) = await RunAsync(rig, files, ["vm", "create", "Small", "--profile=mine.x86profile"]);
         Assert.Equal(0, code);
