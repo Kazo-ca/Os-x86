@@ -39,7 +39,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
-- **Kazo, code de l'ADR 0250**, persistance et éviction du stockage : lancé le 2026-11-17, branche `feature/19-storage-persistence-code`.
+- **Kazo, code de l'ADR 0250**, persistance et éviction du stockage : PR Kazo #594 ouverte ; ses questions sont la [série 21](serie-21-envoyee.md) (273 à 276).
 
 ## Reste à faire
 
@@ -56,6 +56,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0250 à 0255 et 0247, 0249, un chantier par ADR, dans l'ordre 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
+- Répondre à la série 21 (273 à 276), puis fusionner Kazo #594.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
