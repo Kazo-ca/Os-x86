@@ -56,6 +56,9 @@ internal sealed class StorageMessage
     /// <summary><c>images</c>, <c>estimate</c>: the bytes of the repository.</summary>
     public long RepositoryBytes { get; set; }
 
+    /// <summary><c>estimate</c>: bytes of the whole <c>osx86/</c> tree (images, layers, what else the feature keeps); absent from an older worker.</summary>
+    public long? FeatureBytes { get; set; }
+
     /// <summary><c>estimate</c>: bytes used by the origin.</summary>
     public long Usage { get; set; }
 
@@ -113,6 +116,16 @@ internal sealed class LayerSetCommand(string type, int id, string set)
     public int Id { get; } = id;
 
     public string Set { get; } = set;
+}
+
+/// <summary><c>write-marker</c>: the marker file of ADR 0250 of Kazo, with its text.</summary>
+internal sealed class WriteMarkerCommand(int id, string text)
+{
+    public string Type { get; } = "write-marker";
+
+    public int Id { get; } = id;
+
+    public string Text { get; } = text;
 }
 
 /// <summary>A command without arguments beyond the id: <c>list</c>, <c>estimate</c>.</summary>
@@ -210,6 +223,7 @@ internal sealed class CancelCommand
 [JsonSerializable(typeof(VerifyCommand))]
 [JsonSerializable(typeof(CancelCommand))]
 [JsonSerializable(typeof(LayerSetCommand))]
+[JsonSerializable(typeof(WriteMarkerCommand))]
 internal sealed partial class StorageJsonContext : JsonSerializerContext
 {
 }
@@ -248,6 +262,8 @@ internal static class StorageProtocol
     public static string ListLayers(int id, string set) => Serialize(new LayerSetCommand("list-layers", id, set), StorageJsonContext.Default.LayerSetCommand);
 
     public static string DeleteLayers(int id, string set) => Serialize(new LayerSetCommand("delete-layers", id, set), StorageJsonContext.Default.LayerSetCommand);
+
+    public static string WriteMarker(int id, string text) => Serialize(new WriteMarkerCommand(id, text), StorageJsonContext.Default.WriteMarkerCommand);
 
     public static string Download(DownloadCommand command) => Serialize(command, StorageJsonContext.Default.DownloadCommand);
 

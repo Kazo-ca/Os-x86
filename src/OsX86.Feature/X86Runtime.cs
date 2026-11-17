@@ -57,11 +57,21 @@ internal static class X86Runtime
                 new KazoNetworkStore(KazoX86Files.Instance),
                 host?.Relay ?? Network.UnavailableRelay.Instance,
                 host?.PermissionPrompt ?? Network.UnavailablePermissionPrompt.Instance));
-        return new X86CommandServices(manager, KazoX86Files.Instance);
+        return new X86CommandServices(manager, KazoX86Files.Instance)
+        {
+            StorageTree = host?.Store is { } store ? new ImageStoreTree(store) : null,
+        };
     }
 }
 
 /// <summary>What the command works with.</summary>
 /// <param name="Manager">The VMs of the machine.</param>
 /// <param name="Files">Profile files.</param>
-internal sealed record X86CommandServices(VmManager Manager, IX86Files Files);
+internal sealed record X86CommandServices(VmManager Manager, IX86Files Files)
+{
+    /// <summary>What the Feature does with the storage of the browser (ADR 0250, 289 A); one per page.</summary>
+    public FeatureStorageGuard Storage { get; init; } = new();
+
+    /// <summary>The <c>osx86/</c> tree in the OPFS, or <see langword="null"/> on a host without storage.</summary>
+    public IFeatureStorageTree? StorageTree { get; init; }
+}

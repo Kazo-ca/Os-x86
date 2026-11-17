@@ -36,9 +36,10 @@ internal sealed class TestAppContext(string userId) : IAppExecutionContext
     public IAppLoggingGateway Logging => throw new NotSupportedException();
     public IAppClockGateway Clock => throw new NotSupportedException();
     public IAppProcessGateway Processes => throw new NotSupportedException();
+    public Kazo.Os.AppSdk.Storage.IAppStorageGateway Storage { get; init; } = Kazo.Os.AppSdk.Storage.UnsupportedAppStorageGateway.Instance;
 
     /// <summary>Builds a terminal context on this app context, with captured output.</summary>
-    public static TerminalExecutionContext Terminal(IReadOnlyList<string> arguments, TextWriter stdout, TextWriter stderr, TextReader? stdin = null, string userId = DefaultUserId, CancellationToken process = default, IFullScreenTerminalSession? fullScreen = null, IReadOnlyDictionary<string, string>? environment = null)
+    public static TerminalExecutionContext Terminal(IReadOnlyList<string> arguments, TextWriter stdout, TextWriter stderr, TextReader? stdin = null, string userId = DefaultUserId, CancellationToken process = default, IFullScreenTerminalSession? fullScreen = null, IReadOnlyDictionary<string, string>? environment = null, Kazo.Os.AppSdk.Storage.IAppStorageGateway? storage = null)
     {
         var variables = new Dictionary<string, string>(StringComparer.Ordinal) { ["USER"] = "user-1", ["HOME"] = "/home/user-1" };
         foreach ((string name, string value) in environment ?? new Dictionary<string, string>())
@@ -46,6 +47,6 @@ internal sealed class TestAppContext(string userId) : IAppExecutionContext
             variables[name] = value;
         }
 
-        return new(new TestAppContext(userId) { CancellationToken = process }, arguments, stdin ?? new StringReader(string.Empty), stdout, stderr, "/home/user-1", variables, fullScreen);
+        return new(new TestAppContext(userId) { CancellationToken = process, Storage = storage ?? Kazo.Os.AppSdk.Storage.UnsupportedAppStorageGateway.Instance }, arguments, stdin ?? new StringReader(string.Empty), stdout, stderr, "/home/user-1", variables, fullScreen);
     }
 }

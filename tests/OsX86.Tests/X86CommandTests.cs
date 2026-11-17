@@ -33,16 +33,16 @@ public sealed class X86CommandTests
         }
     }
 
-    internal static async Task<(int ExitCode, string Out, string Err)> RunAsync(VmTestRig rig, FakeFiles? files, string[] args, TextReader? stdin = null, string userId = TestAppContext.DefaultUserId, CancellationToken cancellationToken = default, CancellationToken process = default)
+    internal static async Task<(int ExitCode, string Out, string Err)> RunAsync(VmTestRig rig, FakeFiles? files, string[] args, TextReader? stdin = null, string userId = TestAppContext.DefaultUserId, CancellationToken cancellationToken = default, CancellationToken process = default, Kazo.Os.AppSdk.Storage.IAppStorageGateway? storage = null, X86CommandServices? services = null)
     {
         var stdout = new StringWriter();
         var stderr = new StringWriter();
-        var services = new X86CommandServices(rig.Manager, files ?? new FakeFiles());
+        services ??= new X86CommandServices(rig.Manager, files ?? new FakeFiles());
         X86Command.ServicesFactory = () => services;
         try
         {
             var command = new X86Command();
-            int code = await command.ExecuteAsync(TestAppContext.Terminal(args, stdout, stderr, stdin, userId, process), cancellationToken);
+            int code = await command.ExecuteAsync(TestAppContext.Terminal(args, stdout, stderr, stdin, userId, process, storage: storage), cancellationToken);
             return (code, stdout.ToString().Replace("\r\n", "\n"), stderr.ToString().Replace("\r\n", "\n"));
         }
         finally

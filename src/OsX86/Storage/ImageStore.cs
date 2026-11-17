@@ -67,8 +67,21 @@ public sealed class ImageStore : IAsyncDisposable
     {
         int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
         StorageMessage answer = await RequestAsync(StorageProtocol.Estimate(id), id, StorageProtocol.Types.Estimate, null, cancellationToken).ConfigureAwait(false);
-        return new StorageEstimate(answer.Usage, answer.Quota, answer.RepositoryBytes);
+        return new StorageEstimate(answer.Usage, answer.Quota, answer.RepositoryBytes) { FeatureBytes = answer.FeatureBytes ?? answer.RepositoryBytes };
     }
+
+    /// <summary>
+    /// Writes the marker file of ADR 0250 of Kazo, <see cref="StorageLayout.MarkerPath"/>: Kazo checks
+    /// at each boot that it still exists, and tells the Feature when the browser erased its storage.
+    /// </summary>
+    public async ValueTask WriteMarkerAsync(CancellationToken cancellationToken)
+    {
+        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        await RequestAsync(StorageProtocol.WriteMarker(id, MarkerText), id, StorageProtocol.Types.Done, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The text of the marker: versioned (plan §13), naming the feature that owns the tree.</summary>
+    private const string MarkerText = "{\"format\":1,\"feature\":\"ca.kazo.x86\"}";
 
     /// <summary>Deletes one image version, whatever its state; nothing when it does not exist.</summary>
     /// <exception cref="StorageException"><see cref="StorageErrorCodes.Locked"/> while a download writes it.</exception>

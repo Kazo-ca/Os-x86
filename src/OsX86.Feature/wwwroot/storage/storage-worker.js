@@ -1045,6 +1045,64 @@ async function deleteImage(image, version) {
   });
 }
 
+// --- ADR 0250 of Kazo: the marker and the bytes of the feature (work item 8) ----------------------
+
+const MARKER_FILE = ".kazoos-marker";
+const MAX_MARKER_BYTES = 1024;
+
+/** Writes the marker Kazo checks at each boot, osx86/.kazoos-marker, replacing any previous one. */
+async function writeMarker(text) {
+  if (typeof text !== "string" || text.length === 0 || text.length > MAX_MARKER_BYTES) {
+    throw new StorageError("protocol", "invalid marker text");
+  }
+  const directory = await getDirectory([ROOT], true);
+  let access;
+  try {
+    const handle = await directory.getFileHandle(MARKER_FILE, { create: true });
+    access = await handle.createSyncAccessHandle();
+    const bytes = new TextEncoder().encode(text);
+    access.truncate(0);
+    access.write(bytes, { at: 0 });
+    access.flush();
+  } catch (error) {
+    throw opfsError(error, `${ROOT}/${MARKER_FILE}`);
+  } finally {
+    if (access) {
+      access.close();
+    }
+  }
+}
+
+/** The bytes of every file under osx86/; a file a running engine holds is left out (it reports itself). */
+async function treeBytes(directory) {
+  let total = 0;
+  for await (const [, handle] of directory) {
+    if (handle.kind === "directory") {
+      total += await treeBytes(handle);
+      continue;
+    }
+    try {
+      total += (await handle.getFile()).size;
+    } catch (error) {
+      if (!error || error.name !== "NoModificationAllowedError") {
+        throw opfsError(error, handle.name);
+      }
+    }
+  }
+  return total;
+}
+
+async function featureBytes() {
+  try {
+    return await treeBytes(await getDirectory([ROOT], false));
+  } catch (error) {
+    if (error.code === "not-found") {
+      return 0;
+    }
+    throw error;
+  }
+}
+
 async function estimate() {
   const { repositoryBytes } = await listImages();
   let usage = 0;
@@ -1054,7 +1112,7 @@ async function estimate() {
     usage = Number(result.usage) || 0;
     quota = Number(result.quota) || 0;
   }
-  return { usage, quota, repositoryBytes };
+  return { usage, quota, repositoryBytes, featureBytes: await featureBytes() };
 }
 
 /** The local manifest copy, pinned to the hash the resume state recorded when the download accepted it. */
@@ -1153,6 +1211,10 @@ async function handle(message) {
       break;
     case "estimate":
       send({ type: "estimate", id, ...(await estimate()) });
+      break;
+    case "write-marker":
+      await writeMarker(message.text);
+      send({ type: "done", id });
       break;
     case "read-manifest":
       send({ type: "manifest", id, text: await readManifest(message.image, message.version) });

@@ -46,6 +46,12 @@ public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource 
     /// </summary>
     public Network.IRelayConnector? Relay { get; init; }
 
+    /// <summary>
+    /// The image store of the host, whose worker also writes the marker of ADR 0250 of Kazo and
+    /// measures the <c>osx86/</c> tree (work item 8); <see langword="null"/> on a host without OPFS.
+    /// </summary>
+    public ImageStore? Store { get; init; }
+
     /// <summary>The permission window (work item 12; needs ADR 0246 in a released Kazo); <see langword="null"/>: none.</summary>
     public Network.INetworkPermissionPrompt? PermissionPrompt { get; init; }
 }
@@ -82,7 +88,7 @@ public static class VmHost
         ArgumentNullException.ThrowIfNull(js);
         ArgumentNullException.ThrowIfNull(catalog);
         var store = new ImageStore(new JsStorageWorkerChannel(js));
-        return new VmHostEnvironment(new JsEngineFactory(js), new StoreBootImageSource(store, catalog), memory ?? FixedHostMemory.Unknown);
+        return new VmHostEnvironment(new JsEngineFactory(js), new StoreBootImageSource(store, catalog), memory ?? FixedHostMemory.Unknown) { Store = store };
     }
 }
 

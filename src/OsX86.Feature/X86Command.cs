@@ -70,6 +70,7 @@ public sealed partial class X86Command : TerminalAppBase
     public override async ValueTask<int> ExecuteAsync(TerminalExecutionContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
+        await TellStorageNoticesAsync(context, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<string> args = context.Arguments;
         if (args.Count == 0 || args[0] is "--help" or "-h" or "help")
         {
@@ -101,7 +102,7 @@ public sealed partial class X86Command : TerminalAppBase
         List<string> rest = [.. args.Skip(1)];
         try
         {
-            return args[0] switch
+            int code = args[0] switch
             {
                 "vm" => await VmAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 "shell" => await ShellAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
@@ -110,6 +111,14 @@ public sealed partial class X86Command : TerminalAppBase
                 "rules" => await RulesAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 _ => await ProfileAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
             };
+            if (args[0] is "vm" or "shell" or "run")
+            {
+                // ADR 0250: images downloaded, layers written or deleted; `x86 vm create` declared already.
+                bool created = args[0] == "vm" && rest.Count > 0 && rest[0] == "create";
+                await KeepStorageAsync(context, gesture: created && code == X86ExitCodes.Ok, cancellationToken).ConfigureAwait(false);
+            }
+
+            return code;
         }
         catch (X86Exception exception)
         {
@@ -118,6 +127,42 @@ public sealed partial class X86Command : TerminalAppBase
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             return InterruptedExitCode; // Ctrl+C before a console was open: as SIGINT ends a program
+        }
+    }
+
+    /// <summary>
+    /// Tells the user, once per page and in the language of the OS, that the browser erased the
+    /// storage of Os-x86 or withdrew its protection (ADR 0250 of Kazo, decision 289 A).
+    /// </summary>
+    private async ValueTask TellStorageNoticesAsync(TerminalExecutionContext context, CancellationToken cancellationToken)
+    {
+        foreach (string notice in _services.Storage.TakeNotices(context.App.Storage, context.App.Culture))
+        {
+            await context.StandardError.WriteLineAsync(notice.AsMemory(), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// After a command that changed what Os-x86 keeps in the OPFS: declares its bytes to Kazo and,
+    /// after <c>x86 vm create</c> (a gesture of the user), asks for persistence and registers the
+    /// marker (ADR 0250, 289 A). A failure is reported as a warning: the command itself succeeded.
+    /// </summary>
+    private async ValueTask KeepStorageAsync(TerminalExecutionContext context, bool gesture, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (gesture)
+            {
+                await _services.Storage.ProtectAsync(context.App.Storage, _services.StorageTree, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _services.Storage.ReportUsageAsync(context.App.Storage, _services.StorageTree, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception) when (exception is Storage.StorageException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            await context.StandardError.WriteLineAsync($"x86: warning: the storage of Os-x86 could not be declared to Kazo ({exception.Message}).".AsMemory(), CancellationToken.None).ConfigureAwait(false);
         }
     }
 

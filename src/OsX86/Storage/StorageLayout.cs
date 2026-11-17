@@ -13,6 +13,12 @@ public static partial class StorageLayout
     /// <summary>The directory of Os-x86 in the OPFS.</summary>
     public const string Root = "osx86";
 
+    /// <summary>
+    /// The marker file of ADR 0250 of Kazo (work item 8, decision 289 A): Kazo checks at each boot that
+    /// it still exists; when the browser erased the OPFS, the Feature learns it through KazoStorage.
+    /// </summary>
+    public const string MarkerPath = Root + "/.kazoos-marker";
+
     /// <summary>The image repository: one directory per image, one per version under it.</summary>
     public const string ImagesDirectory = Root + "/images";
 

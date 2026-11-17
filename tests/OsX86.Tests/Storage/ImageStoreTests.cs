@@ -386,7 +386,7 @@ public sealed class ImageStoreTests
         Assert.True(images[0].IsSupported);
         Assert.False(images[1].IsSupported);
         Assert.Empty(images[1].Engine);
-        Assert.Equal(new StorageEstimate(5000, 10_000_000, 1234), estimate);
+        Assert.Equal(new StorageEstimate(5000, 10_000_000, 1234) { FeatureBytes = 5678 }, estimate);
         Assert.Equal(["list", "estimate", "delete"], worker.PostedTypes);
         Assert.Contains("\"image\":\"old\"", worker.Posted[2], StringComparison.Ordinal);
     }
