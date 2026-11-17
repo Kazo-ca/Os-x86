@@ -23,4 +23,12 @@ VmHost.Configure(VmHost.ForBrowser(host.Services.GetRequiredService<IJSRuntime>(
     Relay = new OsX86.Network.LocalTestRelay().WithHttp("203.0.113.9", 80),
 });
 await host.LoadInstalledAppsAsync();
+// PROVISIONAL (decision 291 B, https://github.com/Kazo-ca/Os/issues/621): Kazo 3.5.0 cannot launch a
+// feature's child such as `x86`; the dev host discovers them with their feature. Remove with the pin
+// on Kazo OS 3.5.1.
+foreach (string problem in await FeatureChildPreload.RunAsync(host.Services, CancellationToken.None))
+{
+    Console.Error.WriteLine(problem);
+}
+
 await host.RunAsync();

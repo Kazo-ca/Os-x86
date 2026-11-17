@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- PROVISIONAL (291 B, Kazo-ca/Os#621): the dev host's discovery of feature children, tested here. -->
+    <Compile Include="..\..\src\OsX86.Os\FeatureChildDescriptors.cs" Link="DevHost\FeatureChildDescriptors.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
