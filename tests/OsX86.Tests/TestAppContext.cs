@@ -21,7 +21,7 @@ internal sealed class TestAppContext(string userId) : IAppExecutionContext
     {
     }
 
-    public AppManifest Manifest { get; } = AppDefinitionMapper.ToManifest(new X86FeatureApp());
+    public AppManifest Manifest { get; } = AppDefinitionMapper.ToFeatureManifests(new X86FeatureApp()).Children[0];
     public Guid InstanceId { get; } = Guid.NewGuid();
     public string UserId { get; } = userId;
     public AppAuthority UserAuthority => AppAuthority.User;

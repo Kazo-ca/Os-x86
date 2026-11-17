@@ -58,9 +58,9 @@ public sealed partial class X86Command : TerminalAppBase
         _services = ServicesFactory();
     }
 
-    /// <summary>Creates the command with the manifest built from <see cref="X86FeatureApp"/>, for unit tests.</summary>
+    /// <summary>Creates the command with its child manifest built from <see cref="X86FeatureApp"/> (<c>ca.kazo.x86.cli</c>), for unit tests.</summary>
     public X86Command()
-        : this(AppDefinitionMapper.ToManifest(new X86FeatureApp()))
+        : this(AppDefinitionMapper.ToFeatureManifests(new X86FeatureApp()).Children[0])
     {
     }
 
