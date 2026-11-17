@@ -141,7 +141,7 @@ public sealed class AgentPrefixTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(3)]
+    [InlineData(4)]
     public async Task Another_version_is_refused(int version)
     {
         var channel = new SimulatedAgentChannel();

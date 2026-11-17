@@ -14,8 +14,10 @@ namespace OsX86.Tests.Vm;
 /// test fills and reads. For the DOS way (work item 11) it is a text-mode engine: its screen is what
 /// the test sets, the scancodes it receives are recorded, the serial lines are what the test sends.
 /// </summary>
-internal sealed class FakeEngine : IEngine, ITextModeEngine
+internal sealed class FakeEngine : IEngine, ITextModeEngine, INetworkEngine
 {
+    private readonly List<byte[]> _framesSent = [];
+
     private readonly Lock _lock = new();
     private readonly Channel<ReadOnlyMemory<byte>> _serial = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
     private readonly Channel<string> _serialLines = Channel.CreateUnbounded<string>();
@@ -31,6 +33,38 @@ internal sealed class FakeEngine : IEngine, ITextModeEngine
     public event EventHandler<EngineErrorEventArgs>? ErrorReported;
 
     public event EventHandler<ScreenSizeChangedEventArgs>? ScreenSizeChanged;
+
+    public event EventHandler<NetworkFramesEventArgs>? FramesReceived;
+
+    /// <summary>The frames the host handed to the guest's card, in order.</summary>
+    public IReadOnlyList<byte[]> FramesSent
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _framesSent];
+            }
+        }
+    }
+
+    /// <summary>The guest's card sends frames.</summary>
+    public void EmitFrames(params byte[][] frames) => FramesReceived?.Invoke(this, new NetworkFramesEventArgs(frames));
+
+    public ValueTask SendFramesAsync(IReadOnlyList<byte[]> frames, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            if (_state is not (EngineState.Running or EngineState.Paused))
+            {
+                throw new EngineStateException(EngineOperation.Write, _state, "not running");
+            }
+
+            _framesSent.AddRange(frames);
+        }
+
+        return ValueTask.CompletedTask;
+    }
 
     /// <summary>The agent of the guest, or <see langword="null"/> for an image without agent.</summary>
     public SimulatedAgentChannel? Agent { get; }

@@ -1,0 +1,38 @@
+#!/usr/sbin/nft -f
+# Os-x86 linux-base (work item 12; decisions 174 A, 146, trial E6): the rules of the VM's own
+# network namespace, loaded by /usr/lib/osx86/net-admin vm-up. The defence in depth of the guest:
+# the decision, the limits and the journal are at the gateway of Os-x86 (the source of truth).
+#   - a prefix (its link vx<slot>) reaches TCP out of the private network only: never another
+#     prefix, another VM, nor a service of this VM;
+#   - UDP 53 (DNS) and IPv6 are refused by an explicit rule, whoever sends;
+#   - a user of the VM outside a prefix namespace has no network at all (only root speaks out of
+#     lo): not on eth0, nor to a prefix through its link (a prefix whose namespace failed stays here).
+table inet osx86
+delete table inet osx86
+
+table inet osx86 {
+    chain input {
+        type filter hook input priority filter; policy accept;
+        meta nfproto ipv6 counter drop
+        ct state established,related accept
+        iifname "vx*" meta l4proto tcp counter reject with tcp reset
+        iifname "vx*" counter drop
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+        meta nfproto ipv6 counter drop
+        ct state established,related accept
+        iifname "vx*" udp dport 53 counter drop
+        iifname "vx*" ip daddr 10.86.0.0/16 meta l4proto tcp counter reject with tcp reset
+        iifname "vx*" oifname "eth0" ip daddr != 10.86.0.0/16 meta l4proto tcp ct state new counter accept
+        counter drop
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+        meta nfproto ipv6 counter drop
+        udp dport 53 counter drop
+        oifname != "lo" meta skuid != 0 counter drop
+    }
+}

@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <poll.h>
 #include <pwd.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -232,12 +233,29 @@ void launch_watch_cgroup(launch *l)
 
 /* ---------------------------------------------------------------- the child side of a launch */
 
+/* Work item 12 (E6, 146): a prefix that has a network namespace (/run/netns/osx86-<prefix>, made
+ * by net-admin) runs in it, entered while the child is still root. A prefix without one stays in
+ * the VM's namespace, where the guest's rules leave a user no way out. Returns 0 or an errno. */
+static int enter_prefix_netns(const struct passwd *pw)
+{
+    char path[300];
+    snprintf(path, sizeof path, "%s/%s", AGENT_NETNS_DIR, pw->pw_name);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return errno == ENOENT ? 0 : errno;
+    int failed = setns(fd, CLONE_NEWNET) ? errno : 0;
+    close(fd);
+    return failed;
+}
+
 /* What the child does before exec. Returns 0, or the errno of the step that failed: the launch
- * is then refused rather than run outside its cgroup, without its limit or as the wrong user. */
+ * is then refused rather than run outside its cgroup, its namespace, without its limit or as the
+ * wrong user. */
 int child_setup(struct passwd *pw, const launch *l, jn *env, const char *cwd, int nproc)
 {
     char path[300];
     if (launch_cgroup(l, path, sizeof path) && cgroup_enter(path)) return errno ? errno : EIO;
+    int netns_failed = enter_prefix_netns(pw);
+    if (netns_failed) return netns_failed;
     struct rlimit rl = { (rlim_t)nproc, (rlim_t)nproc };
     if (setrlimit(RLIMIT_NPROC, &rl)) return errno;
     if (initgroups(pw->pw_name, pw->pw_gid) || setgid(pw->pw_gid) || setuid(pw->pw_uid)) return errno ? errno : EPERM;

@@ -1,0 +1,15 @@
+#!/usr/sbin/nft -f
+# Os-x86 linux-base (work item 12; decision 174 A): the rules inside the network namespace of a
+# prefix, loaded by /usr/lib/osx86/net-admin prefix-up. UDP 53 (DNS) and IPv6 leave nothing from
+# the prefix itself (the VM's namespace refuses them again, and the gateway of Os-x86 a third time).
+# The prefix's user has no capability: it cannot change these rules nor leave the namespace.
+table inet osx86
+delete table inet osx86
+
+table inet osx86 {
+    chain output {
+        type filter hook output priority filter; policy accept;
+        meta nfproto ipv6 counter drop
+        udp dport 53 counter drop
+    }
+}

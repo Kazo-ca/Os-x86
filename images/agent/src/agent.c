@@ -224,6 +224,7 @@ static void handle_request(char *line)
     else if (!strcmp(op, "prefix-list")) op_prefix_list(id, req);
     else if (!strcmp(op, "put-file")) op_put_file(id, req);
     else if (!strcmp(op, "sync")) op_sync(id, req);
+    else if (!strcmp(op, "net")) op_net(id, req);
     else reply_error(id, "unknown-op", "unknown operation '%s'", op);
     logmsg("op %s id=%s %.1f ms", op, id, (now_s() - t0) * 1000);
 }

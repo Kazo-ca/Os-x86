@@ -62,7 +62,7 @@ public sealed class AgentGuestTests(ITestOutputHelper output)
             var events = new EventLog(client);
 
             AgentStatus status = await client.ConnectAsync(None);
-            Assert.Equal(2, status.ProtocolVersion);
+            Assert.Equal(3, status.ProtocolVersion);
             Assert.True(status.HasCgroups, "the guest has no cgroup v2: launches would only be process groups");
             await MeasurePingAsync(client);
 

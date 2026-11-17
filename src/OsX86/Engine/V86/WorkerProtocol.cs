@@ -66,6 +66,9 @@ internal sealed class WorkerMessage
 
     /// <summary><c>disks</c>: the counters of the frame cache, null when no disk is open.</summary>
     public CacheCountersMessage? Cache { get; set; }
+
+    /// <summary><c>net</c>: the Ethernet frames the guest's card sent, base64, in order.</summary>
+    public List<string>? Frames { get; set; }
 }
 
 /// <summary>The cursor of the <c>screen</c> message.</summary>
@@ -137,6 +140,9 @@ internal sealed class StartCommandOptions
     /// <summary>Whether <c>keys</c> may reach the guest keyboard.</summary>
     public bool Keyboard { get; init; }
 
+    /// <summary>Whether the guest gets the virtio-net card, its frames carried by <c>net</c> messages.</summary>
+    public bool Network { get; init; }
+
     /// <summary>Builds the command options from the public options.</summary>
     public static StartCommandOptions From(EngineStartOptions options) => new()
     {
@@ -152,6 +158,7 @@ internal sealed class StartCommandOptions
         CacheMiB = options.FrameCacheMiB,
         VirtioConsole = options.VirtioConsole,
         Keyboard = options.Keyboard,
+        Network = options.Network,
     };
 }
 
@@ -277,6 +284,16 @@ internal sealed class WriteCommand
     public required string Data { get; init; }
 }
 
+/// <summary>The <c>net</c> command: Ethernet frames for the guest's card.</summary>
+internal sealed class NetCommand
+{
+    /// <summary>Always <c>net</c>.</summary>
+    public string Type { get; } = "net";
+
+    /// <summary>The frames, base64, in order.</summary>
+    public required string[] Frames { get; init; }
+}
+
 /// <summary>Source-generated JSON for the protocol (the library is trimmed in Kazo OS).</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(WorkerMessage))]
@@ -284,6 +301,7 @@ internal sealed class WriteCommand
 [JsonSerializable(typeof(SimpleCommand))]
 [JsonSerializable(typeof(WriteCommand))]
 [JsonSerializable(typeof(KeysCommand))]
+[JsonSerializable(typeof(NetCommand))]
 internal sealed partial class WorkerJsonContext : JsonSerializerContext
 {
 }
@@ -303,11 +321,14 @@ internal static class WorkerProtocol
         public const string Screen = "screen";
         public const string Disks = "disks";
         public const string Benchmark = "benchmark";
+        public const string Net = "net";
     }
 
     public static string ReadScreen() => Serialize(new SimpleCommand("read-screen"));
 
     public static string Keys(IReadOnlyList<byte> codes) => Serialize(new KeysCommand { Codes = [.. codes.Select(static code => (int)code)] }, WorkerJsonContext.Default.KeysCommand);
+
+    public static string Net(IReadOnlyList<byte[]> frames) => Serialize(new NetCommand { Frames = [.. frames.Select(static frame => Convert.ToBase64String(frame))] }, WorkerJsonContext.Default.NetCommand);
 
     public static string QueryDisks() => Serialize(new SimpleCommand("query-disks"));
 

@@ -9,6 +9,7 @@
 | [`images.md`](images.md) | Les images invitées : recettes (linux-base, Alpine de test, FreeDOS), format de paquetage et manifeste, test d'image, sources et licences, publication, tailles |
 | [`agent.md`](agent.md) | L'agent invité et son client C# : protocole (JSON par ligne, événements), cycle de vie d'un lancement (cgroup), consoles par pty multiplexées, délais, mesures, garanties et limites |
 | [`programmes.md`](programmes.md) | Les préfixes, la détection du type d'un programme et les types MIME, `x86 detect`, `x86 prefix`, `x86 run`, la session Wine d'un préfixe, ce qu'`Ix86` ajoute ; les programmes DOS dans le terminal (VM FreeDOS, écran, clavier et accords, mode graphique) |
+| [`reseau.md`](reseau.md) | Le réseau privé : commutateur par usager, plan d'adresses, espace réseau par préfixe et nftables, passerelle et relais (identité par flux), règles et fenêtre de permission, limites, journal, `x86 rules`, ce qui attend les ADR Kazo 0255 et 0246 |
 | [`vm.md`](vm.md) | Les VM : registre par usager, cycle de vie et délai de grâce, limite de mémoire, surveillance de l'agent, profils `.x86profile`, commandes `x86 vm`, `x86 shell`, `x86 profile` et leurs codes de sortie, ce qu'`Ix86` expose |
 | [`moteur.md`](moteur.md) | Le moteur v86 dans un Web Worker : `IEngine`, protocole, v86 vendorisé et correctifs, image Alpine de test, tests, sources et licences |
 | [`../conception/`](../conception/) | La conception : plan approuvé, registre des décisions, séries de questions, ordre du jalon 0 (français seulement) |

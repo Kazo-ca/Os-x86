@@ -9,6 +9,7 @@
 | [`images.md`](images.md) | The guest images: recipes (linux-base, Alpine test, FreeDOS), packing format and manifest, image test, sources and licenses, publication, sizes |
 | [`agent.md`](agent.md) | The guest agent and its C# client: protocol (JSON lines, events), life cycle of a launch (cgroup), multiplexed pty consoles, delays, measures, guarantees and limits |
 | [`programs.md`](programs.md) | Prefixes, the detection of a program's type and its media types, `x86 detect`, `x86 prefix`, `x86 run`, the Wine session of a prefix, what `Ix86` adds; DOS programs in the terminal (FreeDOS VM, screen, keyboard and chords, graphical mode) |
+| [`network.md`](network.md) | The private network: per-user switch, address plan, network namespace per prefix and nftables, gateway and relay (identity per flow), rules and permission window, limits, journal, `x86 rules`, what waits for Kazo ADRs 0255 and 0246 |
 | [`vm.md`](vm.md) | VMs: per-user registry, lifecycle and grace, memory limit, agent watchdog, `.x86profile` profiles, the `x86 vm`, `x86 shell`, `x86 profile` commands and their exit codes, what `Ix86` exposes |
 | [`engine.md`](engine.md) | The v86 engine in a Web Worker: `IEngine`, protocol, vendored v86 and patches, Alpine test image, tests, sources and licenses |
 | [`../conception/`](../conception/) | The design: approved plan, decisions register, question series, milestone 0 order (French only) |

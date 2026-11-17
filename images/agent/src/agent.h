@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#define AGENT_PROTOCOL_VERSION 2   /* 2: prefix-ensure, prefix-delete, prefix-list, put-file, sync (work item 10) */
+#define AGENT_PROTOCOL_VERSION 3   /* 2: prefix-ensure, prefix-delete, prefix-list, put-file, sync (work item 10); 3: net (work item 12) */
 #define AGENT_PORT "/dev/hvc0"
 #define AGENT_CONSOLE_PORT "/dev/hvc1"
 #define AGENT_RUN_DIR "/run/osx86"
@@ -23,6 +23,7 @@
 #define AGENT_LOG AGENT_RUN_DIR "/agent.log"
 #define AGENT_CGROUP_ROOT "/sys/fs/cgroup/osx86"
 #define AGENT_USER_PREFIX "osx86-"        /* the guest user of prefix "p" is osx86-p */
+#define AGENT_NETNS_DIR "/run/netns"      /* the network namespace of prefix "p" is /run/netns/osx86-p (work item 12) */
 #define AGENT_MAX_PREFIX 16
 #define AGENT_MAX_LAUNCHES 256
 #define AGENT_MAX_CONSOLES 32
@@ -156,7 +157,7 @@ typedef struct job {
     char path[256];            /* JOB_PUT: the file, for the error message */
     long long put_end;         /* JOB_PUT: the size the file has once written */
 } job;
-enum { JOB_EXEC = 1, JOB_MOUNTS = 2, JOB_PREFIX = 3, JOB_PUT = 4, JOB_SYNC = 5 };
+enum { JOB_EXEC = 1, JOB_MOUNTS = 2, JOB_PREFIX = 3, JOB_PUT = 4, JOB_SYNC = 5, JOB_NET = 6 };
 extern job jobs[AGENT_MAX_JOBS];
 job *job_new(int kind, const char *id, double timeout_ms, size_t max_out);
 void op_exec_in_prefix(const char *id, jn *req);
@@ -173,6 +174,10 @@ void op_prefix_list(const char *id, jn *req);
 void op_put_file(const char *id, jn *req);
 void op_sync(const char *id, jn *req);
 void prefix_job_reply(job *j, int status, sb *b);   /* the reply of a finished JOB_PREFIX, JOB_PUT or JOB_SYNC */
+
+/* ---------------------------------------------------------------- the private network, protocol 3 (net.c) */
+void op_net(const char *id, jn *req);
+void net_job_reply(job *j, int status, sb *b);      /* the reply of a finished JOB_NET */
 
 /* ---------------------------------------------------------------- consoles and the mux port (console.c) */
 typedef struct console {

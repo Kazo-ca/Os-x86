@@ -67,6 +67,13 @@ public sealed record EngineStartOptions
     /// </summary>
     public bool Keyboard { get; init; }
 
+    /// <summary>
+    /// Whether the guest gets a network card (virtio-net) whose frames go to the host through
+    /// <see cref="INetworkEngine"/> (work item 12, decision 161 A): never a relay URL, so v86 has no
+    /// network adapter of its own and the guest cannot reach anything but the private switch (E6).
+    /// </summary>
+    public bool Network { get; init; }
+
     /// <summary>The kernel to boot: <see cref="Kernel"/>, or the whole file of <see cref="KernelPath"/>.</summary>
     public EngineFileSource? EffectiveKernel => Kernel ?? (KernelPath is null ? null : EngineFileSource.WholeFile(KernelPath));
 

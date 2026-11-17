@@ -545,7 +545,7 @@ public sealed partial class VmInstance
         try
         {
             // Work item 6b: the disks of a stored image write to the VM's own persistent layer.
-            options = boot.CreateStartOptions(record.Profile.MemoryMiB, record.EffectiveLayerSet);
+            options = WithNetworkCard(boot.CreateStartOptions(record.Profile.MemoryMiB, record.EffectiveLayerSet));
             if (adjust is not null)
             {
                 options = adjust(options);
@@ -612,6 +612,7 @@ public sealed partial class VmInstance
             else
             {
                 await ConnectAgentAsync(engine, runStop.Token, cancellationToken).ConfigureAwait(false);
+                await ConnectNetworkAsync(engine, cancellationToken).ConfigureAwait(false);
             }
 
             SetState(VmState.Running);
@@ -857,6 +858,7 @@ public sealed partial class VmInstance
                 await SyncQuietlyAsync(agent).ConfigureAwait(false);
             }
 
+            await DisconnectNetworkAsync().ConfigureAwait(false);
             runStop?.Cancel();
             foreach (SerialVmConsole serial in serials)
             {

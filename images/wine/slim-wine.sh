@@ -61,6 +61,11 @@ install -m 755 /recipe/prefix-session.sh /usr/lib/osx86/wine/prefix-session
 install -m 644 /out/osx86-hello.exe /usr/lib/osx86/wine/osx86-hello.exe
 install -m 755 /linux-base/init.sh /sbin/init
 install -m 755 /linux-base/prefix-admin.sh /usr/lib/osx86/prefix-admin
+# Work item 12: the guest side of the private network (its packages, iproute2 and nftables, come
+# with the base stage of linux-base).
+install -m 755 /linux-base/net-admin.sh /usr/lib/osx86/net-admin
+install -d -m 755 /usr/lib/osx86/net
+install -m 644 /linux-base/net/vm.nft /linux-base/net/prefix.nft /usr/lib/osx86/net/
 install -m 755 /agent/agent /usr/lib/osx86/agent
 install -m 755 /agent/osx86-open-url /usr/bin/osx86-open-url
 echo wine > /etc/osx86-image

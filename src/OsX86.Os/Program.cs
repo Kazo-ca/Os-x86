@@ -15,6 +15,12 @@ WebAssemblyHost host = builder.Build();
 // engine, the image store of the OPFS and the packs built in images/build/ as the origin of the
 // images, before any command runs. The Feature of work item 8 takes this over.
 var baseAddress = new Uri(builder.HostEnvironment.BaseAddress);
-VmHost.Configure(VmHost.ForBrowser(host.Services.GetRequiredService<IJSRuntime>(), await DevImages.LoadCatalogAsync(baseAddress, CancellationToken.None)));
+// Work item 12: the dev host's VMs leave their private network through the test relay, which
+// answers 203.0.113.9:80 in memory and reaches nothing else (no real Internet); no permission
+// window yet (ADR 0246 of Kazo): decide with `x86 rules allow`.
+VmHost.Configure(VmHost.ForBrowser(host.Services.GetRequiredService<IJSRuntime>(), await DevImages.LoadCatalogAsync(baseAddress, CancellationToken.None)) with
+{
+    Relay = new OsX86.Network.LocalTestRelay().WithHttp("203.0.113.9", 80),
+});
 await host.LoadInstalledAppsAsync();
 await host.RunAsync();

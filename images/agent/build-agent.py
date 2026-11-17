@@ -48,7 +48,7 @@ import time
 from pathlib import Path
 
 AGENT_VERSION = "0.1.0"
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 BUILD_IMAGE = f"osx86-agent-build:{AGENT_VERSION}"
 SMOKE_IMAGE = f"osx86-agent-smoke:{AGENT_VERSION}"
 COPY_CONTAINER = "osx86-agent-copy"
@@ -330,6 +330,7 @@ def smoke() -> None:
         errors = {
             "unknown-op": agent.request("no-such-operation"),
             "no-prefix-support": agent.request("prefix-ensure", prefix="nobody"),
+            "no-net-support": agent.request("net", action="vm-up", vmSlot=2),
             "invalid-request": agent.request("put-file", prefix="test", path="../escape.txt", data=""),
             "put-failed": agent.request("put-file", prefix="test", path="drop/in/hello.txt/below", data=""),
             "invalid-prefix": agent.request("launch", prefix="Bad Prefix", program="sleep"),
