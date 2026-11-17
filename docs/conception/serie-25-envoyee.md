@@ -1,4 +1,4 @@
-# Série 25 — chantier 8, la Feature x86 sur Kazo 3.5.0 (287 à 291)
+# Série 25 — chantier 8, la Feature x86 sur Kazo 3.5.0 (287 à 292)
 
 Posée le 2026-11-17. Questions du chantier 8 d'Os-x86 (branche `j0/8-feature`, PR vers `j0/base`). Elles bloquent la persistance et le moteur de la Feature. Rien n'est accepté par défaut.
 
@@ -49,6 +49,14 @@ Contexte : depuis le passage au type Feature, `help` liste bien `x86`, mais `x86
 - B) Comme A, plus un contournement dans l'hôte de dev d'Os-x86 seulement : `OsX86.Os` enregistre son propre `IAppDescriptorLoader`, qui découvre les enfants avec leur Feature. Un Kazo réel attend toujours le correctif.
 - C) Garder la commande `x86` comme app Terminal autonome, et faire de la Feature un second paquet sans commande. Cela contredit l'ADR 0260 et double les paquets.
 - D) Autre : (Spécifiez)
+
+## 292. Faut-il porter aussi le correctif de #621 dans `feature/base` de Kazo ?
+
+Contexte : le correctif est dans la PR Kazo-ca/Os#622, vers `main`, qui publie 3.5.1. Le catalogue de découverte d'un enfant y contient sa Feature et lui seul, pas ses frères : la découverte est tout ou rien, et un frère dont l'assemblage n'est pas chargé ferait échouer l'enfant demandé. `feature/base` a le même défaut.
+
+- A) ✨(Recommandé) Rien de plus : `feature/base` reçoit le correctif quand `main` (3.5.1) y est fusionnée.
+- B) Porter aussi le commit par une PR de chantier vers `feature/base`, avant la prochaine fusion de `main`.
+- C) Autre : (Spécifiez)
 
 ## Réponses
 
