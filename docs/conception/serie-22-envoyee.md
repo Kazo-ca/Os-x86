@@ -30,3 +30,15 @@ Contexte : l'ADR dit « colonne Rôles par usager ».
 - A) ✨(Recommandé) Tout usager liste les rôles et leurs détenteurs, comme `getent group`.
 - B) `sudo` exigé pour voir les détenteurs.
 - C) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-17
+
+Tes mots pour 277 : « Je crois que pour simplifier le développement, la feature doit pouvoir interroger l'OS pour savoir si le user a les permissions... On va devoir avoir un objet `KazoUser` et pouvoir l'interroger comme `_kazoUser.IsInRole("admin")` ou `_kazoUser.IsInRole("x86:manager")` (le préfixe doit rester le nom de la feature qui déclare les rôles). » Pour 278 à 280 : « A ».
+
+| # | Réponse | Effet |
+|---|---|---|
+| 277 | **D, ta réponse** | Objet `KazoUser` interrogeable par `IsInRole` : rôles de l'OS par leur nom (`admin`), rôles d'une Feature sous la forme `<nom de la Feature>:<rôle>` (`x86:manager`), le préfixe étant le nom de la Feature qui déclare le rôle. Avec 233 B, un administrateur détient tous ces rôles. `x86 admin` reste une sous-commande qui vérifie le rôle par `IsInRole` ; l'authentification par opération (sudo) reste à part. Correctif et ADR d'ajustement demandés dans #604 ; le champ du manifeste qui sert de préfixe est à fixer par la session. |
+| 278 | **A** | Pas de synchronisation de `roles.config` dans cette PR ; une issue pour la liste des documents système synchronisés. |
+| 279 | **A** | Panneau « Rôles des Features » : tableau comptes × rôles avec cases à cocher. |
+| 280 | **A** | `kazorole list` sans `sudo`. |
+
