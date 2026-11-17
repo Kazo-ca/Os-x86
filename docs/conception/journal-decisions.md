@@ -543,3 +543,21 @@ Série 20 (270 à 272), posée le 2026-11-16 dans [serie-20-envoyee.md](serie-20
 | 271 | Plan sans administrateur dans le Store | **A** : pas de fenêtre, la fiche et le message final nomment les paquets. | ADR 0248 |
 | 272 | Ancien catalogue sans `dependencies` | **A** : rien sur la fiche, plan lu dans le paquet à l'installation. | ADR 0248 §5 |
 
+Série 21 (273 à 276), posée le 2026-11-17 dans [serie-21-envoyee.md](serie-21-envoyee.md) (questions du code de l'ADR Kazo 0250, PR Kazo-ca/Os#594), répondue le même jour. Tes mots : « Oui, A partout ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 273 | Où montrer l'éviction de Kazo | **A** : avis en tête de l'écran de première installation. | ADR 0250 |
+| 274 | Avis perdu au rechargement | **A** : accepté, trace dans `kern.log`. | ADR 0250 |
+| 275 | Destinataire de `Changed(Evicted)` | **A** : premier processus abonné de la Feature, une fois. | ADR 0250, 177 |
+| 276 | Test de bout en bout de l'éviction | **A** : avec le chantier 8 d'Os-x86. | ADR 0250 |
+
+Série 22 (277 à 280), posée le 2026-11-17 dans [serie-22-envoyee.md](serie-22-envoyee.md) (questions du code de l'ADR Kazo 0247, PR Kazo-ca/Os#604), répondue le même jour. Tes mots pour 277 : « Je crois que pour simplifier le développement, la feature doit pouvoir interroger l'OS pour savoir si le user a les permissions... On va devoir avoir un objet `KazoUser` et pouvoir l'interroger comme `_kazoUser.IsInRole("admin")` ou `_kazoUser.IsInRole("x86:manager")` (le préfixe doit rester le nom de la feature qui déclare les rôles). »
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 277 | Rôle exigé par une sous-commande | **D, ta réponse** : objet `KazoUser` avec `IsInRole("admin")` et `IsInRole("<feature>:<rôle>")`, préfixe = nom de la Feature qui déclare le rôle ; administrateur = tous les rôles (233 B) ; authentification par opération inchangée. | ADR 0247, 140 B, 156, 160 A |
+| 278 | Synchronisation de `roles.config` | **A** : plus tard, par une liste des documents système synchronisés. | ADR 0247 |
+| 279 | Attribution des rôles dans les Paramètres | **A** : tableau comptes × rôles. | ADR 0247 |
+| 280 | `kazorole list` sans `sudo` | **A** : lisible par tout usager. | ADR 0247 |
+
