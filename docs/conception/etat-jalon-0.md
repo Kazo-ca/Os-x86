@@ -1,4 +1,4 @@
-# Jalon 0 — où on en est (2026-11-15)
+# Jalon 0 — où on en est (2026-11-17)
 
 **Repris le 2026-11-14**, après une pause du 12 au 14 novembre. Les sessions de travail tournent sur Opus 5.5 ; Fable est réservé aux analyses.
 
@@ -17,7 +17,8 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Code de l'ADR 0246, permissions déclarées par un fournisseur : fusionné (PR #570, série 19).
 - Code de l'ADR 0248, résolution des dépendances par le Store et kazopkg : fusionné (PR #588, série 20).
 - Code de l'ADR 0250, persistance et éviction du stockage : fusionné (PR #594, série 21).
-- Les codes de 0246, 0248 et 0250 sont dans `feature/base`, pas encore dans `main` ni dans une version publiée (Kazo est en `v3.4.1`).
+- Code de l'ADR 0247, rôles déclarés par une Feature, avec l'ajustement 0283 (`KazoUser.IsInRole`) : fusionné (PR #604, séries 22 et 23). Issue de suivi : Kazo-ca/Os#607.
+- Les codes de 0246, 0248, 0250 et 0247 sont dans `feature/base`, pas encore dans `main` ni dans une version publiée (Kazo est en `v3.4.1`).
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
@@ -40,12 +41,12 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
-- **Kazo, code de l'ADR 0247**, rôles déclarés par une Feature (233 B) : PR Kazo #604 ouverte  ; [série 22](serie-22-envoyee.md) répondue et appliquée (`KazoUser.IsInRole`, ADR d'ajustement 0283) ; [série 23](serie-23-envoyee.md) répondue (A et A). Issue de suivi de 278 : Kazo-ca/Os#607.
+- **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : lancé le 2026-11-17 dans la session Kazo, PR vers `feature/base` à venir.
 
 ## Reste à faire
 
 **Os-x86, étape a (Linux)**
-- Chantier 7, pages d'administration et rôle (attend le code Kazo des ADR 0247, 0249, 0254).
+- Chantier 7, pages d'administration et rôle (attend le code Kazo des ADR 0249 et 0254).
 - Chantier 8, passage au vrai type Feature, permissions, interface enregistrée, installation depuis le Store (attend le code Kazo des ADR 0245, 0246, 0248, 0250).
 
 **Os-x86, étape b (Windows et DOS console)**
@@ -54,10 +55,9 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 12, suite : relais réel de Kazo et fenêtre de permission (attend le code Kazo des ADR 0255 et 0246 dans une version publiée).
 - Chantier 13, BoxedWine minimal (autre dépôt).
 
-**Kazo** : le code des ADR 0250 à 0255 et 0247, 0249, un chantier par ADR, dans l'ordre 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
+**Kazo** : le code des ADR 0249 et 0251 à 0255, un chantier par ADR, dans l'ordre 0249 (en cours), 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Fusionner Kazo #604 (séries 22 et 23 répondues).
 - Fusionner `feature/base` dans `main` de Kazo et publier une version : le chantier 8 d'Os-x86 l'attend (ADR 0246, 0248, 0250).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
