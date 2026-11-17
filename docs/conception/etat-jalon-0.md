@@ -40,7 +40,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 8**, branche `j0/8-feature` : la commande `x86` passe au type Feature (Kazo 3.5.0 épinglé, permissions et rôle déclarés, `Ix86` résolu par `GetServiceAsync`, persistance KazoStorage). Lancé le 2026-11-17 ; ses questions partent de 287.
+- **Chantier 8**, branche `j0/8-feature` : la commande `x86` passe au type Feature (Kazo 3.5.0 épinglé, permissions et rôle déclarés, `Ix86` résolu par `GetServiceAsync`, persistance KazoStorage). Lancé le 2026-11-17 ; ses questions sont la [série 25](serie-25-envoyee.md) (287 à 289).
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
 - **Kazo, PR #620** : `main` (3.5.0) fusionnée dans `beta`, qui passe en `3.6.0-preview.1`.
 
