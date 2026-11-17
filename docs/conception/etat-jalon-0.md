@@ -40,7 +40,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
+- **Chantier 8**, branche `j0/8-feature` : la commande `x86` passe au type Feature (Kazo 3.5.0 épinglé, permissions et rôle déclarés, `Ix86` résolu par `GetServiceAsync`, persistance KazoStorage). Lancé le 2026-11-17 ; ses questions partent de 287.
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
 - **Kazo, PR #620** : `main` (3.5.0) fusionnée dans `beta`, qui passe en `3.6.0-preview.1`.
 
@@ -48,7 +48,6 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 **Os-x86, étape a (Linux)**
 - Chantier 7, pages d'administration et rôle (attend le code Kazo des ADR 0249 et 0254).
-- Chantier 8, passage au vrai type Feature, permissions, interface enregistrée, installation depuis le Store (débloqué par Kazo 3.5.0, à lancer).
 
 **Os-x86, étape b (Windows et DOS console)**
 - Chantier 10, suite : `./hello.exe` tapé dans le shell de Kazo (attend le code Kazo des ADR 0251 et 0252).
