@@ -543,3 +543,12 @@ Série 20 (270 à 272), posée le 2026-11-16 dans [serie-20-envoyee.md](serie-20
 | 271 | Plan sans administrateur dans le Store | **A** : pas de fenêtre, la fiche et le message final nomment les paquets. | ADR 0248 |
 | 272 | Ancien catalogue sans `dependencies` | **A** : rien sur la fiche, plan lu dans le paquet à l'installation. | ADR 0248 §5 |
 
+Série 21 (273 à 276), posée le 2026-11-17 dans [serie-21-envoyee.md](serie-21-envoyee.md) (questions du code de l'ADR Kazo 0250, PR Kazo-ca/Os#594), répondue le même jour. Tes mots : « Oui, A partout ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 273 | Où montrer l'éviction de Kazo | **A** : avis en tête de l'écran de première installation. | ADR 0250 |
+| 274 | Avis perdu au rechargement | **A** : accepté, trace dans `kern.log`. | ADR 0250 |
+| 275 | Destinataire de `Changed(Evicted)` | **A** : premier processus abonné de la Feature, une fois. | ADR 0250, 177 |
+| 276 | Test de bout en bout de l'éviction | **A** : avec le chantier 8 d'Os-x86. | ADR 0250 |
+

@@ -33,3 +33,15 @@ Contexte : simuler une éviction réelle demande d'effacer IndexedDB et l'OPFS e
 - A) ✨(Recommandé) Les tests unitaires (détecteur, coordinateur, service, page) et une procédure manuelle suffisent pour ce chantier ; le test de bout en bout vient avec Os-x86 (chantier 8).
 - B) L'ajouter maintenant aux tests de bout en bout de l'interface de Kazo.
 - C) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-17
+
+Tes mots : « Oui, A partout ».
+
+| # | Réponse | Effet |
+|---|---|---|
+| 273 | **A** | Avis d'éviction en tête de l'écran de première installation, puis l'installation continue. Déjà codé dans #594. |
+| 274 | **A** | Avis perdu au rechargement accepté ; `kern.log` garde `storage.evicted`. |
+| 275 | **A** | `Changed(Evicted)` au premier processus de la Feature qui s'abonne, une fois ; Os-x86 revérifie ses images de lui-même. |
+| 276 | **A** | Tests unitaires et procédure manuelle ; le test de bout en bout viendra avec le chantier 8 d'Os-x86. |
+
