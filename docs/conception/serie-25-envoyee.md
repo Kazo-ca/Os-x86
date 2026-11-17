@@ -1,4 +1,4 @@
-# Série 25 — chantier 8, la Feature x86 sur Kazo 3.5.0 (287 à 289)
+# Série 25 — chantier 8, la Feature x86 sur Kazo 3.5.0 (287 à 290)
 
 Posée le 2026-11-17. Questions du chantier 8 d'Os-x86 (branche `j0/8-feature`, PR vers `j0/base`). Elles bloquent la persistance et le moteur de la Feature. Rien n'est accepté par défaut.
 
@@ -30,4 +30,13 @@ Dans tous les cas : persistance demandée au premier `x86 vm create`, marqueur `
 - A) ✨(Recommandé) En plus de la notification de Kazo, le prochain `x86` avertit une fois de ce qui a été perdu, et `GetVmsAsync` rend une liste vide. Même chose, une fois, si le navigateur retire la protection.
 - B) Seulement la notification de Kazo.
 - C) A, plus un événement public `StorageEvicted` dans `Ix86` (change l'API).
+- D) Autre : (Spécifiez)
+
+## 290. Comment le paquet de la Feature obtient-il v86 et les workers JS ?
+
+Contexte : KazoOsPack (ADR Kazo 0221) n'emballe que les ressources web du projet de l'app, `OsX86.Feature`, pas celles des projets référencés. Une app installée n'est servie qu'à `_content/<son assemblage>/` (ADR 0206). Or v86 et les workers sont dans `src/OsX86/wwwroot`, servis à `_content/OsX86/`. Le paquet construit ne contient que les trois DLL et les deux manifestes. Une fois installée, la Feature n'aurait donc ni moteur ni stockage.
+
+- A) ✨(Recommandé) `OsX86.Feature` passe au SDK Razor et déclare les fichiers de `src/OsX86/wwwroot` comme ses propres ressources par `DefineStaticWebAssets`, comme l'hôte de dev le fait déjà pour les images. Aucun fichier ne bouge. Ils sont servis à `_content/OsX86.Feature/`, et la Feature passe ce chemin aux ponts JS. Le paquet gagne environ 2,6 Mo.
+- B) Déplacer `wwwroot` de `src/OsX86` vers `src/OsX86.Feature`. C'est plus net, mais cela touche environ 25 fichiers (vendorisation de v86, tests `guest`, workflows, docs).
+- C) Demander à Kazo une ADR qui emballe aussi le `wwwroot` des projets référencés, et le chantier attend Kazo.
 - D) Autre : (Spécifiez)
