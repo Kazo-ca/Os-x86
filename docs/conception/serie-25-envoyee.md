@@ -49,3 +49,9 @@ Contexte : depuis le passage au type Feature, `help` liste bien `x86`, mais `x86
 - B) Comme A, plus un contournement dans l'hôte de dev d'Os-x86 seulement : `OsX86.Os` enregistre son propre `IAppDescriptorLoader`, qui découvre les enfants avec leur Feature. Un Kazo réel attend toujours le correctif.
 - C) Garder la commande `x86` comme app Terminal autonome, et faire de la Feature un second paquet sans commande. Cela contredit l'ADR 0260 et double les paquets.
 - D) Autre : (Spécifiez)
+
+## Réponses
+
+Réponse partielle du 2026-11-17. Tes mots : « 291. b ». Les questions 287 à 290 attendent encore leur réponse.
+
+- 291 : **B**. Issue Kazo avec le correctif d'une ligne, PR Kazo du correctif, version corrective 3.5.1, puis épinglage d'Os-x86 dessus. En attendant, l'hôte de dev d'Os-x86 enregistre son propre `IAppDescriptorLoader`, qui découvre les enfants avec leur Feature.
