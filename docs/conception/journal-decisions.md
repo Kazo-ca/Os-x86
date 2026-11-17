@@ -568,3 +568,9 @@ Série 23 (281, 282), posée le 2026-11-17 dans [serie-23-envoyee.md](serie-23-e
 | 281 | Préfixe des rôles d'une Feature | **A** : le `CapabilityPrefix` (ADR 0246), unique et court ; `x86:vm-manager` pour Os-x86. | 277, ADR 0283 |
 | 282 | Sous-commande ouverte à tous et rôle | **A** : acceptée pour un détenteur d'un rôle de la Feature, rôle exact vérifié par `IsInRole`. | 277, ADR 0247 |
 
+Série 25 (287 à 291), posée le 2026-11-17 dans [serie-25-envoyee.md](serie-25-envoyee.md) (chantier 8, la Feature x86 sur Kazo 3.5.0). 291 répondue le même jour, tes mots : « 291. b ». 287 à 290 en attente.
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 291 | Enfants de Feature non lançables dans Kazo 3.5.0 | **B** : issue et correctif Kazo (découvrir l'enfant avec le manifeste de sa Feature), version 3.5.1, épinglage d'Os-x86 ; d'ici là, contournement dans l'hôte de dev d'Os-x86 seulement (`IAppDescriptorLoader` propre). | ADR Kazo 0260, chantier 8 |
+
