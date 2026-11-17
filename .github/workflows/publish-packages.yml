@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_DIRECTORY: src/OsX86
+  APP_DIRECTORY: src/OsX86.Feature
   PACKAGES_BRANCH: kazoos-packages
 
 jobs:
