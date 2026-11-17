@@ -1,4 +1,4 @@
-# Série 25 — chantier 8, la Feature x86 sur Kazo 3.5.0 (287 à 290)
+# Série 25 — chantier 8, la Feature x86 sur Kazo 3.5.0 (287 à 291)
 
 Posée le 2026-11-17. Questions du chantier 8 d'Os-x86 (branche `j0/8-feature`, PR vers `j0/base`). Elles bloquent la persistance et le moteur de la Feature. Rien n'est accepté par défaut.
 
@@ -39,4 +39,13 @@ Contexte : KazoOsPack (ADR Kazo 0221) n'emballe que les ressources web du projet
 - A) ✨(Recommandé) `OsX86.Feature` passe au SDK Razor et déclare les fichiers de `src/OsX86/wwwroot` comme ses propres ressources par `DefineStaticWebAssets`, comme l'hôte de dev le fait déjà pour les images. Aucun fichier ne bouge. Ils sont servis à `_content/OsX86.Feature/`, et la Feature passe ce chemin aux ponts JS. Le paquet gagne environ 2,6 Mo.
 - B) Déplacer `wwwroot` de `src/OsX86` vers `src/OsX86.Feature`. C'est plus net, mais cela touche environ 25 fichiers (vendorisation de v86, tests `guest`, workflows, docs).
 - C) Demander à Kazo une ADR qui emballe aussi le `wwwroot` des projets référencés, et le chantier attend Kazo.
+- D) Autre : (Spécifiez)
+
+## 291. Aucun enfant de Feature ne peut se lancer dans Kazo 3.5.0 : que faire ?
+
+Contexte : depuis le passage au type Feature, `help` liste bien `x86`, mais `x86 --version` répond « command not found » dans l'hôte de dev. Dans Kazo v3.5.0 (et toujours sur `main` et `beta`), `Platform/Kazo.Os.Platform.Blazor/LazyLoading/BuildKnownLazyAppDescriptorRegistry.cs` ligne 86 découvre le point d'entrée avec `AppCatalog.Build([manifest])`, le seul manifeste demandé. Pour un enfant, ce catalogue est refusé (`catalog.feature.parent.missing`), reproduit par un test. Le même registre sert aux apps installées par paquet : toute Feature qui a des enfants est touchée, installée par kazopkg ou le Store comme dans l'hôte de dev. Le service `Ix86` n'est pas touché, et la CI d'Os-x86 reste verte, car ses tests lancent la commande dans le processus de test.
+
+- A) ✨(Recommandé) Ouvrir une issue Kazo avec le correctif d'une ligne : découvrir l'enfant avec le manifeste de sa Feature (`AppCatalog.Build([feature, ..enfants])`). La session Kazo le code dans une PR, puis Kazo publie une version corrective 3.5.1, et Os-x86 s'épingle dessus. En attendant, le chantier 8 continue, et sa PR signale la régression de `x86` dans l'hôte de dev.
+- B) Comme A, plus un contournement dans l'hôte de dev d'Os-x86 seulement : `OsX86.Os` enregistre son propre `IAppDescriptorLoader`, qui découvre les enfants avec leur Feature. Un Kazo réel attend toujours le correctif.
+- C) Garder la commande `x86` comme app Terminal autonome, et faire de la Feature un second paquet sans commande. Cela contredit l'ADR 0260 et double les paquets.
 - D) Autre : (Spécifiez)
