@@ -40,7 +40,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
-- **Kazo, code de l'ADR 0247**, rôles déclarés par une Feature (233 B) : PR Kazo #604 ouverte  ; [série 22](serie-22-envoyee.md) répondue (277 : objet `KazoUser` avec `IsInRole`, ta réponse ; 278 à 280 A), correctif en cours.
+- **Kazo, code de l'ADR 0247**, rôles déclarés par une Feature (233 B) : PR Kazo #604 ouverte  ; [série 22](serie-22-envoyee.md) répondue et appliquée (`KazoUser.IsInRole`, ADR d'ajustement 0283) ; questions de suivi : [série 23](serie-23-envoyee.md) (281, 282). Issue de suivi de 278 : Kazo-ca/Os#607.
 
 ## Reste à faire
 
@@ -57,7 +57,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0250 à 0255 et 0247, 0249, un chantier par ADR, dans l'ordre 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Fusionner Kazo #604 une fois le correctif de 277 poussé et la CI verte.
+- Répondre à la série 23 (281, 282), puis fusionner Kazo #604.
 - Fusionner `feature/base` dans `main` de Kazo et publier une version : le chantier 8 d'Os-x86 l'attend (ADR 0246, 0248, 0250).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.

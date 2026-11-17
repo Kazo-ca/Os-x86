@@ -42,3 +42,4 @@ Tes mots pour 277 : « Je crois que pour simplifier le développement, la featur
 | 279 | **A** | Panneau « Rôles des Features » : tableau comptes × rôles avec cases à cocher. |
 | 280 | **A** | `kazorole list` sans `sudo`. |
 
+Appliqué le 2026-11-17 dans #604 (commits `3c0c79e3`, `4f80b2b5`) : `KazoUser.Current.IsInRole`, rôle `admin` de l'OS, rôles `<CapabilityPrefix>:<rôle>` (pour Os-x86 : `x86:vm-manager`), ADR d'ajustement 0283. L'issue de suivi de 278 est Kazo-ca/Os#607, ouverte par moi. Questions de suivi : [série 23](serie-23-envoyee.md).
