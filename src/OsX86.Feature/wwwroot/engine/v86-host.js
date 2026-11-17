@@ -1,6 +1,6 @@
 // Os-x86 engine host: the main-thread side of the v86 engine (milestone 0, work item 2).
 //
-// Imported by the C# side (JsEngineWorkerChannel) as ./_content/OsX86/engine/v86-host.js, the
+// Imported by the C# side (JsEngineWorkerChannel) as ./_content/OsX86.Feature/engine/v86-host.js, the
 // only JavaScript import Kazo OS allows an app (app-sdk.md: an app imports its own module and
 // then calls it freely). createHost() starts the Web Worker that runs v86 (v86-worker.js) and
 // relays messages both ways without looking at them: the C# side and the worker speak the JSON

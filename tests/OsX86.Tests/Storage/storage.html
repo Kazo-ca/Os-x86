@@ -17,7 +17,7 @@
   plan (the chunks not yet verified) and asks the worker to download them; then lists, verifies
   and deletes. Driven by the `guest` xUnit test (Playwright) through window.storage, or by hand.
 
-  Query parameters: host=<url of storage-host.js> (default ../../../src/OsX86/wwwroot/storage/storage-host.js).
+  Query parameters: host=<url of storage-host.js> (default ../../../src/OsX86.Feature/wwwroot/storage/storage-host.js).
 -->
 <div>State: <span id="status">not started</span></div>
 <div>
@@ -30,7 +30,7 @@
 <pre id="log"></pre>
 <script type="module">
   const params = new URLSearchParams(location.search);
-  const hostUrl = new URL(params.get("host") || "../../../src/OsX86/wwwroot/storage/storage-host.js", location.href).href;
+  const hostUrl = new URL(params.get("host") || "../../../src/OsX86.Feature/wwwroot/storage/storage-host.js", location.href).href;
   const statusElement = document.getElementById("status");
   const logElement = document.getElementById("log");
 

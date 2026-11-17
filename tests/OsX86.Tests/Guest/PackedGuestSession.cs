@@ -61,8 +61,8 @@ internal sealed class PackedGuestSession : IAsyncDisposable
         string root = PythonTools.RepositoryRoot;
         var server = new StaticFileServer(
         [
-            ("/engine/", Path.Combine(root, "src", "OsX86", "wwwroot", "engine")),
-            ("/v86/", Path.Combine(root, "src", "OsX86", "wwwroot", "v86")),
+            ("/engine/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "engine")),
+            ("/v86/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "v86")),
             ("/pack/", pack),
             ("/page/", Path.Combine(root, "tests", "OsX86.Tests", "Guest")),
         ]);

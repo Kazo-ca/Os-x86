@@ -38,8 +38,8 @@ public sealed class AgentGuestTests(ITestOutputHelper output)
 
         await using var server = new StaticFileServer(
         [
-            ("/engine/", Path.Combine(root, "src", "OsX86", "wwwroot", "engine")),
-            ("/v86/", Path.Combine(root, "src", "OsX86", "wwwroot", "v86")),
+            ("/engine/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "engine")),
+            ("/v86/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "v86")),
             ("/image/", imageDirectory),
             ("/page/", Path.Combine(root, "tests", "OsX86.Tests", "Guest")),
         ]);

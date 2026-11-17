@@ -15,15 +15,15 @@ image storage and the guest agent come with work items 3, 5 and 6
 | --- | --- |
 | `src/OsX86/Engine/` | `IEngine`, `EngineState`, `EngineStateMachine`, `EngineStartOptions`, `ConsoleId`, `IEngineConsole`, `LineFramer`, the exceptions |
 | `src/OsX86/Engine/V86/` | `V86Engine` (the implementation), `IEngineWorkerChannel` and `JsEngineWorkerChannel` (JS interop), `V86Console`, the protocol |
-| `src/OsX86/wwwroot/engine/` | `v86-host.js` (the module the C# imports; creates the worker), `v86-worker.js` (hosts v86), `zstd-seekable.js` (zstd seek table) and `disk.js` (disks, frame cache, write layers), work item 6a; `vga-text.js` (text screen with attributes and cursor), work item 11 |
+| `src/OsX86.Feature/wwwroot/engine/` | `v86-host.js` (the module the C# imports; creates the worker), `v86-worker.js` (hosts v86), `zstd-seekable.js` (zstd seek table) and `disk.js` (disks, frame cache, write layers), work item 6a; `vga-text.js` (text screen with attributes and cursor), work item 11 |
 | `src/OsX86/Engine/ImageBoot.cs`, `EngineDisk.cs` | the boot described by the manifest and the same-major-version rule (169); sources, disks and layers of the start options (work item 6a) |
-| `src/OsX86/wwwroot/v86/` | vendored v86: `libv86.js` (patched), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
+| `src/OsX86.Feature/wwwroot/v86/` | vendored v86: `libv86.js` (patched), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
 | `tools/v86/` | `vendor-v86.py` (downloads, verifies, applies the patches) and `patches/` |
 | `images/alpine-test/` | `build-alpine-test.py` and `init.sh`: the Alpine test image (never committed) |
 | `tests/OsX86.Tests/Engine/`, `tests/OsX86.Tests/Guest/` | the `unit` tests and the `guest` test |
 
-The files under `wwwroot/` are static web assets of the `OsX86` library, served under
-`_content/OsX86/` (the address Kazo OS gives to an app's files, Kazo ADR 0206).
+The files under `wwwroot/` are static web assets of the Feature project, `OsX86.Feature`, served under
+`_content/OsX86.Feature/` (the address Kazo OS gives to an app's files, Kazo ADR 0206).
 
 ## How it works
 
@@ -252,7 +252,7 @@ before and after the patches). Nothing downloaded is executed by the script: it 
 writing (bounded size, a `.part` file renamed once verified), copies, patches.
 
 ```bash
-python -I tools/v86/vendor-v86.py            # regenerates src/OsX86/wwwroot/v86
+python -I tools/v86/vendor-v86.py            # regenerates src/OsX86.Feature/wwwroot/v86
 python -I tools/v86/vendor-v86.py --check    # the CI: rebuilds elsewhere and compares byte for byte
 ```
 
@@ -301,9 +301,10 @@ The test image is never published; the real images and their sources follow work
 
 ## Decisions taken in this work item
 
-- The JavaScript and v86 files live in `src/OsX86/wwwroot/` (x86-Lib), served under
-  `_content/OsX86/`; their packaging in the Feature's `.kazoapp` is to be checked at work item 8
-  (Kazo ADR 0221).
+- The JavaScript and v86 files live in `src/OsX86.Feature/wwwroot/`, served under
+  `_content/OsX86.Feature/`. They were in `src/OsX86/wwwroot/` (x86-Lib) until work item 8:
+  `KazoOsPack` packs only the resources of the app's project (Kazo ADR 0221), and an installed app
+  is served only at `_content/<its assembly>/` (ADR 0206); decision 290 B.
 - The host module must be imported from a context that has the DOM: in Kazo, a command with
   `execution: pool` runs in a worker without `IJSRuntime` (ADR 0070), so the engine will be created
   by the Feature (the "Feature" app kind, ADR 0243), not by the `x86` command. Work item 8.

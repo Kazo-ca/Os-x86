@@ -22,7 +22,7 @@ blocks, the journal records both.
 | --- | --- |
 | `src/OsX86/Network/` | `Addresses.cs` (`Ipv4Address`, `MacAddress`), `Packets.cs` (Ethernet, ARP, IPv4, TCP, UDP, ICMP, checksums), `AddressPlan.cs` (address plan, `FlowIdentity`), `PrivateSwitch.cs` (switch, `INetworkPort`, drop reasons), `NetworkGateway.cs` and `TcpFlow.cs` (gateway, termination of the guest's TCP), `NetworkRules.cs` (destinations, rules, arbitration, limits), `NetworkRuleBook.cs` (a user's rules and journal), `NetworkPolicy.cs` (rules then window), `NetworkPermission.cs` (abstraction of the window), `Relay.cs` (abstraction of the relay, test relay), `NetworkDocuments.cs` (versioned formats, `INetworkStore`), `NetworkHub.cs` (`NetworkHub`, `UserNetwork`, `VmNetworkAttachment`) |
 | `src/OsX86/Engine/` | `INetworkEngine` (the card's frames), `EngineStartOptions.Network`, `net` messages of the worker protocol |
-| `src/OsX86/wwwroot/engine/` | `v86-worker.js`: v86's virtio-net card without `relay_url`, its frames in batches in the `net` messages; `disk.js`: the payload of an image opened shared read-only |
+| `src/OsX86.Feature/wwwroot/engine/` | `v86-worker.js`: v86's virtio-net card without `relay_url`, its frames in batches in the `net` messages; `disk.js`: the payload of an image opened shared read-only |
 | `src/OsX86/Vm/VmInstance.Network.cs` | the VM on the network: card, address, network namespace of a prefix, switch port |
 | `src/OsX86/Agent/AgentClient.Network.cs` | the `net` operation of protocol 3 of the agent |
 | `src/OsX86.Feature/X86Command.Rules.cs` | `x86 rules list`, `allow`, `deny`, `ask`, `remove`, `log` |

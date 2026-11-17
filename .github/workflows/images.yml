@@ -31,7 +31,7 @@ on:
       # and the DOS way of x86 run (work item 11), which its FreeDOS test drives.
       - "src/OsX86/Engine/**"
       - "src/OsX86/Storage/**"
-      - "src/OsX86/wwwroot/engine/**"
+      - "src/OsX86.Feature/wwwroot/engine/**"
       - "src/OsX86/Dos/**"
       - "src/OsX86/Vm/**"
       - "src/OsX86/Network/**"
@@ -50,7 +50,7 @@ on:
       - ".github/scripts/repair-i386-seccomp.sh"
       - "src/OsX86/Engine/**"
       - "src/OsX86/Storage/**"
-      - "src/OsX86/wwwroot/engine/**"
+      - "src/OsX86.Feature/wwwroot/engine/**"
       - "src/OsX86/Dos/**"
       - "src/OsX86/Vm/**"
       - "src/OsX86/Network/**"

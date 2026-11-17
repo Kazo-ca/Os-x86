@@ -49,9 +49,9 @@ public sealed class X86ShellLinuxBaseGuestTests(ITestOutputHelper output)
 
         await using var server = new StaticFileServer(
         [
-            ("/engine/", Path.Combine(root, "src", "OsX86", "wwwroot", "engine")),
-            ("/v86/", Path.Combine(root, "src", "OsX86", "wwwroot", "v86")),
-            ("/storage/", Path.Combine(root, "src", "OsX86", "wwwroot", "storage")),
+            ("/engine/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "engine")),
+            ("/v86/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "v86")),
+            ("/storage/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "storage")),
             ("/origin/linux-base/", pack),
             ("/page/", Path.Combine(root, "tests", "OsX86.Tests", "Vm")),
         ]);

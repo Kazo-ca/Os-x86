@@ -274,7 +274,7 @@ Terminal (Kazo ADR 0252) wait until Kazo has coded those ADRs; until then, the F
 | `src/OsX86/Dos/TextScreenDiff.cs` | the comparison by row (text and attributes) and of the cursor |
 | `src/OsX86/Vm/VmManager.Dos.cs`, `VmInstance.Dos.cs`, `DosProgramSession.cs` | choice of the DOS VM, start with the program disk and the keyboard, session (screen, keys, start, end, graphical mode), stop |
 | `src/OsX86/Engine/EngineTextScreen.cs` | the text screen with attributes and cursor, `ITextModeEngine` |
-| `src/OsX86/wwwroot/engine/vga-text.js` | the only reader of the internal fields of v86's VGA (218 A) |
+| `src/OsX86.Feature/wwwroot/engine/vga-text.js` | the only reader of the internal fields of v86's VGA (218 A) |
 | `src/OsX86.Feature/X86Command.Dos.cs` | `x86 run` of a DOS program |
 | `src/OsX86.Feature/GuestScreenTerminal.cs` | `IGuestScreenTerminal` (the boundary ADR 0252 will enrich), its adapter `KazoFullScreenTerminal` (SDK 3.4.0), the VGA colours |
 | `src/OsX86.Feature/DosTerminalBridge.cs` | the bridge: polling, comparison, rendering, keys, measures |

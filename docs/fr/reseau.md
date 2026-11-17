@@ -22,7 +22,7 @@ destination non décidée ouvre la fenêtre de permission (une abstraction, voir
 | --- | --- |
 | `src/OsX86/Network/` | `Addresses.cs` (`Ipv4Address`, `MacAddress`), `Packets.cs` (Ethernet, ARP, IPv4, TCP, UDP, ICMP, sommes de contrôle), `AddressPlan.cs` (plan d'adresses, `FlowIdentity`), `PrivateSwitch.cs` (commutateur, `INetworkPort`, raisons d'abandon), `NetworkGateway.cs` et `TcpFlow.cs` (passerelle, fin des TCP de l'invité), `NetworkRules.cs` (destinations, règles, arbitrage, limites), `NetworkRuleBook.cs` (règles et journal d'un usager), `NetworkPolicy.cs` (règles puis fenêtre), `NetworkPermission.cs` (abstraction de la fenêtre), `Relay.cs` (abstraction du relais, relais de test), `NetworkDocuments.cs` (formats versionnés, `INetworkStore`), `NetworkHub.cs` (`NetworkHub`, `UserNetwork`, `VmNetworkAttachment`) |
 | `src/OsX86/Engine/` | `INetworkEngine` (trames de la carte), `EngineStartOptions.Network`, messages `net` du protocole du worker |
-| `src/OsX86/wwwroot/engine/` | `v86-worker.js` : la carte virtio-net de v86 sans `relay_url`, ses trames par lots dans les messages `net` ; `disk.js` : la charge utile d'une image ouverte en lecture seule partagée |
+| `src/OsX86.Feature/wwwroot/engine/` | `v86-worker.js` : la carte virtio-net de v86 sans `relay_url`, ses trames par lots dans les messages `net` ; `disk.js` : la charge utile d'une image ouverte en lecture seule partagée |
 | `src/OsX86/Vm/VmInstance.Network.cs` | la VM sur le réseau : carte, adresse, espace réseau d'un préfixe, port du commutateur |
 | `src/OsX86/Agent/AgentClient.Network.cs` | l'opération `net` du protocole 3 de l'agent |
 | `src/OsX86.Feature/X86Command.Rules.cs` | `x86 rules list`, `allow`, `deny`, `ask`, `remove`, `log` |

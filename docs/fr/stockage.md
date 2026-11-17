@@ -17,10 +17,10 @@ d'écriture des disques, le chantier 6a (voir « Couches d'écriture » plus bas
 | Chemin | Contenu |
 | --- | --- |
 | `src/OsX86/Storage/` | `ImageManifest` (lecteur et validateur), `StorageLayout` (noms et chemins OPFS), `StoredObjectMetadata` (formats versionnés), `ResumePlan`, `DownloadStateMachine` et `DownloadProgress`, `ImageStore` (la façade), `ImageCatalog` et `KnownImage` (les images connues, chantier 6b), `IStorageWorkerChannel` et `JsStorageWorkerChannel` (l'interop JS), le protocole, les exceptions |
-| `src/OsX86/wwwroot/storage/` | `storage-host.js` (module importé par le C#, crée le worker) et `storage-worker.js` (téléchargement, SHA-256, OPFS, verrou) |
+| `src/OsX86.Feature/wwwroot/storage/` | `storage-host.js` (module importé par le C#, crée le worker) et `storage-worker.js` (téléchargement, SHA-256, OPFS, verrou) |
 | `tests/OsX86.Tests/Storage/` | tests `unit` (manifeste, métadonnées, plan de reprise, machine d'état, `ImageStore` contre un worker simulé, canal JS contre un `IJSRuntime` factice) et test `guest` (`ImageDownloadTests`, `storage.html`, `ChunkImageServer`) ; `ImageCatalogTests` (chantier 6b) |
 
-Comme pour le moteur, les fichiers de `wwwroot/` sont servis sous `_content/OsX86/`.
+Comme pour le moteur, les fichiers de `wwwroot/` sont servis sous `_content/OsX86.Feature/`.
 
 ## Le manifeste (`manifest.json`)
 

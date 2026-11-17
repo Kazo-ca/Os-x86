@@ -284,7 +284,7 @@ là, la Feature se sert de l'`IFullScreenTerminalSession` du SDK de Kazo 3.4.0.
 | `src/OsX86/Dos/TextScreenDiff.cs` | la comparaison par ligne (texte et attributs) et du curseur |
 | `src/OsX86/Vm/VmManager.Dos.cs`, `VmInstance.Dos.cs`, `DosProgramSession.cs` | choix de la VM DOS, démarrage avec le disque du programme et le clavier, session (écran, touches, début, fin, mode graphique), arrêt |
 | `src/OsX86/Engine/EngineTextScreen.cs` | l'écran texte avec attributs et curseur, `ITextModeEngine` |
-| `src/OsX86/wwwroot/engine/vga-text.js` | le seul lecteur des champs internes de la VGA de v86 (218 A) |
+| `src/OsX86.Feature/wwwroot/engine/vga-text.js` | le seul lecteur des champs internes de la VGA de v86 (218 A) |
 | `src/OsX86.Feature/X86Command.Dos.cs` | `x86 run` d'un programme DOS |
 | `src/OsX86.Feature/GuestScreenTerminal.cs` | `IGuestScreenTerminal` (la frontière que l'ADR 0252 enrichira), son adaptateur `KazoFullScreenTerminal` (SDK 3.4.0), les couleurs VGA |
 | `src/OsX86.Feature/DosTerminalBridge.cs` | le pont : sondage, comparaison, rendu, touches, mesures |

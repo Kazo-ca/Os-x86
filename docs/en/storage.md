@@ -17,10 +17,10 @@ and the write layers of the disks, work item 6a (see "Write layers" below and [`
 | Path | Contents |
 | --- | --- |
 | `src/OsX86/Storage/` | `ImageManifest` (reader and validator), `StorageLayout` (OPFS names and paths), `StoredObjectMetadata` (versioned formats), `ResumePlan`, `DownloadStateMachine` and `DownloadProgress`, `ImageStore` (the façade), `ImageCatalog` and `KnownImage` (the known images, work item 6b), `IStorageWorkerChannel` and `JsStorageWorkerChannel` (JS interop), the protocol, the exceptions |
-| `src/OsX86/wwwroot/storage/` | `storage-host.js` (module imported by the C# side, creates the worker) and `storage-worker.js` (download, SHA-256, OPFS, lock) |
+| `src/OsX86.Feature/wwwroot/storage/` | `storage-host.js` (module imported by the C# side, creates the worker) and `storage-worker.js` (download, SHA-256, OPFS, lock) |
 | `tests/OsX86.Tests/Storage/` | `unit` tests (manifest, metadata, resume plan, state machine, `ImageStore` against a simulated worker, JS channel against a fake `IJSRuntime`) and the `guest` test (`ImageDownloadTests`, `storage.html`, `ChunkImageServer`); `ImageCatalogTests` (work item 6b) |
 
-As for the engine, the files of `wwwroot/` are served under `_content/OsX86/`.
+As for the engine, the files of `wwwroot/` are served under `_content/OsX86.Feature/`.
 
 ## The manifest (`manifest.json`)
 

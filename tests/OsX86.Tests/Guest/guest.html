@@ -17,7 +17,7 @@
   Alpine test image into the OPFS, then boots it and talks on the serial console. Driven by the
   `guest` xUnit test (Playwright) through window.guest, or by hand with the buttons.
 
-  Query parameters: host=<url of v86-host.js> (default ../../../src/OsX86/wwwroot/engine/v86-host.js),
+  Query parameters: host=<url of v86-host.js> (default ../../../src/OsX86.Feature/wwwroot/engine/v86-host.js),
   image=<url of the directory that holds manifest.json> (default ../../../images/build/alpine-test/).
 -->
 <div>State: <span id="status">not started</span></div>
@@ -33,7 +33,7 @@
 <canvas id="screen" width="720" height="400"></canvas>
 <script type="module">
   const params = new URLSearchParams(location.search);
-  const hostUrl = new URL(params.get("host") || "../../../src/OsX86/wwwroot/engine/v86-host.js", location.href).href;
+  const hostUrl = new URL(params.get("host") || "../../../src/OsX86.Feature/wwwroot/engine/v86-host.js", location.href).href;
   const imageUrl = new URL(params.get("image") || "../../../images/build/alpine-test/", location.href).href;
   const OPFS_DIRECTORY = "osx86-test";
 

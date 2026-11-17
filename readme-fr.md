@@ -15,7 +15,7 @@ La conception a été débattue et consignée avant tout code : [`docs/conceptio
 | `src/OsX86.Feature/` | le paquet Kazo OS : la commande `x86`, la fenêtre de permission, la page des règles, les pages admin |
 | `src/OsX86.Os/` | un hôte Kazo OS avec la fonctionnalité, pour le développement et les démonstrations |
 | `tests/` | tests xUnit (`unit` ; `guest` démarre l'image de test dans un navigateur sans tête) |
-| `tools/v86/` | le script et les correctifs qui vendorisent v86 dans `src/OsX86/wwwroot/v86/` |
+| `tools/v86/` | le script et les correctifs qui vendorisent v86 dans `src/OsX86.Feature/wwwroot/v86/` |
 | `images/` | les recettes des images invitées (linux-base, Alpine de test, FreeDOS) et leurs outils de paquetage et de test ; construites, jamais commises |
 | `docs/fr/`, `docs/en/` | documentation produit (fonctionnalités, changelog), français d'abord |
 | `external/KazoOs` | Kazo OS en sous-module, épinglé sur un tag de version |

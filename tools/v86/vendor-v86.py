@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Vendors v86 into src/OsX86/wwwroot/v86 (plan section 12: BSD-2-Clause, notice kept, local patches).
+"""Vendors v86 into src/OsX86.Feature/wwwroot/v86 (plan section 12: BSD-2-Clause, notice kept, local patches).
 
 Downloads the published npm package of v86 and the SeaBIOS binaries of the matching v86 commit
 into an empty download directory, checks every file against the SHA-256 pinned below, copies
@@ -9,7 +9,7 @@ never executed here, only hashed, copied and patched.
 
 Run from the repository root with an isolated interpreter:
 
-    python -I tools/v86/vendor-v86.py            # refresh src/OsX86/wwwroot/v86
+    python -I tools/v86/vendor-v86.py            # refresh src/OsX86.Feature/wwwroot/v86
     python -I tools/v86/vendor-v86.py --check    # rebuild in a temporary directory and compare
 
 Standard library only; no network access other than the pinned URLs.
@@ -62,7 +62,7 @@ PACKAGE_FILES = {
 }
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT = REPO_ROOT / "src" / "OsX86" / "wwwroot" / "v86"
+DEFAULT_OUTPUT = REPO_ROOT / "src" / "OsX86.Feature" / "wwwroot" / "v86"
 DEFAULT_DOWNLOAD = REPO_ROOT / "tools" / "v86" / "download"
 PATCH_DIR = Path(__file__).resolve().parent / "patches"
 CHUNK = 1024 * 1024
@@ -245,7 +245,7 @@ def main() -> int:
     parser.add_argument("--download-dir", type=Path, default=DEFAULT_DOWNLOAD,
                         help="empty directory that receives the downloads (default: tools/v86/download, git-ignored)")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT,
-                        help="vendored directory to (re)write (default: src/OsX86/wwwroot/v86)")
+                        help="vendored directory to (re)write (default: src/OsX86.Feature/wwwroot/v86)")
     parser.add_argument("--check", action="store_true",
                         help="build into a temporary directory and compare with --output-dir instead of writing it")
     parser.add_argument("--keep-download", action="store_true", help="keep the download directory afterwards")

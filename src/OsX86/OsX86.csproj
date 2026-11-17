@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -8,11 +8,10 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!--
       x86-Lib (plan §1.1): the reusable implementation of Ix86. Engine, storage, network, share, agent,
-      identity and VM registry live here. The Razor SDK is used for its static web assets only:
-      wwwroot/ (the vendored v86 and the engine worker, served at _content/OsX86/) has no Razor component.
+      identity and VM registry live here. Its JavaScript and the vendored v86 are web resources of the
+      Feature project (src/OsX86.Feature/wwwroot, served at _content/OsX86.Feature/): Kazo packs and
+      serves only the resources of the app's own project (Kazo ADR 0206, 0221; decision 290 B).
     -->
-    <StaticWebAssetBasePath>_content/OsX86</StaticWebAssetBasePath>
-    <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.JSInterop" Version="10.0.14" />

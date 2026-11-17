@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -10,10 +10,13 @@
     <RootNamespace>OsX86.Feature</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!--
-      The Kazo package of Os-x86 (plan §1.1). Until Kazo OS ships the "Feature" app kind (ADR 0243 of
-      the lot 1), it is packaged as the terminal command `x86`; work item 8 of the milestone moves it
-      to the Feature kind without changing the command.
+      The Kazo package of Os-x86 (plan §1.1): a Feature (Kazo ADR 0260, work item 8). The Razor SDK
+      is used for the static web assets only: wwwroot/ holds the JavaScript of the engine and the
+      storage and the vendored v86, served at _content/OsX86.Feature/ in a host and in the installed
+      package alike, since Kazo packs and serves only the app project's own resources (ADR 0206,
+      ADR 0221; decision 290 B). No Razor component.
     -->
+    <AddRazorSupportForMvc>false</AddRazorSupportForMvc>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Kazo.Os.AppSdk" Version="$(KazoOsVersion)" />

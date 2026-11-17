@@ -1,5 +1,5 @@
 # Vendored v86 and its patches are byte-exact (tools/v86/vendor-v86.py --check compares them).
-src/OsX86/wwwroot/v86/** -text
+src/OsX86.Feature/wwwroot/v86/** -text
 tools/v86/patches/*.patch -text
 # Everything of the image recipes is read inside Linux (Docker stages, mkinitfs, the guest
 # itself): LF only. A CRLF checkout on Windows turned the globs of linux-base/osx86.modules into

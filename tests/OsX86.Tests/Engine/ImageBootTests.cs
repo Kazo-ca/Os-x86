@@ -308,7 +308,7 @@ public sealed class ImageBootTests
     [Fact]
     public void The_engine_version_is_the_vendored_one()
     {
-        string vendor = Path.Combine(PythonTools.RepositoryRoot, "src", "OsX86", "wwwroot", "v86", "VENDOR.json");
+        string vendor = Path.Combine(PythonTools.RepositoryRoot, "src", "OsX86.Feature", "wwwroot", "v86", "VENDOR.json");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(vendor));
         Assert.Equal(V86Engine.V86Version, document.RootElement.GetProperty("version").GetString());
     }

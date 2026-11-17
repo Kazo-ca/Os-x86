@@ -4,7 +4,7 @@ namespace OsX86.Engine.V86;
 
 /// <summary>
 /// The worker channel over JS interop: imports the host module of the engine
-/// (<c>_content/OsX86/engine/v86-host.js</c>, the one import Kazo OS allows an app), asks it to
+/// (<c>_content/OsX86.Feature/engine/v86-host.js</c>, the one import Kazo OS allows an app), asks it to
 /// create the worker, and receives the worker's messages through <see cref="OnWorkerMessage"/>.
 /// Not thread-safe: Blazor WebAssembly calls it from its single thread, and <see cref="V86Engine"/>
 /// starts it once.
@@ -12,7 +12,7 @@ namespace OsX86.Engine.V86;
 public sealed class JsEngineWorkerChannel : IEngineWorkerChannel
 {
     /// <summary>Where the host serves the engine module (static web assets of the OsX86 library).</summary>
-    public const string DefaultModulePath = "./_content/OsX86/engine/v86-host.js";
+    public const string DefaultModulePath = "./_content/OsX86.Feature/engine/v86-host.js";
 
     private readonly IJSRuntime _js;
     private readonly string _modulePath;

@@ -1,4 +1,4 @@
-// Unit tests of the engine disk (src/OsX86/wwwroot/engine/zstd-seekable.js and disk.js) and of the
+// Unit tests of the engine disk (src/OsX86.Feature/wwwroot/engine/zstd-seekable.js and disk.js) and of the
 // VGA text reader (vga-text.js, work item 11), run by
 // Node from DiskScriptTests.cs (category unit). The browser APIs the disk uses are replaced by
 // fakes: an in-memory origin private file system with exclusive sync access handles, and a Web
@@ -176,13 +176,13 @@ Object.defineProperty(globalThis, "navigator", {
   value: { storage: { getDirectory: async () => fakeOpfs.root }, locks: fakeLocks },
 });
 
-const engineDirectory = path.join(repository, "src", "OsX86", "wwwroot", "engine");
+const engineDirectory = path.join(repository, "src", "OsX86.Feature", "wwwroot", "engine");
 const seekable = require(path.join(engineDirectory, "zstd-seekable.js"));
 require(path.join(engineDirectory, "disk.js"));
 require(path.join(engineDirectory, "vga-text.js"));
 const disk = globalThis.OsX86Disk;
 const vgaText = globalThis.OsX86VgaText;
-const v86Module = new WebAssembly.Module(fs.readFileSync(path.join(repository, "src", "OsX86", "wwwroot", "v86", "v86.wasm")));
+const v86Module = new WebAssembly.Module(fs.readFileSync(path.join(repository, "src", "OsX86.Feature", "wwwroot", "v86", "v86.wasm")));
 
 // --- fixtures ------------------------------------------------------------------------------------
 
