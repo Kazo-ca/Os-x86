@@ -224,6 +224,13 @@ public sealed record ConsoleOptions
 
     /// <summary>The height of the terminal in rows (1 to 1000).</summary>
     public int Rows { get; init; } = 25;
+
+    /// <summary>
+    /// Whether the terminal starts raw (no echo, no line editing, CR kept as CR), the mode the console
+    /// of Wine sets when it first reads: a line typed before that read reaches it as typed (work item 10b).
+    /// An agent of protocol 1 or 2 without this field opens a cooked terminal.
+    /// </summary>
+    public bool Raw { get; init; }
 }
 
 /// <summary>A window of the guest (the <c>list-windows</c> operation; needs an X server in the image, work item 9).</summary>

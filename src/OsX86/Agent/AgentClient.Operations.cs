@@ -184,6 +184,7 @@ public sealed partial class AgentClient
             Env = options.Environment,
             Cwd = options.WorkingDirectory,
             Cols = options.Columns,
+            Raw = options.Raw ? true : null,
             Rows = options.Rows,
         };
         ConsoleHandle? console = null;

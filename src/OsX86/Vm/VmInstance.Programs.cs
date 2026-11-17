@@ -56,6 +56,7 @@ public sealed partial class VmInstance
                 WorkingDirectory = path[..path.LastIndexOf('/')],
                 Columns = program.Columns,
                 Rows = program.Rows,
+                Raw = true, // work item 10b: what is typed before Wine's console first reads arrives as typed
             };
             ConsoleHandle handle;
             try

@@ -53,6 +53,8 @@ internal sealed class AgentRequest
 
     public IReadOnlyList<int>? Keep { get; init; }
 
+    public bool? Raw { get; init; }
+
     public string? Path { get; init; }
 
     public string? Data { get; init; }

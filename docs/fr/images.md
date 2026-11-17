@@ -481,6 +481,15 @@ donnait 13,3, 13,9 et 12,2 s ; l'écart d'une passe à l'autre est de l'ordre de
   avant les commandes ; le chantier 10 décide comment un préfixe garde le sien.
 - En natif (Docker), `wine cmd` prend 1,2 à 1,5 s et `osx86-hello.exe` 1 s : la VM coûte un
   facteur 6 à 8.
+- **Construction locale sous Windows et Microsoft Defender** (constaté le 2026-11-16) : Defender
+  classe par heuristique (`Trojan:Win32/Bearfoos.B!ml`, `Trojan:Win32/Posilod.CA!cl`) le programme
+  de test `osx86-hello.exe` et six DLL de Wine (`faultrep`, `mscoree`, `msftedit`, `msvcp140`,
+  `userenv`, `wer`) quand ils sont extraits sous `images/build/wine` pendant la construction, et les
+  retire : l'image produite est alors incomplète (vérifié par `debugfs`), et le test `guest` ne peut
+  pas lire `osx86-hello.exe`. Faux positif probable : le programme est compilé depuis
+  `osx86-hello.c` par le MinGW-w64 de Debian, les DLL viennent des paquets WineHQ épinglés et
+  vérifiés par apt. La plateforme de référence des images est Linux (la CI) ; une construction
+  locale sous Windows peut échouer ainsi. On ne contourne pas l'antivirus du poste.
 - Non mesuré : Firefox, Safari, une machine plus lente, Mono et Gecko en usage (aucun programme
   .NET ni HTML lancé). La CI imprime les mêmes lignes dans le job `guest-wine`.
 

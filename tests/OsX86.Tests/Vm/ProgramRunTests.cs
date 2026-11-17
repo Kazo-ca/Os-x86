@@ -73,6 +73,7 @@ public sealed class ProgramRunTests
         Assert.Equal("wine", open.GetProperty("program").GetString());
         Assert.Equal([$"/home/osx86-default/.wine/drive_c/osx86/run/{hash}/hello.exe", "a", "b c"], open.GetProperty("args").EnumerateArray().Select(a => a.GetString()));
         Assert.Equal("-all", open.GetProperty("env").GetProperty("WINEDEBUG").GetString());
+        Assert.True(open.GetProperty("raw").GetBoolean()); // work item 10b: the pty starts raw, as Wine's console reads it
         Assert.Equal($"/home/osx86-default/.wine/drive_c/osx86/run/{hash}", open.GetProperty("cwd").GetString());
         VmInstance instance = await rig.Manager.GetInstanceAsync(User, vm.Id, None);
         Assert.Contains(instance.Children, child => child.Kind == VmChildKind.Session);

@@ -221,6 +221,23 @@ void op_open_console(const char *id, jn *req)
     struct winsize size = { (unsigned short)rows, (unsigned short)cols, 0, 0 };
     int master, slave;
     if (openpty(&master, &slave, NULL, NULL, &size)) return reply_error(id, "pty-failed", "openpty: %s", strerror(errno));
+    /* "raw": the terminal starts in the mode Wine's console sets when it first reads (work item 10b).
+     * Otherwise a line typed before that read is cooked by the line discipline: its CR becomes LF
+     * (ICRNL), which Wine takes as Ctrl+J, and the line never ends. ISIG stays on: until Wine's
+     * console reads (a program that never reads its input never makes it read), Ctrl+C must still
+     * be a SIGINT from the line discipline; Wine turns ISIG off itself and then reads 0x03 as Ctrl+C. */
+    if (json_bool(req, "raw", 0)) {
+        struct termios t;
+        if (tcgetattr(slave, &t) == 0) {
+            t.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN);
+            t.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+            t.c_cflag &= ~(CSIZE | PARENB);
+            t.c_cflag |= CS8;
+            t.c_cc[VMIN] = 1;
+            t.c_cc[VTIME] = 0;
+            tcsetattr(slave, TCSANOW, &t);
+        }
+    }
     if (fchown(slave, pw->pw_uid, pw->pw_gid) || fchmod(slave, 0600)) {
         int e = errno;
         close(master);

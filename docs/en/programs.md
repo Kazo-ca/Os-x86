@@ -244,9 +244,13 @@ fast second run, and services left from one program to the next).
   through its line discipline (ICRNL).
 - **Spaces.** Wine's console draws the blanks of a line as cursor moves (`CSI n C`): the line filter
   turns them into spaces (`a b` came out as `ab`).
-- **Typing before the read.** Wine's console sets the terminal raw when it starts, which drops what
-  was typed before; a line typed while the program starts may be lost (the test waits for the
-  program to say it reads).
+- **The pty starts raw (work item 10b).** Wine's console sets the terminal raw only when it first
+  reads. A line typed just before went through the line discipline: its CR became LF (ICRNL), which
+  Wine takes as Ctrl+J, and the line never ended (8 times out of 12 in a loop, intermittent in CI).
+  The agent now opens a program's pty in the mode Wine will set (`open-console` with `raw`): what
+  is typed arrives as typed, whenever it is typed. Only ISIG stays on until Wine sets its mode: a
+  program that never reads its input never makes Wine's console read, and Ctrl+C must then remain a
+  SIGINT (first CI try: Ctrl+C no longer stopped `osx86-hello --wait`).
 - **Exit code.** `wine`'s, so the program's modulo 256 (a bigger Windows code, such as `0xC000013A`,
   arrives truncated): after Ctrl+C, the program exits with 58.
 
