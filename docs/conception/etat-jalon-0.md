@@ -18,7 +18,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Code de l'ADR 0248, résolution des dépendances par le Store et kazopkg : fusionné (PR #588, série 20).
 - Code de l'ADR 0250, persistance et éviction du stockage : fusionné (PR #594, série 21).
 - Code de l'ADR 0247, rôles déclarés par une Feature, avec l'ajustement 0283 (`KazoUser.IsInRole`) : fusionné (PR #604, séries 22 et 23). Issue de suivi : Kazo-ca/Os#607.
-- Les codes de 0246, 0248, 0250 et 0247 sont dans `feature/base`, pas encore dans `main` ni dans une version publiée (Kazo est en `v3.4.1`).
+- Kazo 3.5.0 publiée le 2026-11-17 (Kazo #613 puis #615) : code des ADR 0246, 0248, 0250, 0247 et 0283, plus les fournisseurs de fichiers tiers (ADR 0282, 0284). C'est la version que le chantier 8 épinglera.
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
@@ -42,13 +42,13 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 - Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
-- **Kazo, version 3.5.0** : préparée en local, en pause jusqu'à la fusion de Kazo #615 (`drive-providers/base`) dans `main`.
+- **Kazo, PR #620** : `main` (3.5.0) fusionnée dans `beta`, qui passe en `3.6.0-preview.1`.
 
 ## Reste à faire
 
 **Os-x86, étape a (Linux)**
 - Chantier 7, pages d'administration et rôle (attend le code Kazo des ADR 0249 et 0254).
-- Chantier 8, passage au vrai type Feature, permissions, interface enregistrée, installation depuis le Store (attend le code Kazo des ADR 0245, 0246, 0248, 0250).
+- Chantier 8, passage au vrai type Feature, permissions, interface enregistrée, installation depuis le Store (débloqué par Kazo 3.5.0, à lancer).
 
 **Os-x86, étape b (Windows et DOS console)**
 - Chantier 10, suite : `./hello.exe` tapé dans le shell de Kazo (attend le code Kazo des ADR 0251 et 0252).
@@ -60,8 +60,6 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 **À régler par toi**
 - Répondre à la série 24 (283 à 286), puis fusionner Kazo #617.
-- Fusionner Kazo #615 (`drive-providers/base`, conflits à résoudre), puis la PR de la version 3.5.0.
-- Fusionner `feature/base` dans `main` de Kazo et publier une version : le chantier 8 d'Os-x86 l'attend (ADR 0246, 0248, 0250).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
