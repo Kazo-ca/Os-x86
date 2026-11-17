@@ -16,7 +16,8 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Code de l'ADR 0262 (ex-0245), services des Features et `GetServiceAsync<T>()` : fusionné (PR #541).
 - Code de l'ADR 0246, permissions déclarées par un fournisseur : fusionné (PR #570, série 19).
 - Code de l'ADR 0248, résolution des dépendances par le Store et kazopkg : fusionné (PR #588, série 20).
-- Les codes de 0246 et 0248 sont dans `feature/base`, pas encore dans `main` ni dans une version publiée (Kazo est en `v3.4.1`).
+- Code de l'ADR 0250, persistance et éviction du stockage : fusionné (PR #594, série 21).
+- Les codes de 0246, 0248 et 0250 sont dans `feature/base`, pas encore dans `main` ni dans une version publiée (Kazo est en `v3.4.1`).
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
@@ -39,7 +40,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
-- **Kazo, code de l'ADR 0250**, persistance et éviction du stockage : PR Kazo #594 ouverte ; [série 21](serie-21-envoyee.md) répondue (A partout), à fusionner par toi.
+- **Kazo, code de l'ADR 0247**, rôles déclarés par une Feature (233 B : l'administrateur les détient tous) : lancé le 2026-11-17, branche `feature/20-feature-declared-roles-code`.
 
 ## Reste à faire
 
@@ -56,7 +57,6 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0250 à 0255 et 0247, 0249, un chantier par ADR, dans l'ordre 0250, 0247, 0249, 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Fusionner Kazo #594 (série 21 répondue, A partout).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
