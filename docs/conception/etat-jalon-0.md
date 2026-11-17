@@ -41,7 +41,8 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - Aucun chantier d'Os-x86 en cours : tous ceux qui ne dépendent pas de Kazo sont fusionnés. La suite attend le code Kazo (voir « Reste à faire »).
-- **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : lancé le 2026-11-17 dans la session Kazo, PR vers `feature/base` à venir.
+- **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
+- **Kazo, version 3.5.0** : préparée en local, en pause jusqu'à la fusion de Kazo #615 (`drive-providers/base`) dans `main`.
 
 ## Reste à faire
 
@@ -58,6 +59,8 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0249 et 0251 à 0255, un chantier par ADR, dans l'ordre 0249 (en cours), 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
+- Répondre à la série 24 (283 à 286), puis fusionner Kazo #617.
+- Fusionner Kazo #615 (`drive-providers/base`, conflits à résoudre), puis la PR de la version 3.5.0.
 - Fusionner `feature/base` dans `main` de Kazo et publier une version : le chantier 8 d'Os-x86 l'attend (ADR 0246, 0248, 0250).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
