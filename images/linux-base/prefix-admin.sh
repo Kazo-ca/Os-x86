@@ -136,6 +136,8 @@ uid="$(echo "$entry" | cut -d: -f3)"
 [ "$uid" -ne 0 ] || fail "$user has uid 0"
 # The agent killed the prefix's launches (their cgroups); whatever the user left elsewhere goes too.
 pkill -KILL -U "$uid" 2> /dev/null || true
+# Work item 12: its network namespace goes with it (a new prefix of the same name gets its own).
+if [ -e "/run/netns/$user" ]; then ip netns del "$user" 2> /dev/null || true; fi
 run_hooks delete || true
 rm -rf --one-file-system "$home" "/tmp/.wine-$uid" "/var/tmp/.wine-$uid"
 # The next prefix may get the same uid: nothing of this one may be left for it (146).

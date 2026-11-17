@@ -64,6 +64,12 @@ internal sealed class AgentRequest
     public bool? Truncate { get; init; }
 
     public int? Mode { get; init; }
+
+    public string? Action { get; init; }
+
+    public int? VmSlot { get; init; }
+
+    public int? PrefixSlot { get; init; }
 }
 
 /// <summary>
@@ -146,6 +152,8 @@ internal sealed class AgentMessage
     public bool Created { get; set; }
 
     public bool Deleted { get; set; }
+
+    public bool Changed { get; set; }
 
     public string? Home { get; set; }
 
@@ -241,8 +249,8 @@ internal sealed partial class AgentJsonContext : JsonSerializerContext
 /// <summary>Serializes the requests, parses the lines and maps the replies of the agent protocol to the public types.</summary>
 internal static class AgentProtocol
 {
-    /// <summary>The version of the protocol this client speaks (2 since work item 10: prefixes, files, sync).</summary>
-    public const int Version = 2;
+    /// <summary>The version of the protocol this client speaks (2 since work item 10: prefixes, files, sync; 3 since work item 12: net).</summary>
+    public const int Version = 3;
 
     /// <summary>The oldest version this client still accepts: version 1 has every operation but those of version 2.</summary>
     public const int MinimumVersion = 1;
@@ -265,6 +273,7 @@ internal static class AgentProtocol
         public const string PrefixList = "prefix-list";
         public const string PutFile = "put-file";
         public const string Sync = "sync";
+        public const string Net = "net";
     }
 
     /// <summary>The event names.</summary>

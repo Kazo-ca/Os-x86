@@ -96,6 +96,12 @@ public static class AgentErrorCodes
 
     /// <summary>Protocol 2: <c>put-file</c> could not write; the message carries the reason.</summary>
     public const string PutFailed = "put-failed";
+
+    /// <summary>Protocol 3: the image has no <c>/usr/lib/osx86/net-admin</c> (the Alpine test image): no private network.</summary>
+    public const string NoNetworkSupport = "no-net-support";
+
+    /// <summary>Protocol 3: <c>net-admin</c> failed; the message carries its last line.</summary>
+    public const string NetworkFailed = "net-failed";
 }
 
 /// <summary>An error of the agent protocol, with the code of <see cref="AgentErrorCodes"/> that names it.</summary>

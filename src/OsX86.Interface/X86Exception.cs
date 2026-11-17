@@ -63,6 +63,12 @@ public static class X86ErrorCodes
     /// not a program. The message says which, and what will come.
     /// </summary>
     public const string ProgramNotSupported = "program-not-supported";
+
+    /// <summary>The private network cannot take the VM or the prefix (no free address, no network support in the image), or a network rule is not valid (work item 12).</summary>
+    public const string NetworkUnavailable = "network-unavailable";
+
+    /// <summary>No network rule has that number (<c>x86 rules remove</c>, work item 12).</summary>
+    public const string RuleNotFound = "rule-not-found";
 }
 
 /// <summary>An error of Os-x86 reported to a client, with a stable code.</summary>

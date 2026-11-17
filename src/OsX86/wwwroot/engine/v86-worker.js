@@ -15,16 +15,20 @@
 //   host -> worker
 //     {type:"start", options:{kind:"linux"|"dos", kernel?:source, initrd?:source,
 //                             disks?:{hda:{source, layer:{mode:"discard"}|{mode:"persistent", path, metadata}}, hdb?:...},
-//                             cmdline, memoryMiB, vgaMemoryMiB, virtioConsole, cacheMiB, keyboard?}}
+//                             cmdline, memoryMiB, vgaMemoryMiB, virtioConsole, cacheMiB, keyboard?, network?}}
 //         source = {path, offset, size} (raw bytes) or {path, offset, size, rawSize, blockSize} (seekable zstd)
 //                  or {inline:<base64>} (a small disk made by the C# side, e.g. the program disk of a DOS run)
 //         keyboard: true lets "keys" reach the guest's PS/2 keyboard (the DOS way, 215 A); otherwise refused
+//         network: true gives the guest a virtio-net card whose frames travel in "net" messages (work
+//                  item 12, 161 A). Never a relay_url: v86 then has no network adapter of its own, so
+//                  the guest reaches nothing but the private switch of the host (trial E6).
 //     {type:"stop"} {type:"pause"} {type:"resume"} {type:"query-state"}
 //     {type:"write", channel:"serial0"|"virtio0".."virtio3", data:<base64>}
 //     {type:"read-screen"}                             the VGA text screen (trial E14)
 //     {type:"keys", codes:[0..255,...]}                PS/2 scancodes (set 1) for the keyboard, when the start allowed it
 //     {type:"query-disks"}                             the disk and cache counters
 //     {type:"disk-benchmark", disk, sequentialMiB, randomReads}   reads outside the guest, for the measures
+//     {type:"net", frames:[<base64>,...]}              Ethernet frames for the guest's card, in order
 //   worker -> host
 //     {type:"ready"}                                   v86 loaded, the worker accepts commands
 //     {type:"state", state, reason?}                   stopped | starting | running | paused | stopping
@@ -36,6 +40,7 @@
 //     {type:"disks", disks:{hda:{...}}, cache:{...}, decoder:{...}}   answer to query-disks
 //     {type:"benchmark", disk, sequential:{...}, random:{...}}        answer to disk-benchmark
 //     {type:"event", name}                             v86 events (emulator-ready, emulator-started, ...)
+//     {type:"net", frames:[<base64>,...]}              Ethernet frames the guest's card sent, in order
 //
 // Error codes: invalid-state, opfs-unavailable, image-not-found, image-read-failed, image-corrupt,
 // disk-io-failed, quota-exceeded, layer-locked, layer-mismatch, format-unsupported,
@@ -58,6 +63,8 @@ const MAX_TEXT_ROWS = 128;
 const MAX_SCANCODES = 256; // one "keys" message
 const BENCHMARK_MAX_MIB = 1024;
 const BENCHMARK_MAX_READS = 100000;
+const NET_MAX_FRAME = 1514; // 1500 bytes of payload and the Ethernet header (no tag, no jumbo frame)
+const NET_MAX_BATCH = 64; // frames in one "net" message
 
 let urls = null;
 let emulator = null;
@@ -73,6 +80,9 @@ let frameCache = null; // the frame cache of the running guest
 let disks = new Map(); // name -> V86Disk of the running guest
 let textScreen = { cols: 80, rows: 25, cells: new Uint16Array(80 * 25) };
 let keyboardEnabled = false; // set by the start options: only the DOS way sends keys (215 A)
+let networkEnabled = false; // set by the start options: the guest has the virtio-net card (work item 12)
+let netBatch = []; // frames of the guest's card waiting for the end of the current task
+let netFlushScheduled = false;
 
 function send(message) {
   postMessage(JSON.stringify(message));
@@ -164,6 +174,59 @@ function writeToGuest(channel, data) {
   const event = `virtio-console${match[1]}-input-bytes`;
   for (let index = 0; index < bytes.length; index += VIRTIO_CHUNK) {
     emulator.bus.send(event, bytes.subarray(index, Math.min(index + VIRTIO_CHUNK, bytes.length)));
+  }
+}
+
+// --- network card (work item 12) ----------------------------------------------------------------
+
+function flushNet() {
+  netFlushScheduled = false;
+  if (netBatch.length === 0) {
+    return;
+  }
+  const frames = netBatch;
+  netBatch = [];
+  send({ type: "net", frames });
+}
+
+/** A frame of the guest's card: kept for the end of the current task, so a burst is one message. */
+function onNetFrame(frame) {
+  if (!(frame instanceof Uint8Array) || frame.length === 0 || frame.length > NET_MAX_FRAME) {
+    return; // nothing the private network carries
+  }
+  netBatch.push(toBase64(frame)); // copied now: v86 may reuse its buffer
+  if (netBatch.length >= NET_MAX_BATCH) {
+    flushNet();
+  } else if (!netFlushScheduled) {
+    netFlushScheduled = true;
+    queueMicrotask(flushNet);
+  }
+}
+
+/** Frames of the host for the guest's card. */
+function receiveFrames(frames) {
+  if (!networkEnabled) {
+    fail("invalid-state", "this guest has no network card (the start options did not ask for one)", false);
+    return;
+  }
+  if (!emulator || (state !== STATES.running && state !== STATES.paused)) {
+    return; // a frame for a guest that stopped is dropped, like a cable pulled out
+  }
+  if (!Array.isArray(frames) || frames.length > NET_MAX_BATCH * 4) {
+    fail("protocol", "net takes an array of base64 frames", false);
+    return;
+  }
+  for (const text of frames) {
+    let bytes;
+    try {
+      bytes = fromBase64(String(text));
+    } catch (error) {
+      fail("protocol", `a network frame is not base64: ${error}`, false);
+      return;
+    }
+    if (bytes.length > 0 && bytes.length <= NET_MAX_FRAME) {
+      emulator.bus.send("net0-receive", bytes);
+    }
   }
 }
 
@@ -427,6 +490,11 @@ function buildConfig(options, kind, image) {
   if (options.virtioConsole !== false) {
     config.virtio_console = true;
   }
+  if (options.network === true) {
+    // No relay_url, on purpose: v86 creates no adapter (fetch, inbrowser, wisp, WebSocket) and the
+    // frames go only through the bus, to the host (trial E6, decision 174 A).
+    config.net_device = { type: "virtio" };
+  }
   return config;
 }
 
@@ -468,6 +536,9 @@ function attachListeners(instance, myGeneration) {
         send({ type: "console", channel: `virtio${port}`, data: toBase64(bytes) });
       }
     });
+  }
+  if (networkEnabled) {
+    instance.add_listener("net0-send", (frame) => live() && onNetFrame(frame));
   }
   instance.add_listener("screen-set-size", (size) => live() && applyScreenSize(size));
   instance.add_listener("screen-put-char", (event) => live() && putChar(event));
@@ -521,6 +592,8 @@ async function start(options) {
   try {
     textScreen.cells.fill(0);
     keyboardEnabled = options.keyboard === true;
+    networkEnabled = options.network === true;
+    netBatch = [];
     const instance = new V86(buildConfig(options, kind, image));
     emulator = instance;
     attachListeners(instance, myGeneration);
@@ -678,6 +751,9 @@ onmessage = async (event) => {
         break;
       case "keys":
         sendKeys(message.codes);
+        break;
+      case "net":
+        receiveFrames(message.frames);
         break;
       case "query-disks":
         send(await diskStats());

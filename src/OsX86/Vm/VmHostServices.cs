@@ -38,7 +38,17 @@ public sealed class JsEngineFactory(Microsoft.JSInterop.IJSRuntime js) : IEngine
 /// <param name="Engines">Creates the engine of each run.</param>
 /// <param name="Images">Finds and downloads the images, keeps the write layers.</param>
 /// <param name="Memory">What the browser says of its memory (165 A).</param>
-public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource Images, IHostMemory Memory);
+public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource Images, IHostMemory Memory)
+{
+    /// <summary>
+    /// The way out of the private network (work item 12): the relay of Kazo once ADR 0255 is coded;
+    /// the dev host may give <see cref="Network.LocalTestRelay"/>; <see langword="null"/>: none.
+    /// </summary>
+    public Network.IRelayConnector? Relay { get; init; }
+
+    /// <summary>The permission window (work item 12; needs ADR 0246 in a released Kazo); <see langword="null"/>: none.</summary>
+    public Network.INetworkPermissionPrompt? PermissionPrompt { get; init; }
+}
 
 /// <summary>
 /// Where a host installs its <see cref="VmHostEnvironment"/> before the <c>x86</c> command first

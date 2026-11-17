@@ -203,6 +203,7 @@ x86 vm rename <vm> <nom>
 x86 vm info <vm>
 x86 shell [--vm <vm>] [--prefix <préfixe>] [--cols N] [--rows N]
 x86 profile list | show <profil> | import <fichier> | export <profil> <fichier>
+x86 rules list | allow | deny | ask | remove | log …   (chantier 12, voir reseau.md)
 ```
 
 `<vm>` est un nom ou un GUID. Les options s'écrivent `--nom valeur` ou `--nom=valeur`, dans
@@ -243,9 +244,9 @@ $ echo $?
 | 1 | l'opération a échoué : agent, profil ou nom invalide, format inconnu, démarrage, suppression du disque d'une VM (`storage-failed`) |
 | 2 | ligne de commande fausse : commande ou option inconnue, argument manquant ; l'usage va sur la sortie d'erreur |
 | 3 | budget de mémoire dépassé ; les VM en marche et les compatibles sont listées |
-| 4 | aucune VM ni aucun profil de ce nom |
+| 4 | aucune VM, aucun profil, aucun préfixe ni aucune règle réseau de ce nom |
 | 5 | VM occupée : arrêt ou suppression sans `--force` |
-| 6 | rien sur cet hôte pour la faire tourner : pas d'émulateur, image absente et sans origine configurée, téléchargement échoué, image d'une autre version de v86, aucune console |
+| 6 | rien sur cet hôte pour la faire tourner : pas d'émulateur, image absente et sans origine configurée, téléchargement échoué, image d'une autre version de v86, aucune console, pas de réseau privé (`x86 rules`) |
 | 130 | Ctrl+C avant qu'une console ne soit ouverte |
 
 `x86 shell` rend le code du shell de l'invité, 128 plus le signal quand un signal l'a terminé.
@@ -371,6 +372,19 @@ dotnet run --project src/OsX86.Os -c Release
 x86 vm create base        (dans le terminal de Kazo)
 x86 shell
 ```
+
+## Le réseau de la VM (chantier 12)
+
+Quand le gestionnaire a un réseau (`VmManager.Network`, un `NetworkHub` ; la Feature en crée
+toujours un), une VM qui n'est pas une VM DOS démarre avec une carte virtio-net branchée sur le
+commutateur privé de son usager. Dès que l'agent répond, la VM prend le plus bas emplacement libre
+(adresse `10.86.0.S`) et l'agent configure `eth0` (opération `net`, protocole 3) ; chaque préfixe
+reçoit son espace réseau et son adresse à son premier usage dans la marche. Une image sans
+`net-admin` ou un agent de protocole 1 ou 2 tourne sans réseau, sans erreur ; un échec de
+`net-admin` est signalé en arrière-plan et la VM tourne sans réseau. À l'arrêt, la VM est
+débranchée et ses flux se terminent (`vm-stopped` au journal) ; supprimer la VM supprime ses
+règles réseau. `VmInstance.NetworkAddress` et `NetworkAddressOf(préfixe)` donnent les adresses
+de la marche. Les règles, les limites et le journal : [`reseau.md`](reseau.md).
 
 ## Ce que `Ix86` expose, et pourquoi
 

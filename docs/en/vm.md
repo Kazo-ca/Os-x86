@@ -202,6 +202,7 @@ x86 vm rename <vm> <name>
 x86 vm info <vm>
 x86 shell [--vm <vm>] [--prefix <prefix>] [--cols N] [--rows N]
 x86 profile list | show <profile> | import <file> | export <profile> <file>
+x86 rules list | allow | deny | ask | remove | log …   (work item 12, see network.md)
 ```
 
 `<vm>` is a name or a GUID. Options are written `--name value` or `--name=value`, in any order; an
@@ -242,9 +243,9 @@ $ echo $?
 | 1 | the operation failed: agent, invalid profile or name, unknown format, start, deleting the disk of a VM (`storage-failed`) |
 | 2 | wrong command line: unknown command or option, missing argument; the usage goes to standard error |
 | 3 | memory budget exceeded; the running and compatible VMs are listed |
-| 4 | no VM or profile of that name |
+| 4 | no VM, profile, prefix or network rule of that name |
 | 5 | VM busy: stop or remove without `--force` |
-| 6 | nothing on this host can run it: no emulator, image missing with no configured origin, failed download, image of another v86 version, no console |
+| 6 | nothing on this host can run it: no emulator, image missing with no configured origin, failed download, image of another v86 version, no console, no private network (`x86 rules`) |
 | 130 | Ctrl+C before a console was open |
 
 `x86 shell` returns the code of the guest shell, 128 plus the signal when a signal ended it.
@@ -367,6 +368,19 @@ dotnet run --project src/OsX86.Os -c Release
 x86 vm create base        (in the Kazo terminal)
 x86 shell
 ```
+
+## The VM's network (work item 12)
+
+When the manager has a network (`VmManager.Network`, a `NetworkHub`; the Feature always creates
+one), a VM that is not a DOS one starts with a virtio-net card plugged into its user's private
+switch. As soon as the agent answers, the VM takes the lowest free slot (address `10.86.0.S`) and
+the agent configures `eth0` (operation `net`, protocol 3); each prefix gets its network namespace
+and its address on its first use in the run. An image without `net-admin`, or an agent of
+protocol 1 or 2, runs without network and without error; a failure of `net-admin` is reported in
+the background and the VM runs without network. When it stops, the VM is unplugged and its flows
+end (`vm-stopped` in the journal); removing the VM removes its network rules.
+`VmInstance.NetworkAddress` and `NetworkAddressOf(prefix)` give the addresses of the run. The
+rules, the limits and the journal: [`network.md`](network.md).
 
 ## What `Ix86` exposes, and why
 

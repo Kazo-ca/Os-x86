@@ -34,10 +34,13 @@ on:
       - "src/OsX86/wwwroot/engine/**"
       - "src/OsX86/Dos/**"
       - "src/OsX86/Vm/**"
+      - "src/OsX86/Network/**"
+      - "src/OsX86/Agent/**"
       - "src/OsX86.Feature/**"
       - "tests/OsX86.Tests/Guest/**"
       - "tests/OsX86.Tests/Dos/**"
       - "tests/OsX86.Tests/Vm/X86RunFreeDosGuestTests.cs"
+      - "tests/OsX86.Tests/Network/**"
   push:
     branches: [j0/base, main]
     paths:
@@ -50,10 +53,13 @@ on:
       - "src/OsX86/wwwroot/engine/**"
       - "src/OsX86/Dos/**"
       - "src/OsX86/Vm/**"
+      - "src/OsX86/Network/**"
+      - "src/OsX86/Agent/**"
       - "src/OsX86.Feature/**"
       - "tests/OsX86.Tests/Guest/**"
       - "tests/OsX86.Tests/Dos/**"
       - "tests/OsX86.Tests/Vm/X86RunFreeDosGuestTests.cs"
+      - "tests/OsX86.Tests/Network/**"
   workflow_dispatch:
 
 permissions:
@@ -161,7 +167,9 @@ jobs:
     # Work item 6a: the packs built above, downloaded as they are (never built twice), booted in
     # the engine worker of a headless Chromium from the OPFS: linux-base to OSX86-READY with its
     # agent, the 22 R134.5 checks at run time, the write layer persistent then discarded; FreeDOS
-    # to its prompt. OSX86_REQUIRE_PACKS makes a missing pack a failure, not a skip.
+    # to its prompt; work item 12: two linux-base VMs on the private network with two prefixes, the
+    # test relay and an injected permission window (NetworkLinuxBaseGuestTests). OSX86_REQUIRE_PACKS
+    # makes a missing pack a failure, not a skip.
     needs: [linux-base, freedos]
     runs-on: ubuntu-latest
     timeout-minutes: 40

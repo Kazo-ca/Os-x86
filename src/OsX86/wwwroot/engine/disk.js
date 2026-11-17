@@ -104,21 +104,28 @@
     return directory;
   }
 
-  /** A sync access handle on one OPFS file, opened by path; the handle is retried while the browser releases a dead worker's. */
+  /**
+   * A sync access handle on one OPFS file, opened by path; the handle is retried while the browser
+   * releases a dead worker's. readOnly (the payload of an image, never written by an engine) asks
+   * for the "read-only" mode, which several workers may hold at once (work item 12: two VMs of the
+   * same image run together); a browser without the mode ignores the option and opens the file
+   * exclusively, as before. A writer of the storage worker still finds the file taken.
+   */
   class OpfsFile {
     constructor(handle, path) {
       this.handle = handle;
       this.path = path;
     }
 
-    static async open(path, create) {
+    static async open(path, create, readOnly) {
       const parts = splitPath(path);
       const directory = await getDirectory(parts.slice(0, -1), create);
       const name = parts[parts.length - 1];
       for (let attempt = 1; ; attempt++) {
         try {
           const file = await directory.getFileHandle(name, { create: !!create });
-          return new OpfsFile(await file.createSyncAccessHandle(), path);
+          const handle = readOnly ? await file.createSyncAccessHandle({ mode: "read-only" }) : await file.createSyncAccessHandle();
+          return new OpfsFile(handle, path);
         } catch (error) {
           if (!(error && error.name === "NoModificationAllowedError") || attempt >= OPEN_RETRIES) {
             throw opfsError(error, path);
@@ -534,7 +541,7 @@
     }
     let file = files.get(source.path);
     if (!file) {
-      file = await OpfsFile.open(source.path, false);
+      file = await OpfsFile.open(source.path, false, true);
       files.set(source.path, file);
     }
     if (compressed) {

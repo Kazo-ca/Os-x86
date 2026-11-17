@@ -7,7 +7,7 @@ namespace OsX86.Engine.V86;
 /// One operation (start, stop, pause, resume) is pending at a time; a stop may pre-empt the
 /// others. Events are raised after the pending operation has been completed, outside the lock.
 /// </summary>
-public sealed class V86Engine : IEngine, ITextModeEngine
+public sealed class V86Engine : IEngine, ITextModeEngine, INetworkEngine
 {
     /// <summary>The version of the vendored v86 (<c>wwwroot/v86/VENDOR.json</c>): images and layers of another major version are refused (decision 169).</summary>
     public const string V86Version = "0.5.473";
@@ -74,6 +74,30 @@ public sealed class V86Engine : IEngine, ITextModeEngine
 
     /// <inheritdoc />
     public event EventHandler<ScreenSizeChangedEventArgs>? ScreenSizeChanged;
+
+    /// <inheritdoc />
+    public event EventHandler<NetworkFramesEventArgs>? FramesReceived;
+
+    /// <inheritdoc />
+    public async ValueTask SendFramesAsync(IReadOnlyList<byte[]> frames, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        if (frames.Count == 0)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_state != EngineState.Running && _state != EngineState.Paused)
+            {
+                throw new EngineStateException(EngineOperation.Write, _state, $"Cannot send network frames: the engine is {Name(_state)}.");
+            }
+        }
+
+        await _channel.PostAsync(WorkerProtocol.Net(frames), cancellationToken).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask StartAsync(EngineStartOptions options, CancellationToken cancellationToken)
@@ -363,6 +387,9 @@ public sealed class V86Engine : IEngine, ITextModeEngine
             case WorkerProtocol.Types.Console:
                 DeliverConsole(message);
                 break;
+            case WorkerProtocol.Types.Net:
+                DeliverFrames(message);
+                break;
             case WorkerProtocol.Types.ScreenSize:
                 if (message.Cols > 0 && message.Rows > 0 && message.Bpp >= 0)
                 {
@@ -581,6 +608,30 @@ public sealed class V86Engine : IEngine, ITextModeEngine
         }
 
         ((V86Console)GetConsole(id)).Deliver(bytes);
+    }
+
+    private void DeliverFrames(WorkerMessage message)
+    {
+        if (message.Frames is not { Count: > 0 } encoded)
+        {
+            return;
+        }
+
+        var frames = new List<byte[]>(encoded.Count);
+        foreach (string frame in encoded)
+        {
+            try
+            {
+                frames.Add(Convert.FromBase64String(frame ?? string.Empty));
+            }
+            catch (FormatException)
+            {
+                ReportError(EngineErrorCodes.Protocol, "The worker sent a network frame that is not base64.", fatal: false, fromWorker: false);
+                return;
+            }
+        }
+
+        FramesReceived?.Invoke(this, new NetworkFramesEventArgs(frames));
     }
 
     private void ReportState(EngineState reported, string? reason)

@@ -86,6 +86,8 @@ static void job_finish(job *j, int status)
         sb_fmt(&b, ",\"ok\":true,\"timedOut\":%s,\"ms\":%.1f,\"mounts\":[", j->timed_out ? "true" : "false", ms);
         mounts_reply_body(j, &b);
         sb_puts(&b, "]}");
+    } else if (j->kind == JOB_NET) {
+        net_job_reply(j, status, &b);
     } else {
         prefix_job_reply(j, status, &b);
     }

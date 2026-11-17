@@ -35,7 +35,8 @@ public static class X86ExitCodes
 /// <c>rules</c>, <c>profile</c>, <c>snapshot</c>; <c>sudo x86 admin</c>). Work item 6 gives it
 /// <c>vm list|create|start|stop|remove|rename|info</c>, <c>shell</c> and
 /// <c>profile list|show|import|export</c>; work item 10 adds <c>prefix list|create|delete|export</c>,
-/// <c>detect</c> and <c>run</c>; work item 11 runs DOS programs; the other verbs come with their work items. Every
+/// <c>detect</c> and <c>run</c>; work item 11 runs DOS programs; work item 12 adds <c>rules list|allow|deny|ask|remove|log</c>;
+/// the other verbs come with their work items. Every
 /// subcommand acts for the user running it (decision 190 A: the stable identifier Kazo gives).
 /// </summary>
 public sealed partial class X86Command : TerminalAppBase
@@ -87,7 +88,7 @@ public sealed partial class X86Command : TerminalAppBase
             return await DetectAsync(context, [.. args.Skip(1)], cancellationToken).ConfigureAwait(false);
         }
 
-        if (args[0] is not ("vm" or "shell" or "profile" or "prefix" or "run"))
+        if (args[0] is not ("vm" or "shell" or "profile" or "prefix" or "run" or "rules"))
         {
             return await UsageErrorAsync(context, $"unknown command: {string.Join(" ", args)}", cancellationToken).ConfigureAwait(false);
         }
@@ -106,6 +107,7 @@ public sealed partial class X86Command : TerminalAppBase
                 "shell" => await ShellAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 "prefix" => await PrefixAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 "run" => await RunAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
+                "rules" => await RulesAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 _ => await ProfileAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
             };
         }
@@ -125,10 +127,10 @@ public sealed partial class X86Command : TerminalAppBase
     /// <summary>The exit code of an error of Os-x86.</summary>
     internal static int ExitCodeOf(X86Exception exception) => exception.Code switch
     {
-        X86ErrorCodes.VmNotFound or X86ErrorCodes.PrefixNotFound => X86ExitCodes.NotFound,
+        X86ErrorCodes.VmNotFound or X86ErrorCodes.PrefixNotFound or X86ErrorCodes.RuleNotFound => X86ExitCodes.NotFound,
         X86ErrorCodes.VmBusy => X86ExitCodes.Busy,
         X86ErrorCodes.MemoryBudgetExceeded => X86ExitCodes.MemoryBudget,
-        X86ErrorCodes.EngineUnavailable or X86ErrorCodes.ImageUnavailable or X86ErrorCodes.NoConsole or X86ErrorCodes.ProgramNotSupported => X86ExitCodes.Unavailable,
+        X86ErrorCodes.EngineUnavailable or X86ErrorCodes.ImageUnavailable or X86ErrorCodes.NoConsole or X86ErrorCodes.ProgramNotSupported or X86ErrorCodes.NetworkUnavailable => X86ExitCodes.Unavailable,
         _ => X86ExitCodes.Failed,
     };
 
@@ -187,6 +189,14 @@ public sealed partial class X86Command : TerminalAppBase
         "  prefix delete <name> [--vm <vm>] [--force]",
         "                                         Delete a prefix, its programs and files",
         "  prefix export <name> [--vm <vm>]       Not available yet (comes with disk export)",
+        "  rules list [--vm <vm>] [--prefix <p>|--machine]",
+        "                                         List your network rules",
+        "  rules allow|deny|ask <destination> [--vm <vm>] [--prefix <p>|--machine]",
+        "                                         Allow, refuse, or always ask for a destination:",
+        "                                         any, <host>, <host>:<port> or *:<port>",
+        "  rules remove <id>                      Remove a network rule",
+        "  rules log [--vm <vm>] [--prefix <p>|--machine] [--last <n>]",
+        "                                         Show the network journal (connections, refusals)",
         "  profile list                           List the profiles",
         "  profile show <profile>                 Print a profile",
         "  profile import <file>                  Import a .x86profile file",

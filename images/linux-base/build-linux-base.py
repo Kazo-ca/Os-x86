@@ -119,7 +119,7 @@ def prepare_debian() -> dict[str, str]:
     sandboxes refuses socket(2) to a 32-bit container on the GitHub runners (measured with
     strace), while `docker run` uses the daemon's profile, which the workflow repairs."""
     prepared = {}
-    for name, packages in (("tools", "kmod procps"), ("compiler", "gcc libc6-dev")):
+    for name, packages in (("tools", "kmod procps iproute2 nftables"), ("compiler", "gcc libc6-dev")):
         tag = f"osx86-debian-{name}:{IMAGE_VERSION}"
         container = f"osx86-debian-{name}-prepare"
         subprocess.run(["docker", "rm", "-f", container], capture_output=True)

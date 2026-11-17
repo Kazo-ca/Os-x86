@@ -178,6 +178,11 @@ public sealed partial class VmManager
         await Registry.RemovePrefixAsync(userId, vmId, prefix, deletedInGuest: false, cancellationToken).ConfigureAwait(false);
         instance = await GetInstanceAsync(userId, vmId, cancellationToken).ConfigureAwait(false);
         bool deleted = await instance.DeleteGuestPrefixAsync(prefix, cancellationToken).ConfigureAwait(false);
+        if (Network is not null)
+        {
+            await Network.For(userId).ForgetAsync(vmId, prefix, cancellationToken).ConfigureAwait(false); // its rules go with it
+        }
+
         if (deleted)
         {
             instance.Record = await Registry.CompletePrefixDeletionsAsync(userId, vmId, [prefix], cancellationToken).ConfigureAwait(false);
