@@ -94,3 +94,5 @@ Répondu le 2026-11-11 (219 à 221, A partout) : la série d'ADR `feature/base` 
 **2026-11-15, fusions sur ton mandat** (« Oui, dans cet ordre » : #10, puis #8, puis #9) : #10 fusionnée (`37d248d`, Kazo épinglé sur `v3.4.0` stable, paquets NuGet 3.4.0) ; #8 fusionnée (`299931f`, chantier 6a) ; #9 en mise à jour sur `j0/base`. Kazo #570 (code de l'ADR 0246) ouverte ; ses trois questions sont la [série 19](serie-19-envoyee.md) (267 à 269).
 
 **2026-11-15** : #9 fusionnée (`adfafa8`, chantier 6 : registre des VM, cycle de vie, budget, profils, `x86 vm`, `x86 shell` ; 576 tests `unit`, `guest` vert contre Kazo 3.4.0 et le disque de 6a). Les chantiers 1 à 6 de l'étape a sont dans `j0/base`. Notes de passation dans [passation/](passation/).
+
+**2026-11-17** : Kazo #604 (code de l'ADR 0247, rôles déclarés par une Feature, avec l'ajustement 0283 : `KazoUser.IsInRole("admin")` et `IsInRole("x86:<rôle>")`) est fusionnée dans `feature/base` par l'usager. Le code de l'ADR 0249 (section « Fonctionnalités » des Paramètres) est lancé dans la session Kazo ; ses questions partiront du numéro 283.
