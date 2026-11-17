@@ -561,3 +561,10 @@ Série 22 (277 à 280), posée le 2026-11-17 dans [serie-22-envoyee.md](serie-22
 | 279 | Attribution des rôles dans les Paramètres | **A** : tableau comptes × rôles. | ADR 0247 |
 | 280 | `kazorole list` sans `sudo` | **A** : lisible par tout usager. | ADR 0247 |
 
+Série 23 (281, 282), posée le 2026-11-17 dans [serie-23-envoyee.md](serie-23-envoyee.md) (suite de 277, PR Kazo-ca/Os#604), répondue le même jour. Tes mots : « Oui, A et A ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 281 | Préfixe des rôles d'une Feature | **A** : le `CapabilityPrefix` (ADR 0246), unique et court ; `x86:vm-manager` pour Os-x86. | 277, ADR 0283 |
+| 282 | Sous-commande ouverte à tous et rôle | **A** : acceptée pour un détenteur d'un rôle de la Feature, rôle exact vérifié par `IsInRole`. | 277, ADR 0247 |
+

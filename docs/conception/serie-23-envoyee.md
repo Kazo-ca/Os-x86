@@ -19,3 +19,13 @@ Contexte : la relecture avait fait refuser `RoleHolder` (la portée qui agit au 
 - B) Refusé : `x86 admin` devient une commande à part avec `RequiresRole`.
 - C) Un paramètre `rôle` dans `AuthenticateAsync`, vérifié par l'OS à l'authentification.
 - D) Autre : (Spécifiez)
+
+## Réponses, le 2026-11-17
+
+Tes mots : « Oui, A et A ».
+
+| # | Réponse | Effet |
+|---|---|---|
+| 281 | **A** | Préfixe des rôles = `CapabilityPrefix` de la Feature ; pour Os-x86, `x86:vm-manager`. Déjà codé dans #604. |
+| 282 | **A** | Une sous-commande ouverte à tous agit au nom d'un rôle si l'usager détient au moins un rôle de la Feature ; rôle exact vérifié par `IsInRole`. Déjà codé. |
+
