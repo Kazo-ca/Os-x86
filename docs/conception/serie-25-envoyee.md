@@ -60,6 +60,8 @@ Contexte : le correctif est dans la PR Kazo-ca/Os#622, vers `main`, qui publie 3
 
 ## Réponses
 
-Réponse partielle du 2026-11-17. Tes mots : « 291. b ». Les questions 287 à 290 attendent encore leur réponse.
+Réponses partielles du 2026-11-17. Tes mots : « 291. b » ; puis, donnés dans la session du chantier 8 : « 289 . a) mais le message d'erreur est localisé à la langue utilisé par l'OS » et « 290. B ». Les questions 287, 288 et 292 attendent encore leur réponse.
 
 - 291 : **B**. Issue Kazo avec le correctif d'une ligne, PR Kazo du correctif, version corrective 3.5.1, puis épinglage d'Os-x86 dessus. En attendant, l'hôte de dev d'Os-x86 enregistre son propre `IAppDescriptorLoader`, qui découvre les enfants avec leur Feature.
+- 289 : **A**, avec ta précision : l'avertissement d'éviction est localisé dans la langue de l'OS.
+- 290 : **B**. `wwwroot` passe de `src/OsX86` à `src/OsX86.Feature`, qui prend le SDK Razor ; les fichiers sont servis à `_content/OsX86.Feature/`.
