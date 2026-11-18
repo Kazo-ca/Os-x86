@@ -93,7 +93,7 @@ public sealed class JsStorageWorkerChannelTests
         await channel.StartAsync(json => { received.Add(json); return ValueTask.CompletedTask; }, CancellationToken.None);
 
         Assert.True(channel.IsStarted);
-        Assert.Equal(["js.import(\"./_content/OsX86/storage/storage-host.js\")", "module.createHost(dotnet-ref)"], js.Calls);
+        Assert.Equal(["js.import(\"./_content/OsX86.Feature/storage/storage-host.js\")", "module.createHost(dotnet-ref)"], js.Calls);
         await channel.OnWorkerMessage("{\"type\":\"ready\"}");
         Assert.Equal(["{\"type\":\"ready\"}"], received);
     }

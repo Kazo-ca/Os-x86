@@ -67,7 +67,46 @@ public sealed class ImageStore : IAsyncDisposable
     {
         int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
         StorageMessage answer = await RequestAsync(StorageProtocol.Estimate(id), id, StorageProtocol.Types.Estimate, null, cancellationToken).ConfigureAwait(false);
-        return new StorageEstimate(answer.Usage, answer.Quota, answer.RepositoryBytes);
+        return new StorageEstimate(answer.Usage, answer.Quota, answer.RepositoryBytes) { FeatureBytes = answer.FeatureBytes ?? answer.RepositoryBytes };
+    }
+
+    /// <summary>
+    /// Writes the marker file of ADR 0250 of Kazo, <see cref="StorageLayout.MarkerPath"/>: Kazo checks
+    /// at each boot that it still exists, and tells the Feature when the browser erased its storage.
+    /// </summary>
+    public async ValueTask WriteMarkerAsync(CancellationToken cancellationToken)
+    {
+        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        await RequestAsync(StorageProtocol.WriteMarker(id, MarkerText), id, StorageProtocol.Types.Done, null, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The text of the marker: versioned (plan §13), naming the feature that owns the tree.</summary>
+    private const string MarkerText = "{\"format\":1,\"feature\":\"ca.kazo.x86\"}";
+
+    /// <summary>The text of a file of a user (<see cref="StorageLayout.UserFilePath"/>, decision 287 A), or <see langword="null"/> when it does not exist.</summary>
+    /// <exception cref="ArgumentException">The user is <see cref="Guid.Empty"/> or the name is not a file of a user.</exception>
+    public async ValueTask<string?> ReadUserFileAsync(Guid user, string name, CancellationToken cancellationToken)
+    {
+        StorageLayout.CheckUserFile(user, name);
+        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        StorageMessage answer = await RequestAsync(StorageProtocol.ReadUserFile(id, user, name), id, StorageProtocol.Types.Text, null, cancellationToken).ConfigureAwait(false);
+        return answer.Text;
+    }
+
+    /// <summary>Replaces a file of a user, creating its directory (decision 287 A).</summary>
+    /// <exception cref="ArgumentException">The user is <see cref="Guid.Empty"/> or the name is not a file of a user.</exception>
+    /// <exception cref="StorageException"><see cref="StorageErrorCodes.WriteFailed"/>: the text is more than <see cref="StorageLayout.MaxUserFileBytes"/>.</exception>
+    public async ValueTask WriteUserFileAsync(Guid user, string name, string text, CancellationToken cancellationToken)
+    {
+        StorageLayout.CheckUserFile(user, name);
+        ArgumentNullException.ThrowIfNull(text);
+        if (System.Text.Encoding.UTF8.GetByteCount(text) > StorageLayout.MaxUserFileBytes)
+        {
+            throw new StorageException(StorageErrorCodes.WriteFailed, $"{name} would be more than the {StorageLayout.MaxUserFileBytes} bytes a file of a user may hold.");
+        }
+
+        int id = await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        await RequestAsync(StorageProtocol.WriteUserFile(id, user, name, text), id, StorageProtocol.Types.Done, null, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Deletes one image version, whatever its state; nothing when it does not exist.</summary>

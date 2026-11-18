@@ -229,9 +229,21 @@ public sealed partial class AgentClient : IAsyncDisposable
 
         foreach (Task? loop in loops)
         {
-            if (loop is not null)
+            if (loop is null)
             {
-                await loop.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                continue;
+            }
+
+            // Wait for the loop to end, whatever its outcome: Close above already failed every
+            // pending request with the reason. Not ConfigureAwaitOptions.SuppressThrowing: the
+            // trimmed runtime of Kazo OS 3.5.0 does not have it (KOSAPP0100, ADR 0277 of Kazo).
+            try
+            {
+                await loop.ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Its failure is the reason Close gave the requests; nothing more to report here.
             }
         }
 

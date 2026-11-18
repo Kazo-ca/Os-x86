@@ -26,7 +26,7 @@ public sealed class ImageDownloadTests(ITestOutputHelper output)
         long size = (long.TryParse(Environment.GetEnvironmentVariable("OSX86_STORAGE_TEST_MIB"), out long mib) && mib > 0 ? mib : 800) * 1024 * 1024 + 4096;
         await using var server = new ChunkImageServer(
         [
-            ("/storage/", Path.Combine(root, "src", "OsX86", "wwwroot", "storage")),
+            ("/storage/", Path.Combine(root, "src", "OsX86.Feature", "wwwroot", "storage")),
             ("/page/", Path.Combine(root, "tests", "OsX86.Tests", "Storage")),
         ], size);
         server.Start();

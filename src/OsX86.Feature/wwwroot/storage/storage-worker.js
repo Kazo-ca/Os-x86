@@ -1045,6 +1045,172 @@ async function deleteImage(image, version) {
   });
 }
 
+// --- the state of each user (work item 8, decision 287 A) -----------------------------------------
+// osx86/users/<user>/<name>.json: the VM registry and the network documents of one user, next to the
+// disks. <user> is the stable identifier Kazo gives (32 hexadecimal digits); the C# code passes the
+// user it acts for, and this worker accepts nothing else than such a directory and a plain .json name.
+
+const USERS = "users";
+const MAX_USER_FILE_BYTES = 4 * 1024 * 1024;
+
+function checkUserFile(user, name) {
+  if (typeof user !== "string" || !/^[0-9a-f]{32}$/.test(user) || /^0{32}$/.test(user)) {
+    throw new StorageError("protocol", "invalid user identifier");
+  }
+  if (typeof name !== "string" || name.length > MAX_NAME || !/^[a-z][a-z0-9-]*\.json$/.test(name)) {
+    throw new StorageError("protocol", "invalid user file name");
+  }
+}
+
+const userFileLock = (user, name) => `osx86:user:${user}/${name}`;
+
+// A write is journaled: the whole text goes to <name>.tmp first, then to <name>, then the .tmp is
+// removed. A write cut anywhere (quota, worker or page killed) leaves either the old <name> intact
+// or a complete .tmp; a read prefers a <name> that is a whole JSON document, else the .tmp. Every
+// writer of these files is this worker, under the lock of the file.
+const JOURNAL_SUFFIX = ".tmp";
+
+const isJson = (text) => {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** The text of a file, or null when it does not exist. */
+async function readSmallFile(directory, name, context) {
+  let file;
+  try {
+    file = await (await directory.getFileHandle(name)).getFile();
+  } catch (error) {
+    if (error && error.name === "NotFoundError") {
+      return null;
+    }
+    throw opfsError(error, context);
+  }
+  if (file.size > MAX_USER_FILE_BYTES) {
+    throw new StorageError("write-failed", `${context} is ${file.size} bytes, more than the ${MAX_USER_FILE_BYTES} accepted`);
+  }
+  return file.text();
+}
+
+/** Writes a whole file, checking that every byte was written. */
+function writeWholeFile(directory, name, bytes) {
+  return withSyncHandle(directory, name, true, (handle) => {
+    handle.truncate(0);
+    const written = handle.write(bytes, { at: 0 });
+    if (written !== bytes.length) {
+      throw new StorageError("write-failed", `${name}: ${written} of ${bytes.length} bytes written`);
+    }
+    handle.flush();
+  });
+}
+
+/** The text of a file of a user, or null when the user or the file does not exist yet. */
+async function readUserFile(user, name) {
+  checkUserFile(user, name);
+  let directory;
+  try {
+    directory = await getDirectory([ROOT, USERS, user], false);
+  } catch (error) {
+    if (error.code === "not-found") {
+      return null;
+    }
+    throw error;
+  }
+  const context = `${USERS}/${user}/${name}`;
+  return withNamedLock(userFileLock(user, name), `${context}: another operation holds the lock`, async () => {
+    const text = await readSmallFile(directory, name, context);
+    if (text !== null && isJson(text)) {
+      return text;
+    }
+    // A write was cut while it replaced <name>: its journal holds the whole new text.
+    const journal = await readSmallFile(directory, name + JOURNAL_SUFFIX, context + JOURNAL_SUFFIX);
+    if (journal !== null && isJson(journal)) {
+      return journal;
+    }
+    return text; // null, or a damaged document the C# code reports as such
+  });
+}
+
+/** Replaces a file of a user (a JSON document), creating its directory; journaled, see above. */
+async function writeUserFile(user, name, text) {
+  checkUserFile(user, name);
+  if (typeof text !== "string" || !isJson(text)) {
+    throw new StorageError("protocol", "a user file is a whole JSON document");
+  }
+  const bytes = new TextEncoder().encode(text);
+  if (bytes.length > MAX_USER_FILE_BYTES) {
+    throw new StorageError("write-failed", `${name} would be ${bytes.length} bytes, more than the ${MAX_USER_FILE_BYTES} accepted`);
+  }
+  const directory = await getDirectory([ROOT, USERS, user], true);
+  await withNamedLock(userFileLock(user, name), `${USERS}/${user}/${name}: another operation holds the lock`, async () => {
+    await writeWholeFile(directory, name + JOURNAL_SUFFIX, bytes);
+    await writeWholeFile(directory, name, bytes);
+    await removeIfPresent(directory, name + JOURNAL_SUFFIX);
+  });
+}
+
+// --- ADR 0250 of Kazo: the marker and the bytes of the feature (work item 8) ----------------------
+
+const MARKER_FILE = ".kazoos-marker";
+const MAX_MARKER_BYTES = 1024;
+
+/** Writes the marker Kazo checks at each boot, osx86/.kazoos-marker, replacing any previous one. */
+async function writeMarker(text) {
+  if (typeof text !== "string" || text.length === 0 || text.length > MAX_MARKER_BYTES) {
+    throw new StorageError("protocol", "invalid marker text");
+  }
+  const directory = await getDirectory([ROOT], true);
+  let access;
+  try {
+    const handle = await directory.getFileHandle(MARKER_FILE, { create: true });
+    access = await handle.createSyncAccessHandle();
+    const bytes = new TextEncoder().encode(text);
+    access.truncate(0);
+    access.write(bytes, { at: 0 });
+    access.flush();
+  } catch (error) {
+    throw opfsError(error, `${ROOT}/${MARKER_FILE}`);
+  } finally {
+    if (access) {
+      access.close();
+    }
+  }
+}
+
+/** The bytes of every file under osx86/; a file a running engine holds is left out (it reports itself). */
+async function treeBytes(directory) {
+  let total = 0;
+  for await (const [, handle] of directory) {
+    if (handle.kind === "directory") {
+      total += await treeBytes(handle);
+      continue;
+    }
+    try {
+      total += (await handle.getFile()).size;
+    } catch (error) {
+      if (!error || error.name !== "NoModificationAllowedError") {
+        throw opfsError(error, handle.name);
+      }
+    }
+  }
+  return total;
+}
+
+async function featureBytes() {
+  try {
+    return await treeBytes(await getDirectory([ROOT], false));
+  } catch (error) {
+    if (error.code === "not-found") {
+      return 0;
+    }
+    throw error;
+  }
+}
+
 async function estimate() {
   const { repositoryBytes } = await listImages();
   let usage = 0;
@@ -1054,7 +1220,7 @@ async function estimate() {
     usage = Number(result.usage) || 0;
     quota = Number(result.quota) || 0;
   }
-  return { usage, quota, repositoryBytes };
+  return { usage, quota, repositoryBytes, featureBytes: await featureBytes() };
 }
 
 /** The local manifest copy, pinned to the hash the resume state recorded when the download accepted it. */
@@ -1153,6 +1319,17 @@ async function handle(message) {
       break;
     case "estimate":
       send({ type: "estimate", id, ...(await estimate()) });
+      break;
+    case "write-marker":
+      await writeMarker(message.text);
+      send({ type: "done", id });
+      break;
+    case "read-user-file":
+      send({ type: "text", id, text: await readUserFile(message.user, message.name) });
+      break;
+    case "write-user-file":
+      await writeUserFile(message.user, message.name, message.text);
+      send({ type: "done", id });
       break;
     case "read-manifest":
       send({ type: "manifest", id, text: await readManifest(message.image, message.version) });

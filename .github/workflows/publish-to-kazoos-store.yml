@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  APP_DIRECTORY: src/OsX86
+  APP_DIRECTORY: src/OsX86.Feature
   MARKETPLACE: Kazo-ca/Os-AppMarketPlace
 
 jobs:

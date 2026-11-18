@@ -13,6 +13,12 @@ public static partial class StorageLayout
     /// <summary>The directory of Os-x86 in the OPFS.</summary>
     public const string Root = "osx86";
 
+    /// <summary>
+    /// The marker file of ADR 0250 of Kazo (work item 8, decision 289 A): Kazo checks at each boot that
+    /// it still exists; when the browser erased the OPFS, the Feature learns it through KazoStorage.
+    /// </summary>
+    public const string MarkerPath = Root + "/.kazoos-marker";
+
     /// <summary>The image repository: one directory per image, one per version under it.</summary>
     public const string ImagesDirectory = Root + "/images";
 
@@ -94,6 +100,55 @@ public static partial class StorageLayout
 
         return $"{LayerDirectory(set)}/{disk}{LayerExtension}";
     }
+
+    /// <summary>
+    /// The state of each user (work item 8, decision 287 A): one directory per stable user identifier
+    /// (decision 190 A, 32 hexadecimal digits), next to the disks, so an eviction of the OPFS takes the
+    /// registry with the disks it describes. Only the code of Os-x86 separates the users there, as for the layers.
+    /// </summary>
+    public const string UsersDirectory = Root + "/users";
+
+    /// <summary>The VM registry of a user, with the profiles the user imported (<c>VmRegistryDocument</c>).</summary>
+    public const string RegistryFileName = "registry.json";
+
+    /// <summary>The network rules of a user (work item 12).</summary>
+    public const string NetworkRulesFileName = "network-rules.json";
+
+    /// <summary>The network journal of a user (work item 12).</summary>
+    public const string NetworkJournalFileName = "network-journal.json";
+
+    /// <summary>The largest file of a user the worker reads or writes (the journal may reach 2 MiB).</summary>
+    public const int MaxUserFileBytes = 4 * 1024 * 1024;
+
+    /// <summary>Whether <paramref name="name"/> may name a file of a user: lowercase letters, digits and dashes, then <c>.json</c>.</summary>
+    public static bool IsValidUserFileName(string? name) =>
+        name is not null && name.Length <= MaxNameLength && UserFileNamePattern().IsMatch(name);
+
+    /// <summary>The OPFS path of a file of a user.</summary>
+    /// <exception cref="ArgumentException">The user is <see cref="Guid.Empty"/> or the name is not a file of a user.</exception>
+    public static string UserFilePath(Guid user, string name)
+    {
+        CheckUserFile(user, name);
+        return $"{UsersDirectory}/{user:N}/{name}";
+    }
+
+    /// <summary>Checks a user and a file name before they reach the worker.</summary>
+    /// <exception cref="ArgumentException">The user is <see cref="Guid.Empty"/> or the name is not a file of a user.</exception>
+    internal static void CheckUserFile(Guid user, string name)
+    {
+        if (user == Guid.Empty)
+        {
+            throw new ArgumentException("A user has a stable identifier (decision 190 A); the empty GUID is none.", nameof(user));
+        }
+
+        if (!IsValidUserFileName(name))
+        {
+            throw new ArgumentException($"'{name}' is not the name of a file of a user.", nameof(name));
+        }
+    }
+
+    [GeneratedRegex(@"^[a-z][a-z0-9-]*\.json\z")]
+    private static partial Regex UserFileNamePattern();
 
     [GeneratedRegex(@"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z")]
     private static partial Regex ImageIdPattern();

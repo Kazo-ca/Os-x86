@@ -50,6 +50,18 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
     /// <summary>The layer sets <c>delete-layers</c> refuses with <c>locked</c> (a running engine).</summary>
     public HashSet<string> LockedLayerSets { get; } = [];
 
+    /// <summary>The bytes of the whole osx86/ tree the estimate reports; null for a worker that predates it.</summary>
+    public long? FeatureBytes { get; set; } = 5678;
+
+    /// <summary>How many times the marker of ADR 0250 was written.</summary>
+    public int MarkersWritten { get; private set; }
+
+    /// <summary>The files of the users under osx86/users/ (decision 287 A), per "&lt;user&gt;/&lt;name&gt;"; they outlive the store, as the OPFS outlives a page.</summary>
+    public Dictionary<string, string> UserFiles { get; } = [];
+
+    /// <summary>When set, <c>read-user-file</c> and <c>write-user-file</c> fail with this error.</summary>
+    public (string Code, string Message)? UserFileError { get; set; }
+
     /// <summary>When set, a download fails with this error after one progress message.</summary>
     public (string Code, string Message)? DownloadError { get; set; }
 
@@ -158,7 +170,22 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
 
                 break;
             case "estimate":
-                await SendAsync(new { type = "estimate", id, usage = 5000, quota = 10_000_000, repositoryBytes = 1234 });
+                if (FeatureBytes is { } featureBytes)
+                {
+                    await SendAsync(new { type = "estimate", id, usage = 5000, quota = 10_000_000, repositoryBytes = 1234, featureBytes });
+                }
+                else
+                {
+                    await SendAsync(new { type = "estimate", id, usage = 5000, quota = 10_000_000, repositoryBytes = 1234 });
+                }
+
+                break;
+            case "write-marker":
+                MarkersWritten++;
+                await SendAsync(new { type = "done", id });
+                break;
+            case "read-user-file" or "write-user-file":
+                await AnswerUserFileAsync(id, type, root);
                 break;
             case "read-manifest":
                 await AnswerReadManifestAsync(id, Key(root));
@@ -173,6 +200,25 @@ internal sealed class SimulatedStorageWorkerChannel : IStorageWorkerChannel
     {
         Disposed = true;
         return ValueTask.CompletedTask;
+    }
+
+    private async ValueTask AnswerUserFileAsync(int id, string type, JsonElement root)
+    {
+        if (UserFileError is { } failure)
+        {
+            await SendAsync(new { type = "error", id, code = failure.Code, message = failure.Message });
+            return;
+        }
+
+        string key = $"{root.GetProperty("user").GetString()}/{root.GetProperty("name").GetString()}";
+        if (type == "write-user-file")
+        {
+            UserFiles[key] = root.GetProperty("text").GetString()!;
+            await SendAsync(new { type = "done", id });
+            return;
+        }
+
+        await SendAsync(new { type = "text", id, text = UserFiles.GetValueOrDefault(key) });
     }
 
     /// <summary>Sends a raw message to the store, as the worker would.</summary>

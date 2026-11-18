@@ -44,13 +44,12 @@ public sealed partial class X86Command : TerminalAppBase
     private readonly X86CommandServices _services;
 
     /// <summary>
-    /// Where the command gets its services. The OS builds an app from its manifest only (KOSAPP0031:
-    /// no service injected through the constructor), so they come from this factory; tests replace it.
-    /// Work item 8 registers the Feature's own instance in the OS instead.
+    /// Where the command gets its services: the ones the Feature shares in the page (an app may only
+    /// be given SDK services and <c>IJSRuntime</c> through its constructor, KOSAPP0031); tests replace it.
     /// </summary>
     internal static Func<X86CommandServices> ServicesFactory { get; set; } = static () => X86Runtime.Services;
 
-    /// <summary>Creates the command for the manifest the OS loaded; the OS starts an app through this constructor.</summary>
+    /// <summary>Creates the command for the manifest the OS loaded, on a host that gives it no JS runtime.</summary>
     /// <param name="manifest">This app's manifest.</param>
     public X86Command(AppManifest manifest)
         : base(manifest)
@@ -58,9 +57,23 @@ public sealed partial class X86Command : TerminalAppBase
         _services = ServicesFactory();
     }
 
-    /// <summary>Creates the command with the manifest built from <see cref="X86FeatureApp"/>, for unit tests.</summary>
+    /// <summary>
+    /// Creates the command as the OS does on the page (ADR 0034 of Kazo: the longest constructor it can
+    /// fill): with the JS runtime of the page, it installs the emulator and the storage when the
+    /// service child <c>ca.kazo.x86.host</c> has not yet (decision 288 A).
+    /// </summary>
+    /// <param name="manifest">This app's manifest.</param>
+    /// <param name="js">The JS runtime of the page.</param>
+    public X86Command(AppManifest manifest, Microsoft.JSInterop.IJSRuntime js)
+        : base(manifest)
+    {
+        X86Host.EnsureInstalled(js);
+        _services = ServicesFactory();
+    }
+
+    /// <summary>Creates the command with its child manifest built from <see cref="X86FeatureApp"/> (<c>ca.kazo.x86.cli</c>), for unit tests.</summary>
     public X86Command()
-        : this(AppDefinitionMapper.ToManifest(new X86FeatureApp()))
+        : this(AppDefinitionMapper.ToFeatureManifests(new X86FeatureApp()).Children[0])
     {
     }
 
@@ -70,6 +83,7 @@ public sealed partial class X86Command : TerminalAppBase
     public override async ValueTask<int> ExecuteAsync(TerminalExecutionContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
+        await TellStorageNoticesAsync(context, cancellationToken).ConfigureAwait(false);
         IReadOnlyList<string> args = context.Arguments;
         if (args.Count == 0 || args[0] is "--help" or "-h" or "help")
         {
@@ -101,7 +115,7 @@ public sealed partial class X86Command : TerminalAppBase
         List<string> rest = [.. args.Skip(1)];
         try
         {
-            return args[0] switch
+            int code = args[0] switch
             {
                 "vm" => await VmAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 "shell" => await ShellAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
@@ -110,6 +124,14 @@ public sealed partial class X86Command : TerminalAppBase
                 "rules" => await RulesAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
                 _ => await ProfileAsync(context, user, rest, cancellationToken).ConfigureAwait(false),
             };
+            if (args[0] is "vm" or "shell" or "run")
+            {
+                // ADR 0250: images downloaded, layers written or deleted; `x86 vm create` declared already.
+                bool created = args[0] == "vm" && rest.Count > 0 && rest[0] == "create";
+                await KeepStorageAsync(context, gesture: created && code == X86ExitCodes.Ok, cancellationToken).ConfigureAwait(false);
+            }
+
+            return code;
         }
         catch (X86Exception exception)
         {
@@ -118,6 +140,42 @@ public sealed partial class X86Command : TerminalAppBase
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             return InterruptedExitCode; // Ctrl+C before a console was open: as SIGINT ends a program
+        }
+    }
+
+    /// <summary>
+    /// Tells the user, once per page and in the language of the OS, that the browser erased the
+    /// storage of Os-x86 or withdrew its protection (ADR 0250 of Kazo, decision 289 A).
+    /// </summary>
+    private async ValueTask TellStorageNoticesAsync(TerminalExecutionContext context, CancellationToken cancellationToken)
+    {
+        foreach (string notice in _services.Storage.TakeNotices(context.App.Storage, context.App.Culture))
+        {
+            await context.StandardError.WriteLineAsync(notice.AsMemory(), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// After a command that changed what Os-x86 keeps in the OPFS: declares its bytes to Kazo and,
+    /// after <c>x86 vm create</c> (a gesture of the user), asks for persistence and registers the
+    /// marker (ADR 0250, 289 A). A failure is reported as a warning: the command itself succeeded.
+    /// </summary>
+    private async ValueTask KeepStorageAsync(TerminalExecutionContext context, bool gesture, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (gesture)
+            {
+                await _services.Storage.ProtectAsync(context.App.Storage, _services.StorageTree, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _services.Storage.ReportUsageAsync(context.App.Storage, _services.StorageTree, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception) when (exception is Storage.StorageException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            await context.StandardError.WriteLineAsync($"x86: warning: the storage of Os-x86 could not be declared to Kazo ({exception.Message}).".AsMemory(), CancellationToken.None).ConfigureAwait(false);
         }
     }
 

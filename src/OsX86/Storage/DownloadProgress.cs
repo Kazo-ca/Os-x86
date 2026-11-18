@@ -108,7 +108,14 @@ public sealed record ImageSource(string BaseUrl, string ManifestSha256, int Para
 /// <param name="Usage">Bytes used by the origin, as the browser counts them.</param>
 /// <param name="Quota">Bytes the origin may use.</param>
 /// <param name="RepositoryBytes">Bytes of the image repository, as the worker adds them up.</param>
-public sealed record StorageEstimate(long Usage, long Quota, long RepositoryBytes);
+public sealed record StorageEstimate(long Usage, long Quota, long RepositoryBytes)
+{
+    /// <summary>
+    /// Bytes of the whole <c>osx86/</c> tree (images, write layers, the rest the feature keeps), what
+    /// the Feature declares to Kazo (ADR 0250 §3); the repository's when the worker does not say.
+    /// </summary>
+    public long FeatureBytes { get; init; } = RepositoryBytes;
+}
 
 /// <summary>An image version present in the repository.</summary>
 /// <param name="Image">The image identifier.</param>

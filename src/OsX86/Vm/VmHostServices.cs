@@ -46,6 +46,12 @@ public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource 
     /// </summary>
     public Network.IRelayConnector? Relay { get; init; }
 
+    /// <summary>
+    /// The image store of the host, whose worker also writes the marker of ADR 0250 of Kazo and
+    /// measures the <c>osx86/</c> tree (work item 8); <see langword="null"/> on a host without OPFS.
+    /// </summary>
+    public ImageStore? Store { get; init; }
+
     /// <summary>The permission window (work item 12; needs ADR 0246 in a released Kazo); <see langword="null"/>: none.</summary>
     public Network.INetworkPermissionPrompt? PermissionPrompt { get; init; }
 }
@@ -58,6 +64,7 @@ public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource 
 /// </summary>
 public static class VmHost
 {
+    private static readonly Lock s_lock = new();
     private static VmHostEnvironment? s_current;
 
     /// <summary>The environment the host installed, or <see langword="null"/>.</summary>
@@ -67,7 +74,33 @@ public static class VmHost
     public static void Configure(VmHostEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(environment);
-        Volatile.Write(ref s_current, environment);
+        lock (s_lock)
+        {
+            Volatile.Write(ref s_current, environment);
+        }
+    }
+
+    /// <summary>
+    /// Installs an environment only when no host did yet (work item 8, decision 288 A): the Feature
+    /// installs its own at login and when its command runs first, but keeps the one a host installed
+    /// before (the dev host, with its image catalog and its test relay).
+    /// </summary>
+    /// <param name="create">Makes the environment; called only when none is installed.</param>
+    /// <returns>Whether this call installed it.</returns>
+    public static bool TryConfigure(Func<VmHostEnvironment> create)
+    {
+        ArgumentNullException.ThrowIfNull(create);
+        lock (s_lock)
+        {
+            if (s_current is not null)
+            {
+                return false;
+            }
+
+            VmHostEnvironment environment = create() ?? throw new InvalidOperationException("The host environment factory gave nothing.");
+            Volatile.Write(ref s_current, environment);
+            return true;
+        }
     }
 
     /// <summary>Forgets the host's environment (tests).</summary>
@@ -82,7 +115,7 @@ public static class VmHost
         ArgumentNullException.ThrowIfNull(js);
         ArgumentNullException.ThrowIfNull(catalog);
         var store = new ImageStore(new JsStorageWorkerChannel(js));
-        return new VmHostEnvironment(new JsEngineFactory(js), new StoreBootImageSource(store, catalog), memory ?? FixedHostMemory.Unknown);
+        return new VmHostEnvironment(new JsEngineFactory(js), new StoreBootImageSource(store, catalog), memory ?? FixedHostMemory.Unknown) { Store = store };
     }
 }
 

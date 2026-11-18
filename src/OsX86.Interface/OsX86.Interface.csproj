@@ -17,6 +17,15 @@
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
   </PropertyGroup>
   <ItemGroup>
+    <!--
+      ADR 0261 §2 of Kazo OS: a shared library. Ix86 is the contract of the service the Feature
+      provides (ADR 0262); Kazo loads one copy of this assembly per page, so the instance the
+      Feature creates and the interface a client app asks for are the same type. This project does
+      not import Kazo's targets, so it writes the mark KazoOsSharedLibrary would write.
+    -->
+    <AssemblyMetadata Include="Kazo.Os.SharedLibrary" Value="true" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="4.14.0" PrivateAssets="all" />
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />

@@ -1,6 +1,6 @@
 // Os-x86 storage host: the main-thread side of the storage worker (milestone 0, work item 3).
 //
-// Imported by the C# side (JsStorageWorkerChannel) as ./_content/OsX86/storage/storage-host.js,
+// Imported by the C# side (JsStorageWorkerChannel) as ./_content/OsX86.Feature/storage/storage-host.js,
 // on the model of the engine host (engine/v86-host.js). createHost() starts the dedicated Web
 // Worker that downloads, verifies and stores images in the OPFS (storage-worker.js) and relays
 // messages both ways without looking at them: the C# side and the worker speak the JSON protocol

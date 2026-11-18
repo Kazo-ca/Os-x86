@@ -5,14 +5,14 @@ namespace OsX86.Storage;
 /// <summary>
 /// The storage worker channel over JS interop, on the model of the engine's
 /// <see cref="OsX86.Engine.V86.JsEngineWorkerChannel"/>: imports the host module
-/// (<c>_content/OsX86/storage/storage-host.js</c>), asks it to create the worker, and receives
+/// (<c>_content/OsX86.Feature/storage/storage-host.js</c>), asks it to create the worker, and receives
 /// the worker's messages through <see cref="OnWorkerMessage"/>. Not thread-safe: Blazor
 /// WebAssembly calls it from its single thread, and <see cref="ImageStore"/> starts it once.
 /// </summary>
 public sealed class JsStorageWorkerChannel : IStorageWorkerChannel
 {
     /// <summary>Where the host serves the storage module (static web assets of the OsX86 library).</summary>
-    public const string DefaultModulePath = "./_content/OsX86/storage/storage-host.js";
+    public const string DefaultModulePath = "./_content/OsX86.Feature/storage/storage-host.js";
 
     private readonly IJSRuntime _js;
     private readonly string _modulePath;

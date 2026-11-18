@@ -15,15 +15,15 @@ tests. Le registre des VM, le stockage des images et l'agent invité viennent av
 | --- | --- |
 | `src/OsX86/Engine/` | `IEngine`, `EngineState`, `EngineStateMachine`, `EngineStartOptions`, `ConsoleId`, `IEngineConsole`, `LineFramer`, les exceptions |
 | `src/OsX86/Engine/V86/` | `V86Engine` (l'implémentation), `IEngineWorkerChannel` et `JsEngineWorkerChannel` (l'interop JS), `V86Console`, le protocole |
-| `src/OsX86/wwwroot/engine/` | `v86-host.js` (module importé par le C#, crée le worker), `v86-worker.js` (héberge v86), `zstd-seekable.js` (table de recherche zstd) et `disk.js` (disques, cache de trames, couches d'écriture), chantier 6a ; `vga-text.js` (écran texte avec attributs et curseur), chantier 11 |
+| `src/OsX86.Feature/wwwroot/engine/` | `v86-host.js` (module importé par le C#, crée le worker), `v86-worker.js` (héberge v86), `zstd-seekable.js` (table de recherche zstd) et `disk.js` (disques, cache de trames, couches d'écriture), chantier 6a ; `vga-text.js` (écran texte avec attributs et curseur), chantier 11 |
 | `src/OsX86/Engine/ImageBoot.cs`, `EngineDisk.cs` | le démarrage décrit par le manifeste et la règle de la version majeure (169) ; sources, disques et couches des options de démarrage (chantier 6a) |
-| `src/OsX86/wwwroot/v86/` | v86 vendorisé : `libv86.js` (corrigé), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
+| `src/OsX86.Feature/wwwroot/v86/` | v86 vendorisé : `libv86.js` (corrigé), `v86.wasm`, `seabios.bin`, `vgabios.bin`, `LICENSE`, `COPYING.LESSER`, `VENDOR.json` |
 | `tools/v86/` | `vendor-v86.py` (télécharge, vérifie, applique les correctifs) et `patches/` |
 | `images/alpine-test/` | `build-alpine-test.py` et `init.sh` : l'image Alpine de test (jamais commise) |
 | `tests/OsX86.Tests/Engine/`, `tests/OsX86.Tests/Guest/` | tests `unit` et test `guest` |
 
-Les fichiers de `wwwroot/` sont des ressources web statiques de la bibliothèque `OsX86`, servies
-sous `_content/OsX86/` (l'adresse que Kazo OS donne aux fichiers d'une app, ADR 0206 de Kazo).
+Les fichiers de `wwwroot/` sont des ressources web statiques du projet de la Feature, `OsX86.Feature`, servies
+sous `_content/OsX86.Feature/` (l'adresse que Kazo OS donne aux fichiers d'une app, ADR 0206 de Kazo).
 
 ## Comment ça marche
 
@@ -242,7 +242,7 @@ script : il hache en écrivant (taille bornée, fichier `.part` renommé une foi
 corrige.
 
 ```bash
-python -I tools/v86/vendor-v86.py            # régénère src/OsX86/wwwroot/v86
+python -I tools/v86/vendor-v86.py            # régénère src/OsX86.Feature/wwwroot/v86
 python -I tools/v86/vendor-v86.py --check    # la CI : reconstruit à part et compare octet à octet
 ```
 
@@ -311,9 +311,10 @@ L'image de test n'est jamais publiée ; les images réelles et leurs sources sui
 
 ## Décisions prises dans ce chantier
 
-- Les fichiers JavaScript et v86 vivent dans `src/OsX86/wwwroot/` (x86-Lib), servis sous
-  `_content/OsX86/` ; l'empaquetage dans le `.kazoapp` de la Feature est à vérifier au chantier 8
-  (ADR 0221 de Kazo).
+- Les fichiers JavaScript et v86 vivent dans `src/OsX86.Feature/wwwroot/`, servis sous
+  `_content/OsX86.Feature/`. Ils étaient dans `src/OsX86/wwwroot/` (x86-Lib) jusqu'au chantier 8 :
+  `KazoOsPack` n'emballe que les ressources du projet de l'app (ADR 0221 de Kazo), et une app
+  installée n'est servie qu'à `_content/<son assemblage>/` (ADR 0206) ; décision 290 B.
 - Le module hôte doit être importé depuis un contexte qui a le DOM : dans Kazo, une commande
   `execution: pool` tourne dans un worker sans `IJSRuntime` (ADR 0070), donc le moteur sera créé par
   la Feature (type d'app « Feature », ADR 0243), pas par la commande `x86`. Chantier 8.

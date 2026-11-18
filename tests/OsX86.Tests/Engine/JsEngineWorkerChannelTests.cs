@@ -110,7 +110,7 @@ public sealed class JsEngineWorkerChannelTests
         await channel.StartAsync(json => { received.Add(json); return ValueTask.CompletedTask; }, CancellationToken.None);
 
         Assert.True(channel.IsStarted);
-        Assert.Equal(["js.import(\"./_content/OsX86/engine/v86-host.js\")", "module.createHost(dotnet-ref)"], js.Calls);
+        Assert.Equal(["js.import(\"./_content/OsX86.Feature/engine/v86-host.js\")", "module.createHost(dotnet-ref)"], js.Calls);
 
         await channel.OnWorkerMessage("{\"type\":\"ready\"}");
         Assert.Equal(["{\"type\":\"ready\"}"], received);

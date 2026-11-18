@@ -284,7 +284,7 @@ là, la Feature se sert de l'`IFullScreenTerminalSession` du SDK de Kazo 3.4.0.
 | `src/OsX86/Dos/TextScreenDiff.cs` | la comparaison par ligne (texte et attributs) et du curseur |
 | `src/OsX86/Vm/VmManager.Dos.cs`, `VmInstance.Dos.cs`, `DosProgramSession.cs` | choix de la VM DOS, démarrage avec le disque du programme et le clavier, session (écran, touches, début, fin, mode graphique), arrêt |
 | `src/OsX86/Engine/EngineTextScreen.cs` | l'écran texte avec attributs et curseur, `ITextModeEngine` |
-| `src/OsX86/wwwroot/engine/vga-text.js` | le seul lecteur des champs internes de la VGA de v86 (218 A) |
+| `src/OsX86.Feature/wwwroot/engine/vga-text.js` | le seul lecteur des champs internes de la VGA de v86 (218 A) |
 | `src/OsX86.Feature/X86Command.Dos.cs` | `x86 run` d'un programme DOS |
 | `src/OsX86.Feature/GuestScreenTerminal.cs` | `IGuestScreenTerminal` (la frontière que l'ADR 0252 enrichira), son adaptateur `KazoFullScreenTerminal` (SDK 3.4.0), les couleurs VGA |
 | `src/OsX86.Feature/DosTerminalBridge.cs` | le pont : sondage, comparaison, rendu, touches, mesures |
@@ -515,7 +515,10 @@ chaque programme. Le Ctrl+C tapé par l'outil d'automatisation du navigateur n'a
 
 - **Lecture des fichiers de l'usager** : la commande `x86` ne déclare que `filesystem.private.read`
   et `.write` ; dans Kazo elle ne lit donc pas `~/prog.com` (« no file »), ni un programme Windows
-  (même limite pour le chantier 10). Les permissions déclarées viennent avec la Feature (chantier 8).
+  (même limite pour le chantier 10). Depuis le chantier 8, la commande est l'enfant `ca.kazo.x86.cli`
+  de la Feature : son dossier privé est `~/.config/ca.kazo.x86.cli/` (Kazo 3.5.0 compare
+  l'identifiant exact), c'est donc là qu'un programme envoyé par l'Explorateur se copie. La
+  permission de lire le dossier personnel de l'usager n'est pas encore décidée.
 - **Ctrl+C pris par DOS** : un programme qui lit par les fonctions de DOS avec `BREAK` peut être
   arrêté par DOS lui-même, et FreeCOM demande alors s'il faut arrêter le lot (« Terminate batch job
   (Y/N)? ») ; non provoqué. Le programme de test lit par le BIOS et détourne l'int 23h.

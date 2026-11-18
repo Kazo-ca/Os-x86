@@ -29,7 +29,7 @@ internal sealed class StorageMessage
     /// <summary><c>ready</c>: whether the Web Locks API exists in the worker.</summary>
     public bool Locks { get; set; }
 
-    /// <summary><c>manifest</c>: the manifest text.</summary>
+    /// <summary><c>manifest</c>: the manifest text; <c>text</c>: the file of a user, or null when it does not exist.</summary>
     public string? Text { get; set; }
 
     /// <summary><c>state</c>: the resume state, or null when nothing is stored.</summary>
@@ -55,6 +55,9 @@ internal sealed class StorageMessage
 
     /// <summary><c>images</c>, <c>estimate</c>: the bytes of the repository.</summary>
     public long RepositoryBytes { get; set; }
+
+    /// <summary><c>estimate</c>: bytes of the whole <c>osx86/</c> tree (images, layers, what else the feature keeps); absent from an older worker.</summary>
+    public long? FeatureBytes { get; set; }
 
     /// <summary><c>estimate</c>: bytes used by the origin.</summary>
     public long Usage { get; set; }
@@ -115,6 +118,16 @@ internal sealed class LayerSetCommand(string type, int id, string set)
     public string Set { get; } = set;
 }
 
+/// <summary><c>write-marker</c>: the marker file of ADR 0250 of Kazo, with its text.</summary>
+internal sealed class WriteMarkerCommand(int id, string text)
+{
+    public string Type { get; } = "write-marker";
+
+    public int Id { get; } = id;
+
+    public string Text { get; } = text;
+}
+
 /// <summary>A command without arguments beyond the id: <c>list</c>, <c>estimate</c>.</summary>
 internal sealed class SimpleStorageCommand(string type, int id)
 {
@@ -133,6 +146,26 @@ internal sealed class FetchManifestCommand
     public required string Url { get; init; }
 
     public required string Sha256 { get; init; }
+}
+
+/// <summary>
+/// A command on a file of a user under <c>osx86/users/&lt;user&gt;/</c> (decision 287 A):
+/// <c>read-user-file</c> (answered by <c>text</c>) and <c>write-user-file</c> (answered by <c>done</c>).
+/// </summary>
+internal sealed class UserFileCommand(string type, int id, string user, string name, string? text)
+{
+    public string Type { get; } = type;
+
+    public int Id { get; } = id;
+
+    /// <summary>The stable identifier of the user, 32 lowercase hexadecimal digits.</summary>
+    public string User { get; } = user;
+
+    /// <summary>The file name (<see cref="StorageLayout.IsValidUserFileName"/>).</summary>
+    public string Name { get; } = name;
+
+    /// <summary><c>write-user-file</c>: the whole new text.</summary>
+    public string? Text { get; } = text;
 }
 
 /// <summary>A command on one image version: <c>read-state</c>, <c>read-manifest</c>, <c>delete</c>.</summary>
@@ -210,6 +243,8 @@ internal sealed class CancelCommand
 [JsonSerializable(typeof(VerifyCommand))]
 [JsonSerializable(typeof(CancelCommand))]
 [JsonSerializable(typeof(LayerSetCommand))]
+[JsonSerializable(typeof(WriteMarkerCommand))]
+[JsonSerializable(typeof(UserFileCommand))]
 internal sealed partial class StorageJsonContext : JsonSerializerContext
 {
 }
@@ -229,6 +264,7 @@ internal static class StorageProtocol
         public const string Estimate = "estimate";
         public const string Verified = "verified";
         public const string Layers = "layers";
+        public const string Text = "text";
         public const string Error = "error";
     }
 
@@ -248,6 +284,14 @@ internal static class StorageProtocol
     public static string ListLayers(int id, string set) => Serialize(new LayerSetCommand("list-layers", id, set), StorageJsonContext.Default.LayerSetCommand);
 
     public static string DeleteLayers(int id, string set) => Serialize(new LayerSetCommand("delete-layers", id, set), StorageJsonContext.Default.LayerSetCommand);
+
+    public static string WriteMarker(int id, string text) => Serialize(new WriteMarkerCommand(id, text), StorageJsonContext.Default.WriteMarkerCommand);
+
+    public static string ReadUserFile(int id, Guid user, string name) =>
+        Serialize(new UserFileCommand("read-user-file", id, user.ToString("N"), name, null), StorageJsonContext.Default.UserFileCommand);
+
+    public static string WriteUserFile(int id, Guid user, string name, string text) =>
+        Serialize(new UserFileCommand("write-user-file", id, user.ToString("N"), name, text), StorageJsonContext.Default.UserFileCommand);
 
     public static string Download(DownloadCommand command) => Serialize(command, StorageJsonContext.Default.DownloadCommand);
 
