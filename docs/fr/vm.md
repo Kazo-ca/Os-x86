@@ -359,13 +359,13 @@ garde donc son catalogue de packs et son relais de test. Le catalogue de la Feat
 vide tant que l'hébergement des images n'est pas réglé. Avant le démarrage du service, `Ix86`
 répond `engine-unavailable` ; les services faits sans hôte sont refaits dès qu'un hôte est installé.
 
-**Limite vue au chantier 8b (Kazo 3.5.1).** Kazo ne démarre à l'ouverture de session que les services
-dont le descripteur est déjà chargé (`AutomaticServiceCandidates` lit les descripteurs connus). Or
-l'assemblage de la Feature est chargé à la demande, au premier lancement d'un de ses enfants : sans
-le contournement retiré au chantier 8b, `systemctl status ca.kazo.x86.host` montre donc le service
-`inactive (dead)` après la connexion. La commande `x86` installe l'hôte elle-même, et l'hôte de
-développement installe le sien avant tout ; une app qui appelle `Ix86` avant toute commande `x86`
-reçoit `engine-unavailable`. La suite reste à décider.
+**Démarrage à la connexion (chantier 8c, Kazo 3.5.2).** Kazo 3.5.1 ne démarrait à l'ouverture de
+session que les services dont le code était déjà chargé, et l'assemblage de la Feature n'est chargé
+qu'au premier lancement d'un de ses enfants : le service restait arrêté jusqu'à la première commande
+`x86` (Kazo-ca/Os#625). Kazo 3.5.2 démarre à la connexion tout service automatique activé du
+catalogue, en chargeant son code à ce moment ; un service réglé en manuel ou désactivé ne charge
+rien (ADR 0286 de Kazo). `ca.kazo.x86.host` démarre donc à la connexion, et une app qui appelle
+`Ix86` avant toute commande `x86` trouve l'émulateur installé.
 
 Deux corrections trouvées en l'essayant dans Kazo (premiers essais de la commande dans Kazo
 lui-même) :
