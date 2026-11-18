@@ -168,7 +168,7 @@ The writes to a disk never touch `image.bin`: they go to one layer per disk,
 
 ### State of each user (work item 8, 287 A)
 
-Kazo 3.5.0 lets neither the command (the child `ca.kazo.x86.cli`) nor the `Ix86` service reach the
+Kazo 3.5 lets neither the command (the child `ca.kazo.x86.cli`) nor the `Ix86` service reach the
 user's private directory `~/.config/ca.kazo.x86/`. The state of each user is therefore in the OPFS
 of the Feature, next to the disks it describes:
 

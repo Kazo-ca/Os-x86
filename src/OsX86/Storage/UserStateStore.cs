@@ -8,7 +8,7 @@ namespace OsX86.Storage;
 /// The state of each user in the OPFS of the Feature (work item 8, decision 287 A): the VM registry
 /// with the imported profiles, the network rules and the network journal, as files of
 /// <c>osx86/users/&lt;guid&gt;/</c> written by the storage worker. A Feature cannot reach the private
-/// directory of its users in Kazo 3.5.0 (its command is the child <c>ca.kazo.x86.cli</c>, its service
+/// directory of its users in Kazo 3.5 (its command is the child <c>ca.kazo.x86.cli</c>, its service
 /// acts for the calling app), so the state lives next to the disks it describes: the marker of
 /// ADR 0250 covers both, and an eviction takes them together.
 /// <para>

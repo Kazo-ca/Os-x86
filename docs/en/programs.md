@@ -504,7 +504,7 @@ reached the program.
 - **Reading the user's files**: the `x86` command only declares `filesystem.private.read` and
   `.write`; in Kazo it therefore cannot read `~/prog.com` ("no file"), nor a Windows program (same
   limit for work item 10). Since work item 8 the command is the child `ca.kazo.x86.cli` of the
-  Feature: its private directory is `~/.config/ca.kazo.x86.cli/` (Kazo 3.5.0 compares the exact
+  Feature: its private directory is `~/.config/ca.kazo.x86.cli/` (Kazo 3.5 compares the exact
   identifier), so that is where a program sent through the File Explorer is copied. The permission
   to read the user's home directory is not decided yet.
 - **Ctrl+C taken by DOS**: a program that reads through DOS functions with `BREAK` can be stopped by
