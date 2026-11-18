@@ -46,7 +46,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Kazo 0254**, événements par usager (journal personnel, 137), dans la session Kazo, PR vers `feature/base` (296 A, [série 28](serie-28-envoyee.md)).
+- **Kazo 0254**, événements par usager (journal personnel, 137), dans la session Kazo, PR vers `feature/base` (296 A, [série 28](serie-28-envoyee.md) ; 297 A et 298 A, [série 29](serie-29-envoyee.md)).
 - **Chantier 13**, BoxedWine minimal, dans le dépôt Kazo-ca/Os-App-BoxedWine, branche `j0/base` (296 A). Sa démonstration par le terminal (`./setup.exe`) attend le code Kazo de l'ADR 0251.
 
 ## Reste à faire
