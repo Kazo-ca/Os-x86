@@ -47,7 +47,7 @@ again with the same name does not get the old account's VMs back.
 
 - **In Kazo**, the user's document is in the OPFS of the Feature, next to the disks:
   `osx86/users/<guid>/registry.json` (work item 8, decision 287 A; `UserStateStore`, written by the
-  storage worker). Kazo 3.5.0 lets neither the command (the child `ca.kazo.x86.cli`) nor the `Ix86`
+  storage worker). Kazo 3.5 lets neither the command (the child `ca.kazo.x86.cli`) nor the `Ix86`
   service reach the user's `~/.config/ca.kazo.x86/`, where work item 6 kept it. The identifier
   comes from `IAppExecutionContext.UserId` for the command and from `Caller.UserId` for the service
   (the 32 hexadecimal digits of Kazo's `LocalUserId`); a login name is refused (`invalid-user`). The
@@ -355,6 +355,14 @@ the service has not yet (`X86Host`, `VmHost.TryConfigure`). A host that installe
 kept: the dev host thus keeps its catalog of packs and its test relay. The catalog of the installed
 Feature is empty until the hosting of the images is settled. Before the service started, `Ix86`
 answers `engine-unavailable`; services made without a host are made again once one is installed.
+
+**Limit seen in work item 8b (Kazo 3.5.1).** At login Kazo starts only the services whose descriptor
+is already loaded (`AutomaticServiceCandidates` reads the known descriptors). The assembly of the
+Feature is loaded on demand, at the first launch of one of its children: without the workaround
+removed in work item 8b, `systemctl status ca.kazo.x86.host` thus shows the service
+`inactive (dead)` after login. The `x86` command installs the host itself, and the dev host installs
+its own before anything; an app that calls `Ix86` before any `x86` command gets
+`engine-unavailable`. What to do next is still to decide.
 
 Two fixes found while trying it in Kazo (the first runs of the command in Kazo itself):
 

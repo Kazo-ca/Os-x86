@@ -47,7 +47,7 @@ connexion : un compte supprimé puis recréé sous le même nom ne retrouve pas 
 
 - **Dans Kazo**, le document de l'usager est dans l'OPFS de la Feature, à côté des disques :
   `osx86/users/<guid>/registry.json` (chantier 8, décision 287 A ; `UserStateStore`, écrit par le
-  worker de stockage). Kazo 3.5.0 ne laisse ni la commande (l'enfant `ca.kazo.x86.cli`) ni le
+  worker de stockage). Kazo 3.5 ne laisse ni la commande (l'enfant `ca.kazo.x86.cli`) ni le
   service `Ix86` atteindre `~/.config/ca.kazo.x86/` de l'usager, où le chantier 6 le rangeait.
   L'identifiant vient de `IAppExecutionContext.UserId` pour la commande et de `Caller.UserId`
   pour le service (les 32 chiffres hexadécimaux du `LocalUserId` de Kazo) ; un nom de connexion
@@ -358,6 +358,14 @@ l'`IJSRuntime`, fait la même installation si le service ne l'a pas encore faite
 garde donc son catalogue de packs et son relais de test. Le catalogue de la Feature installée est
 vide tant que l'hébergement des images n'est pas réglé. Avant le démarrage du service, `Ix86`
 répond `engine-unavailable` ; les services faits sans hôte sont refaits dès qu'un hôte est installé.
+
+**Limite vue au chantier 8b (Kazo 3.5.1).** Kazo ne démarre à l'ouverture de session que les services
+dont le descripteur est déjà chargé (`AutomaticServiceCandidates` lit les descripteurs connus). Or
+l'assemblage de la Feature est chargé à la demande, au premier lancement d'un de ses enfants : sans
+le contournement retiré au chantier 8b, `systemctl status ca.kazo.x86.host` montre donc le service
+`inactive (dead)` après la connexion. La commande `x86` installe l'hôte elle-même, et l'hôte de
+développement installe le sien avant tout ; une app qui appelle `Ix86` avant toute commande `x86`
+reçoit `engine-unavailable`. La suite reste à décider.
 
 Deux corrections trouvées en l'essayant dans Kazo (premiers essais de la commande dans Kazo
 lui-même) :

@@ -17,11 +17,8 @@
     <PackageReference Include="Microsoft.Playwright" Version="1.64.1" />
     <!-- Work item 8: the real resolver of Kazo (ADR 0262) resolves Ix86 from the manifests of Os-x86. -->
     <PackageReference Include="Kazo.Os.Platform.Core" Version="$(KazoOsVersion)" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- PROVISIONAL (291 B, Kazo-ca/Os#621): the dev host's discovery of feature children, tested here. -->
-    <Compile Include="..\..\src\OsX86.Os\FeatureChildDescriptors.cs" Link="DevHost\FeatureChildDescriptors.cs" />
+    <!-- Work item 8b: the real lazy registry of Kazo launches a child of the Feature (Kazo-ca/Os#621, fixed in 3.5.1). -->
+    <PackageReference Include="Kazo.Os.Platform.Blazor" Version="$(KazoOsVersion)" />
   </ItemGroup>
 
   <ItemGroup>

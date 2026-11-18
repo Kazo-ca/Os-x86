@@ -6,7 +6,7 @@ namespace OsX86.Feature;
 
 /// <summary>
 /// How the Feature installs the emulator and the storage in the page (work item 8, decision 288 A).
-/// Both need the <c>IJSRuntime</c> of the page, which Kazo 3.5.0 gives to the constructor of an entry
+/// Both need the <c>IJSRuntime</c> of the page, which Kazo 3.5 gives to the constructor of an entry
 /// point on the main thread, never to a feature service: the service child <c>ca.kazo.x86.host</c>
 /// installs them at login and the <c>x86</c> command when it runs first, so that an app that gets
 /// <c>Ix86</c> finds them.

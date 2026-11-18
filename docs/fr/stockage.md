@@ -171,7 +171,7 @@ Les écritures d'un disque ne touchent jamais `image.bin` : elles vont dans une 
 
 ### État de chaque usager (chantier 8, 287 A)
 
-Kazo 3.5.0 ne laisse ni la commande (l'enfant `ca.kazo.x86.cli`) ni le service `Ix86` atteindre le
+Kazo 3.5 ne laisse ni la commande (l'enfant `ca.kazo.x86.cli`) ni le service `Ix86` atteindre le
 dossier privé `~/.config/ca.kazo.x86/` de l'usager. L'état de chaque usager est donc dans l'OPFS de
 la Feature, à côté des disques qu'il décrit :
 
