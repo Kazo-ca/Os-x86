@@ -578,3 +578,10 @@ Série 25 (287 à 291), posée le 2026-11-17 dans [serie-25-envoyee.md](serie-25
 | 290 | v86 et workers JS absents du paquet | **B** : `wwwroot` déplacé de `src/OsX86` vers `src/OsX86.Feature` (SDK Razor), servi à `_content/OsX86.Feature/`. | ADR Kazo 0206, 0221, chantier 8 |
 | 291 | Enfants de Feature non lançables dans Kazo 3.5.0 | **B** : issue et correctif Kazo (découvrir l'enfant avec le manifeste de sa Feature), version 3.5.1, épinglage d'Os-x86 ; d'ici là, contournement dans l'hôte de dev d'Os-x86 seulement (`IAppDescriptorLoader` propre). | ADR Kazo 0260, chantier 8 |
 | 292 | Correctif de #621 dans `feature/base` de Kazo | **B** : porté par une PR de chantier, Kazo-ca/Os#623, fusionnée le 2026-11-18. | 291 B |
+
+Série 26 (293 et 294), posée le 2026-11-18 dans [serie-26-envoyee.md](serie-26-envoyee.md) (chantier 8b, et l'évaluation d'unkernel). Réponses du même jour : « 294. A » et « 293. A ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 293 | Service `ca.kazo.x86.host` non démarré à la connexion (code de la Feature pas encore chargé) | **A** : défaut de Kazo ; issue et correctif Kazo, version 3.5.2, copie vers `feature/base` ; #19 fusionnée avec la limite documentée, puis épinglage d'Os-x86 sur 3.5.2. | 288 A, ADR Kazo 0262 |
+| 294 | unkernel (Linux en wasm, programmes riscv64) | **A** : veille ; essai E18 « unkernel en worker dans Kazo » quand leur mode worker n'est plus expérimental ; rien ne change au jalon 0. | — |
