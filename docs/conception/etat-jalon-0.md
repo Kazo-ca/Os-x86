@@ -43,7 +43,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 ## En cours
 
 - **Chantier 8b**, suivi du chantier 8 : épingler Kazo 3.5.1 (291 B) et retirer le contournement provisoire de l'issue #621 dans l'hôte de dev. PR Kazo-ca/Os-x86#19 ouverte, CI en cours. Le service `ca.kazo.x86.host` ne démarre plus à la connexion : 293 A ([série 26](serie-26-envoyee.md)), #19 fusionnée avec la limite documentée. Correctif d'épinglage Alpine (`linux-virt` 6.18.64-r0) ajouté à #19.
-- **Kazo 3.5.2** (293 A) : issue et correctif pour démarrer à la connexion les services d'une Feature dont le code n'est pas encore chargé ; PR vers `main` (version 3.5.2) et copie vers `feature/base`. Os-x86 s'épingle ensuite sur 3.5.2.
+- **Kazo 3.5.2** (293 A) : issue et correctif pour démarrer à la connexion les services d'une Feature dont le code n'est pas encore chargé ; PR vers `main` (version 3.5.2) et copie vers `feature/base`. Os-x86 s'épingle ensuite sur 3.5.2. Issue Kazo-ca/Os#625 ouverte ; portée 295 C ([série 27](serie-27-envoyee.md)) : tout service automatique du catalogue, `kazowebd` en manuel, le reste en TODO.
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
 
 ## Reste à faire
