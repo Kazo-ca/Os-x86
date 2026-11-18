@@ -20,9 +20,11 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Code de l'ADR 0247, rôles déclarés par une Feature, avec l'ajustement 0283 (`KazoUser.IsInRole`) : fusionné (PR #604, séries 22 et 23). Issue de suivi : Kazo-ca/Os#607.
 - Kazo 3.5.0 publiée le 2026-11-17 (Kazo #613 puis #615) : code des ADR 0246, 0248, 0250, 0247 et 0283, plus les fournisseurs de fichiers tiers (ADR 0282, 0284). C'est la version que le chantier 8 épinglera.
 - Kazo 3.5.1 publiée le 2026-11-18 : correctif de l'issue #621 (enfants de Feature non lançables), PR #622 dans `main` et #623 dans `feature/base` (292 B).
+- Code de l'ADR 0249, section « Fonctionnalités » des Paramètres, avec l'ADR d'ajustement 0285 : fusionné dans `feature/base` (PR #617) le 2026-11-17 ; réponses de la [série 24](serie-24-envoyee.md) à consigner.
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
+- Chantier 8b, Kazo 3.5.1 épinglé, contournement de #621 retiré, `linux-virt` 6.18.64-r0 ; limite du service à la connexion documentée (293 A) : fusionné (PR #19) le 2026-11-18.
 - Chantier 8, la commande `x86` devient la Feature `ca.kazo.x86` (Kazo 3.5.0 épinglé, permissions et rôle `x86:vm-manager` déclarés, `Ix86` résolu par `GetServiceAsync`, état par usager dans l'OPFS, enfant de service `ca.kazo.x86.host`, avertissement d'éviction localisé ; [série 25](serie-25-envoyee.md)) : fusionné (PR #18) le 2026-11-18.
 - Chantier 1, squelette : solution, projets, hôte de développement, CI, identifiant `ca.kazo.x86`.
 - Chantier 2, moteur : v86 vendorisé dans un Web Worker, console série, ports virtio-console, `IEngine`.
@@ -42,9 +44,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 8b**, suivi du chantier 8 : épingler Kazo 3.5.1 (291 B) et retirer le contournement provisoire de l'issue #621 dans l'hôte de dev. PR Kazo-ca/Os-x86#19 ouverte, CI en cours. Le service `ca.kazo.x86.host` ne démarre plus à la connexion : 293 A ([série 26](serie-26-envoyee.md)), #19 fusionnée avec la limite documentée. Correctif d'épinglage Alpine (`linux-virt` 6.18.64-r0) ajouté à #19.
-- **Kazo 3.5.2** (293 A) : issue et correctif pour démarrer à la connexion les services d'une Feature dont le code n'est pas encore chargé ; PR vers `main` (version 3.5.2) et copie vers `feature/base`. Os-x86 s'épingle ensuite sur 3.5.2. Issue Kazo-ca/Os#625 ouverte ; portée 295 C ([série 27](serie-27-envoyee.md)) : tout service automatique du catalogue, `kazowebd` en manuel, le reste en TODO.
-- **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
+- **Kazo 3.5.2** : correctif de l'issue #625 (services automatiques démarrés à la connexion même si leur code n'est pas chargé ; `kazowebd` en manuel ; une Feature règle ses services ; ADR 0286 ; 295 C), PR #629 dans `main` et #630 dans `feature/base`, fusionnées le 2026-11-18 ; publication en cours. Ensuite, chantier 8c : épingler Os-x86 sur 3.5.2 et vérifier que `ca.kazo.x86.host` démarre à la connexion. TODO Kazo : #626 (onglet Services de System Monitor), #627 (service fourni par une app), #628 (apps de démarrage).
 
 ## Reste à faire
 
@@ -57,10 +57,10 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Chantier 12, suite : relais réel de Kazo et fenêtre de permission (attend le code Kazo des ADR 0255 et 0246 dans une version publiée).
 - Chantier 13, BoxedWine minimal (autre dépôt).
 
-**Kazo** : le code des ADR 0249 et 0251 à 0255, un chantier par ADR, dans l'ordre 0249 (en cours), 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
+**Kazo** : le code des ADR 0249 et 0251 à 0255, un chantier par ADR, dans l'ordre 0249 (fait, dans `feature/base`), 0254, 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Répondre à la série 24 (283 à 286), puis fusionner Kazo #617.
+- Confirmer les réponses de la série 24 (283 à 286) ; Kazo #617 est déjà fusionnée.
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 
