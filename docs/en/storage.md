@@ -166,6 +166,39 @@ The writes to a disk never touch `image.bin`: they go to one layer per disk,
   kept with it in the registry (`VmRecord.LayerSet`) and deleted by `x86 vm remove`
   ([VMs](vm.md#linux-base-by-default-work-item-6b)).
 
+### State of each user (work item 8, 287 A)
+
+Kazo 3.5.0 lets neither the command (the child `ca.kazo.x86.cli`) nor the `Ix86` service reach the
+user's private directory `~/.config/ca.kazo.x86/`. The state of each user is therefore in the OPFS
+of the Feature, next to the disks it describes:
+
+```
+osx86/
+  users/
+    <the 32 hexadecimal digits of the user's stable identifier>/
+      registry.json          the VM registry and the imported profiles (format 1, see vm.md)
+      network-rules.json     the network rules (work item 12)
+      network-journal.json   the network journal (work item 12)
+  .kazoos-marker             the marker of ADR 0250 of Kazo, which covers the whole of osx86/
+```
+
+- `ImageStore.ReadUserFileAsync` and `WriteUserFileAsync`, through the `read-user-file` (answer
+  `text`, `null` when the file does not exist) and `write-user-file` messages of the worker;
+  `UserStateStore` makes them the store of the registry (`IVmRegistryStore`) and of the network
+  (`INetworkStore`), and turns any error of the worker into `storage-failed`.
+- The worker only accepts an identifier of 32 hexadecimal digits (not the empty GUID), a name
+  `[a-z][a-z0-9-]*.json` and a whole JSON document of at most 4 MiB; one lock per file
+  (`osx86:user:<user>/<name>`).
+- **Journaled write**: the whole text goes first to `<name>.tmp`, then to `<name>`, then the `.tmp`
+  is removed. A write cut short (quota, tab closed) leaves either the old file intact or a whole
+  `.tmp`; a read takes the file when it is a whole JSON document, else the `.tmp`. Checked in a real
+  browser (`UserFileStorageTests`, a `guest` test).
+- **Isolation**: the code of Os-x86 separates the users, as for the layers; the command passes the
+  user running it, the service `Caller.UserId`. Any code of the page can talk to the worker: that
+  is the known limit of the OPFS, one origin for the whole machine.
+- An eviction erases the state with the disks; the command says so once (289 A) and `x86 vm list`
+  starts again empty, without error. These files are not visible in the File Explorer.
+
 ## Catalog of the known images (work item 6b)
 
 Where images come from is **configuration**, never an address written in the code: the hosting

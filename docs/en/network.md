@@ -26,7 +26,7 @@ blocks, the journal records both.
 | `src/OsX86/Vm/VmInstance.Network.cs` | the VM on the network: card, address, network namespace of a prefix, switch port |
 | `src/OsX86/Agent/AgentClient.Network.cs` | the `net` operation of protocol 3 of the agent |
 | `src/OsX86.Feature/X86Command.Rules.cs` | `x86 rules list`, `allow`, `deny`, `ask`, `remove`, `log` |
-| `src/OsX86.Feature/X86Files.cs` | `KazoNetworkStore`: rules and journal in `~/.config/ca.kazo.x86/network/` |
+| `src/OsX86/Storage/UserStateStore.cs` | rules and journal in `osx86/users/<guid>/` of the OPFS (work item 8, 287 A) |
 | `images/agent/src/net.c` | the agent's `net` operation; `launch.c` enters the prefix's network namespace |
 | `images/linux-base/net-admin.sh`, `net/vm.nft`, `net/prefix.nft` | the guest side: `eth0`, one network namespace per prefix, the nftables rules |
 | `images/linux-base/probes/osx86-netcheck.c` | the network probe of the `guest` tests |
@@ -233,9 +233,9 @@ audit route of ADR 0255). The journal contains no user name: it is stored per us
 
 ## Versioned formats (plan, section 13)
 
-Stored by the command in the app's private directory, next to the VM registry, one file per
-stable user identifier: `~/.config/ca.kazo.x86/network/<guid>.rules.json` and
-`<guid>.journal.json`. An unknown format is refused and nothing is written (169); a document of
+Stored in the OPFS of the Feature, next to the VM registry, in the directory of the user's stable
+identifier (work item 8, decision 287 A): `osx86/users/<guid>/network-rules.json` and
+`network-journal.json`, written by the storage worker (`UserStateStore`). An unknown format is refused and nothing is written (169); a document of
 another user, a malformed or duplicate rule are refused.
 
 ```json

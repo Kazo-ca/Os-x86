@@ -515,7 +515,10 @@ chaque programme. Le Ctrl+C tapé par l'outil d'automatisation du navigateur n'a
 
 - **Lecture des fichiers de l'usager** : la commande `x86` ne déclare que `filesystem.private.read`
   et `.write` ; dans Kazo elle ne lit donc pas `~/prog.com` (« no file »), ni un programme Windows
-  (même limite pour le chantier 10). Les permissions déclarées viennent avec la Feature (chantier 8).
+  (même limite pour le chantier 10). Depuis le chantier 8, la commande est l'enfant `ca.kazo.x86.cli`
+  de la Feature : son dossier privé est `~/.config/ca.kazo.x86.cli/` (Kazo 3.5.0 compare
+  l'identifiant exact), c'est donc là qu'un programme envoyé par l'Explorateur se copie. La
+  permission de lire le dossier personnel de l'usager n'est pas encore décidée.
 - **Ctrl+C pris par DOS** : un programme qui lit par les fonctions de DOS avec `BREAK` peut être
   arrêté par DOS lui-même, et FreeCOM demande alors s'il faut arrêter le lot (« Terminate batch job
   (Y/N)? ») ; non provoqué. Le programme de test lit par le BIOS et détourne l'int 23h.

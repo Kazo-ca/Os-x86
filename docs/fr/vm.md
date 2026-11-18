@@ -45,12 +45,15 @@ version, mémoire, port série déclaré, préfixe par défaut) ; son état n'es
 mémoire. Le registre est **un document par identifiant stable d'usager**, jamais par nom de
 connexion : un compte supprimé puis recréé sous le même nom ne retrouve pas les VM de l'ancien.
 
-- **Dans Kazo**, la commande range le document de l'usager dans le dossier privé de l'app,
-  `~/.config/ca.kazo.x86/vms/<guid>.json` (ADR 0044 de Kazo ; permissions
-  `filesystem.private.read` et `filesystem.private.write`, déclarées dans le manifeste). Le
-  magasin refuse de lire ou d'écrire le document d'un autre usager que celui qui lance la
-  commande. L'identifiant vient de `IAppExecutionContext.UserId` (les 32 chiffres hexadécimaux du
-  `LocalUserId` de Kazo) ; un nom de connexion est refusé (`invalid-user`).
+- **Dans Kazo**, le document de l'usager est dans l'OPFS de la Feature, à côté des disques :
+  `osx86/users/<guid>/registry.json` (chantier 8, décision 287 A ; `UserStateStore`, écrit par le
+  worker de stockage). Kazo 3.5.0 ne laisse ni la commande (l'enfant `ca.kazo.x86.cli`) ni le
+  service `Ix86` atteindre `~/.config/ca.kazo.x86/` de l'usager, où le chantier 6 le rangeait.
+  L'identifiant vient de `IAppExecutionContext.UserId` pour la commande et de `Caller.UserId`
+  pour le service (les 32 chiffres hexadécimaux du `LocalUserId` de Kazo) ; un nom de connexion
+  est refusé (`invalid-user`). C'est le code d'Os-x86 qui sépare les usagers : chacun ne lit que
+  le dossier de son identifiant. Une éviction du navigateur efface le registre avec les disques ;
+  le marqueur de l'ADR 0250 couvre les deux. Ces fichiers ne sont pas visibles dans l'Explorateur.
 - **Format 1** (section 13 du plan), versionné comme les autres documents d'Os-x86 :
 
 ```json
@@ -345,7 +348,16 @@ Une commande n'a pas d'`IJSRuntime` (ADR 0070 de Kazo). `src/OsX86.Os/Program.cs
 avant toute commande, l'environnement d'un hôte navigateur (`VmHost.Configure(VmHost.ForBrowser(...))`) :
 moteur v86 par interop JS, `ImageStore` de l'OPFS, catalogue des packs construits en local.
 `X86Runtime` le lit à la création de son `VmManager` ; sans lui, la commande reste sans émulateur
-(code 6). La Feature du chantier 8 prendra ce rôle.
+(code 6).
+
+Depuis le chantier 8 (décision 288 A), la Feature installe le sien : son enfant de type Service
+`ca.kazo.x86.host`, caché, démarre à chaque ouverture de session sur le fil principal et reçoit
+l'`IJSRuntime` de la page dans son constructeur ; la commande `x86`, construite par Kazo avec
+l'`IJSRuntime`, fait la même installation si le service ne l'a pas encore faite (`X86Host`,
+`VmHost.TryConfigure`). Un hôte qui a installé le sien avant est gardé : l'hôte de développement
+garde donc son catalogue de packs et son relais de test. Le catalogue de la Feature installée est
+vide tant que l'hébergement des images n'est pas réglé. Avant le démarrage du service, `Ix86`
+répond `engine-unavailable` ; les services faits sans hôte sont refaits dès qu'un hôte est installé.
 
 Deux corrections trouvées en l'essayant dans Kazo (premiers essais de la commande dans Kazo
 lui-même) :
@@ -355,10 +367,10 @@ lui-même) :
   worker de son pool, avec son propre runtime .NET (ADR 0070 de Kazo) : l'environnement installé par
   l'hôte et les VM de la machine, qui vivent sur le thread principal, n'y existaient pas
   (`x86 shell` répondait « image not available »).
-- **Le registre se crée dans `~/.config/ca.kazo.x86/`** comme les réglages de Kazo
+- **Le registre se créait dans `~/.config/ca.kazo.x86/`** comme les réglages de Kazo
   (`SettingsTextFile.EnsureDirectoryAsync`) : `KazoDirectory.CreateDirectoryAsync` remonte jusqu'à
   `~/.config`, que l'app n'a pas le droit de lire, et le premier `x86 vm create` d'un usager
-  échouait (`CapabilityDenied`).
+  échouait (`CapabilityDenied`). Depuis la décision 287 A, il est dans l'OPFS (voir le registre).
 
 Vérifié dans le terminal de l'hôte de développement (session invitée) : `x86 vm create base`, puis
 `x86 shell` télécharge linux-base (69,7 Mio vérifiés, environ 120 Mio/s), démarre la VM et ouvre la
@@ -443,10 +455,10 @@ un usager (`new X86Service(manager, userId)`) ; son enregistrement dans Kazo est
 
 - **7 (admin)** : écrire la limite de mémoire et le délai de grâce, voir et gérer les VM des autres
   usagers, tenir le journal personnel ; la fenêtre de choix de 165 A côté interface.
-- **8 (Feature)** : la Feature installe l'environnement que l'hôte de développement installe
-  aujourd'hui (`VmHost.Configure` : moteur, stockage, catalogue des images ; elle a l'`IJSRuntime`
-  que la commande n'a pas, ADR 0070 de Kazo), lit `navigator.deviceMemory`, enregistre `Ix86` par usager, et fait de chaque
-  VM un processus Kazo et de chaque enfant un processus enfant (207 A).
+- **8 (Feature)** : fait pour l'installation de l'environnement (enfant `ca.kazo.x86.host`, 288 A),
+  le registre dans l'OPFS (287 A) et `Ix86` résolu par Kazo. Restent pour plus tard : lire
+  `navigator.deviceMemory`, et faire de chaque VM un processus Kazo et de chaque enfant un
+  processus enfant (207 A).
 - **Hébergement des images** : le catalogue de production (adresses R2 ou Pages et empreintes)
   attend l'hébergement ; aucune adresse n'est écrite dans le code.
 - **10 (préfixes)** : fait, voir [`programmes.md`](programmes.md). `x86 shell --prefix <p>` exige

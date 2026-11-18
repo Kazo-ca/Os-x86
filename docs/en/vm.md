@@ -45,12 +45,15 @@ declared serial port, default prefix); its state is not stored, it lives in memo
 **one document per stable user identifier**, never per login name: an account deleted and created
 again with the same name does not get the old account's VMs back.
 
-- **In Kazo**, the command keeps the user's document in the app's private directory,
-  `~/.config/ca.kazo.x86/vms/<guid>.json` (ADR 0044 of Kazo; the `filesystem.private.read` and
-  `filesystem.private.write` capabilities, declared in the manifest). The store refuses to read or
-  write the document of any other user than the one running the command. The identifier comes
-  from `IAppExecutionContext.UserId` (the 32 hexadecimal digits of Kazo's `LocalUserId`); a login
-  name is refused (`invalid-user`).
+- **In Kazo**, the user's document is in the OPFS of the Feature, next to the disks:
+  `osx86/users/<guid>/registry.json` (work item 8, decision 287 A; `UserStateStore`, written by the
+  storage worker). Kazo 3.5.0 lets neither the command (the child `ca.kazo.x86.cli`) nor the `Ix86`
+  service reach the user's `~/.config/ca.kazo.x86/`, where work item 6 kept it. The identifier
+  comes from `IAppExecutionContext.UserId` for the command and from `Caller.UserId` for the service
+  (the 32 hexadecimal digits of Kazo's `LocalUserId`); a login name is refused (`invalid-user`). The
+  code of Os-x86 separates the users: each only reads the directory of its identifier. An eviction
+  by the browser erases the registry with the disks; the marker of ADR 0250 covers both. These
+  files are not visible in the File Explorer.
 - **Format 1** (section 13 of the plan), versioned like the other documents of Os-x86:
 
 ```json
@@ -343,7 +346,15 @@ A command has no `IJSRuntime` (ADR 0070 of Kazo). `src/OsX86.Os/Program.cs` ther
 before any command, the environment of a browser host (`VmHost.Configure(VmHost.ForBrowser(...))`):
 v86 engine through JS interop, `ImageStore` of the OPFS, catalog of the packs built locally.
 `X86Runtime` reads it when it creates its `VmManager`; without it, the command stays without
-emulator (code 6). The Feature of work item 8 takes this role.
+emulator (code 6).
+
+Since work item 8 (decision 288 A) the Feature installs its own: its hidden Service child
+`ca.kazo.x86.host` starts at each login on the main thread and receives the page's `IJSRuntime` in
+its constructor; the `x86` command, built by Kazo with the `IJSRuntime`, does the same install when
+the service has not yet (`X86Host`, `VmHost.TryConfigure`). A host that installed its own before is
+kept: the dev host thus keeps its catalog of packs and its test relay. The catalog of the installed
+Feature is empty until the hosting of the images is settled. Before the service started, `Ix86`
+answers `engine-unavailable`; services made without a host are made again once one is installed.
 
 Two fixes found while trying it in Kazo (the first runs of the command in Kazo itself):
 
@@ -352,10 +363,10 @@ Two fixes found while trying it in Kazo (the first runs of the command in Kazo i
   pool, with its own .NET runtime (ADR 0070 of Kazo): the environment the host installs and the
   VMs of the machine, which live on the main thread, did not exist there (`x86 shell` answered
   "image not available").
-- **The registry is created in `~/.config/ca.kazo.x86/`** the way Kazo's settings are
+- **The registry was created in `~/.config/ca.kazo.x86/`** the way Kazo's settings are
   (`SettingsTextFile.EnsureDirectoryAsync`): `KazoDirectory.CreateDirectoryAsync` walks up to
   `~/.config`, which the app may not read, and the first `x86 vm create` of a user failed
-  (`CapabilityDenied`).
+  (`CapabilityDenied`). Since decision 287 A it is in the OPFS (see the registry).
 
 Verified in the terminal of the dev host (guest session): `x86 vm create base`, then `x86 shell`
 downloads linux-base (69.7 MiB verified, about 120 MiB/s), boots the VM and opens the serial
@@ -437,10 +448,9 @@ clients (BoxedWine, work items 10 and 13). The service is bound to a user
 
 - **7 (admin)**: write the memory limit and the grace, see and manage other users' VMs, keep the
   personal log; the choice window of 165 A on the interface side.
-- **8 (Feature)**: the Feature installs the environment the dev host installs today
-  (`VmHost.Configure`: engine, storage, image catalog; it has the `IJSRuntime` the command lacks,
-  ADR 0070 of Kazo), reads `navigator.deviceMemory`, registers `Ix86` per user, and makes each VM a
-  Kazo process and each child a child process (207 A).
+- **8 (Feature)**: done for the install of the environment (child `ca.kazo.x86.host`, 288 A), the
+  registry in the OPFS (287 A) and `Ix86` resolved by Kazo. Left for later: reading
+  `navigator.deviceMemory`, and making each VM a Kazo process and each child a child process (207 A).
 - **Hosting of the images**: the production catalog (R2 or Pages addresses and hashes) waits for
   the hosting; no address is written in the code.
 - **10 (prefixes)**: done, see [`programs.md`](programs.md). `x86 shell --prefix <p>` now needs a

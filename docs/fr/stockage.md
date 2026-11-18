@@ -169,6 +169,39 @@ Les écritures d'un disque ne touchent jamais `image.bin` : elles vont dans une 
   rangé avec elle dans le registre (`VmRecord.LayerSet`) et supprimé par `x86 vm remove`
   ([VM](vm.md#linux-base-par-défaut-chantier-6b)).
 
+### État de chaque usager (chantier 8, 287 A)
+
+Kazo 3.5.0 ne laisse ni la commande (l'enfant `ca.kazo.x86.cli`) ni le service `Ix86` atteindre le
+dossier privé `~/.config/ca.kazo.x86/` de l'usager. L'état de chaque usager est donc dans l'OPFS de
+la Feature, à côté des disques qu'il décrit :
+
+```
+osx86/
+  users/
+    <32 chiffres hexadécimaux de l'identifiant stable de l'usager>/
+      registry.json          le registre des VM et les profils importés (format 1, voir vm.md)
+      network-rules.json     les règles réseau (chantier 12)
+      network-journal.json   le journal réseau (chantier 12)
+  .kazoos-marker             le marqueur de l'ADR 0250 de Kazo, qui couvre tout osx86/
+```
+
+- `ImageStore.ReadUserFileAsync` et `WriteUserFileAsync`, par les messages `read-user-file`
+  (réponse `text`, `null` quand le fichier n'existe pas) et `write-user-file` du worker ;
+  `UserStateStore` en fait le magasin du registre (`IVmRegistryStore`) et du réseau
+  (`INetworkStore`), et rend toute erreur du worker en `storage-failed`.
+- Le worker n'accepte qu'un identifiant de 32 chiffres hexadécimaux (pas le GUID vide), un nom
+  `[a-z][a-z0-9-]*.json` et un document JSON entier d'au plus 4 Mio ; un verrou par fichier
+  (`osx86:user:<usager>/<nom>`).
+- **Écriture journalisée** : le texte entier va d'abord dans `<nom>.tmp`, puis dans `<nom>`, puis
+  le `.tmp` est effacé. Une écriture coupée (quota, onglet fermé) laisse soit l'ancien fichier
+  intact, soit un `.tmp` complet ; la lecture prend le fichier s'il est un JSON entier, sinon le
+  `.tmp`. Vérifié dans un vrai navigateur (`UserFileStorageTests`, test `guest`).
+- **Isolation** : c'est le code d'Os-x86 qui sépare les usagers, comme pour les couches ; la
+  commande passe l'usager qui la lance, le service `Caller.UserId`. Tout code de la page peut
+  parler au worker : c'est la limite connue de l'OPFS, une origine pour toute la machine.
+- Une éviction efface l'état avec les disques ; la commande le dit une fois (289 A) et `x86 vm list`
+  repart vide, sans erreur. Ces fichiers ne sont pas visibles dans l'Explorateur.
+
 ## Catalogue des images connues (chantier 6b)
 
 L'origine des images est une **configuration**, jamais une adresse écrite dans le code :

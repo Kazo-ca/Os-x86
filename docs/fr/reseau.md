@@ -26,7 +26,7 @@ destination non décidée ouvre la fenêtre de permission (une abstraction, voir
 | `src/OsX86/Vm/VmInstance.Network.cs` | la VM sur le réseau : carte, adresse, espace réseau d'un préfixe, port du commutateur |
 | `src/OsX86/Agent/AgentClient.Network.cs` | l'opération `net` du protocole 3 de l'agent |
 | `src/OsX86.Feature/X86Command.Rules.cs` | `x86 rules list`, `allow`, `deny`, `ask`, `remove`, `log` |
-| `src/OsX86.Feature/X86Files.cs` | `KazoNetworkStore` : règles et journal dans `~/.config/ca.kazo.x86/network/` |
+| `src/OsX86/Storage/UserStateStore.cs` | règles et journal dans `osx86/users/<guid>/` de l'OPFS (chantier 8, 287 A) |
 | `images/agent/src/net.c` | l'opération `net` de l'agent ; `launch.c` entre dans l'espace réseau du préfixe |
 | `images/linux-base/net-admin.sh`, `net/vm.nft`, `net/prefix.nft` | le côté invité : `eth0`, un espace réseau par préfixe, les règles nftables |
 | `images/linux-base/probes/osx86-netcheck.c` | la sonde réseau des tests `guest` |
@@ -241,9 +241,9 @@ ne contient aucun nom d'usager : il est rangé par usager.
 
 ## Formats versionnés (plan, section 13)
 
-Rangés par la commande dans le dossier privé de l'app, à côté du registre des VM, un fichier par
-identifiant stable d'usager : `~/.config/ca.kazo.x86/network/<guid>.rules.json` et
-`<guid>.journal.json`. Un format inconnu est refusé et rien n'est écrit (169) ; un document d'un
+Rangés dans l'OPFS de la Feature, à côté du registre des VM, dans le dossier de l'identifiant
+stable de l'usager (chantier 8, décision 287 A) : `osx86/users/<guid>/network-rules.json` et
+`network-journal.json`, écrits par le worker de stockage (`UserStateStore`). Un format inconnu est refusé et rien n'est écrit (169) ; un document d'un
 autre usager, une règle mal formée ou en double sont refusés.
 
 ```json
