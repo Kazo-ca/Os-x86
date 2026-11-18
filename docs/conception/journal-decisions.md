@@ -597,3 +597,10 @@ Série 28 (296), posée le 2026-11-18 dans [serie-28-envoyee.md](serie-28-envoye
 | # | Sujet | Décision | Remplace ou précise |
 |---|---|---|---|
 | 296 | Prochain chantier | **A** : Kazo 0254 (événements par usager) dans la session Kazo, vers `feature/base`, et le chantier 13 BoxedWine minimal dans une nouvelle session, en parallèle. | plan de `jalon-0-execution.md` |
+
+Série 29 (297 et 298), posée le 2026-11-18 dans [serie-29-envoyee.md](serie-29-envoyee.md) (code de l'ADR Kazo 0254). Réponses du même jour : « 297. a » et « 298. a ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 297 | Événement d'une opération sensible d'une Feature authentifiée | **A** : surcharge `AuthenticateAsync(operation, scope, KazoEventSubject? subject)` au SDK ; l'OS écrit l'événement de l'usager à la consommation du billet, avec ce sujet. | ADR Kazo 0254 §2, 0247 |
+| 298 | Un administrateur lit le journal d'un autre usager | **A** : `KazoUserAccounts.ReadEventsAsync(login, filtre)` ; authentification d'administrateur une fois par processus de la visionneuse ; entrée `events.read-other` dans `auth.log`. | ADR Kazo 0254 §3 |
