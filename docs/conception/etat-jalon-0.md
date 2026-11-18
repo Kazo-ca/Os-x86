@@ -42,7 +42,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 8b**, suivi du chantier 8 : épingler Kazo 3.5.1 (291 B) et retirer le contournement provisoire de l'issue #621 dans l'hôte de dev.
+- **Chantier 8b**, suivi du chantier 8 : épingler Kazo 3.5.1 (291 B) et retirer le contournement provisoire de l'issue #621 dans l'hôte de dev. PR Kazo-ca/Os-x86#19 ouverte, CI en cours. Le service `ca.kazo.x86.host` ne démarre plus à la connexion : question 293 de la [série 26](serie-26-envoyee.md).
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
 
 ## Reste à faire
