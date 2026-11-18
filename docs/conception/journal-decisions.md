@@ -585,3 +585,9 @@ Série 26 (293 et 294), posée le 2026-11-18 dans [serie-26-envoyee.md](serie-26
 |---|---|---|---|
 | 293 | Service `ca.kazo.x86.host` non démarré à la connexion (code de la Feature pas encore chargé) | **A** : défaut de Kazo ; issue et correctif Kazo, version 3.5.2, copie vers `feature/base` ; #19 fusionnée avec la limite documentée, puis épinglage d'Os-x86 sur 3.5.2. | 288 A, ADR Kazo 0262 |
 | 294 | unkernel (Linux en wasm, programmes riscv64) | **A** : veille ; essai E18 « unkernel en worker dans Kazo » quand leur mode worker n'est plus expérimental ; rien ne change au jalon 0. | — |
+
+Série 27 (295), posée le 2026-11-18 dans [serie-27-envoyee.md](serie-27-envoyee.md) (portée du correctif Kazo 3.5.2, issue Kazo-ca/Os#625). Réponse du même jour : « 295. C) avec une nuance » (texte entier dans la série).
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 295 | Portée du démarrage des services à la connexion (Kazo 3.5.2) | **C, avec ta nuance** : tout service automatique du catalogue démarre à la connexion ; `kazowebd` passe en manuel (ajustement de l'ADR 0077). Chaque service déclare son type de démarrage à l'installation, l'usager peut l'arrêter et le changer, une Feature règle celui de ses services. Plus tard (TODO) : onglet Services dans System Monitor, services fournis et contrôlés par une app, apps de démarrage comme sous Windows. | 293 A, ADR Kazo 0077, 0262 |
