@@ -25,6 +25,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
+- Chantier 8c, Kazo 3.5.2 épinglé ; le service `ca.kazo.x86.host` démarre seul à la connexion, test `X86HostTests`, limite retirée de la doc : fusionné (PR #20) le 2026-11-18.
 - Chantier 8b, Kazo 3.5.1 épinglé, contournement de #621 retiré, `linux-virt` 6.18.64-r0 ; limite du service à la connexion documentée (293 A) : fusionné (PR #19) le 2026-11-18.
 - Chantier 8, la commande `x86` devient la Feature `ca.kazo.x86` (Kazo 3.5.0 épinglé, permissions et rôle `x86:vm-manager` déclarés, `Ix86` résolu par `GetServiceAsync`, état par usager dans l'OPFS, enfant de service `ca.kazo.x86.host`, avertissement d'éviction localisé ; [série 25](serie-25-envoyee.md)) : fusionné (PR #18) le 2026-11-18.
 - Chantier 1, squelette : solution, projets, hôte de développement, CI, identifiant `ca.kazo.x86`.
@@ -45,7 +46,6 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 8c**, Os-x86 épinglé sur Kazo 3.5.2 ; `ca.kazo.x86.host` démarre à la connexion (PR #20) : CI verte, attend ton accord pour fusionner.
 - **Kazo 0254**, événements par usager (journal personnel, 137), dans la session Kazo, PR vers `feature/base` (296 A, [série 28](serie-28-envoyee.md)).
 - **Chantier 13**, BoxedWine minimal, dans le dépôt Kazo-ca/Os-App-BoxedWine, branche `j0/base` (296 A). Sa démonstration par le terminal (`./setup.exe`) attend le code Kazo de l'ADR 0251.
 
