@@ -19,9 +19,11 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Code de l'ADR 0250, persistance et éviction du stockage : fusionné (PR #594, série 21).
 - Code de l'ADR 0247, rôles déclarés par une Feature, avec l'ajustement 0283 (`KazoUser.IsInRole`) : fusionné (PR #604, séries 22 et 23). Issue de suivi : Kazo-ca/Os#607.
 - Kazo 3.5.0 publiée le 2026-11-17 (Kazo #613 puis #615) : code des ADR 0246, 0248, 0250, 0247 et 0283, plus les fournisseurs de fichiers tiers (ADR 0282, 0284). C'est la version que le chantier 8 épinglera.
+- Kazo 3.5.1 publiée le 2026-11-18 : correctif de l'issue #621 (enfants de Feature non lançables), PR #622 dans `main` et #623 dans `feature/base` (292 B).
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
+- Chantier 8, la commande `x86` devient la Feature `ca.kazo.x86` (Kazo 3.5.0 épinglé, permissions et rôle `x86:vm-manager` déclarés, `Ix86` résolu par `GetServiceAsync`, état par usager dans l'OPFS, enfant de service `ca.kazo.x86.host`, avertissement d'éviction localisé ; [série 25](serie-25-envoyee.md)) : fusionné (PR #18) le 2026-11-18.
 - Chantier 1, squelette : solution, projets, hôte de développement, CI, identifiant `ca.kazo.x86`.
 - Chantier 2, moteur : v86 vendorisé dans un Web Worker, console série, ports virtio-console, `IEngine`.
 - Chantier 3, stockage : manifeste d'image, téléchargement vérifié par morceaux de 32 Mio avec reprise, dépôt dans l'OPFS, verrou, formats versionnés.
@@ -40,9 +42,8 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 8**, branche `j0/8-feature` : la commande `x86` passe au type Feature (Kazo 3.5.0 épinglé, permissions et rôle déclarés, `Ix86` résolu par `GetServiceAsync`, persistance KazoStorage). Questions de la [série 25](serie-25-envoyee.md) (287 à 292) toutes répondues. PR Kazo-ca/Os-x86#18 ouverte vers `j0/base`, CI en cours ; contournement provisoire de l'issue Kazo #621 dans l'hôte de dev, à retirer en épinglant Kazo 3.5.1.
+- **Chantier 8b**, suivi du chantier 8 : épingler Kazo 3.5.1 (291 B) et retirer le contournement provisoire de l'issue #621 dans l'hôte de dev.
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
-- **Kazo 3.5.1** : correctif de l'issue #621 (enfants de Feature non lançables), PR #622 fusionnée dans `main` le 2026-11-18 et #623 dans `feature/base` (292 B) ; publication en cours. Os-x86 s'épingle ensuite sur 3.5.1 (291 B).
 
 ## Reste à faire
 
