@@ -40,10 +40,9 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
-- **Chantier 8**, branche `j0/8-feature` : la commande `x86` passe au type Feature (Kazo 3.5.0 épinglé, permissions et rôle déclarés, `Ix86` résolu par `GetServiceAsync`, persistance KazoStorage). Lancé le 2026-11-17 ; ses questions sont la [série 25](serie-25-envoyee.md) (287 à 292).
+- **Chantier 8**, branche `j0/8-feature` : la commande `x86` passe au type Feature (Kazo 3.5.0 épinglé, permissions et rôle déclarés, `Ix86` résolu par `GetServiceAsync`, persistance KazoStorage). Questions de la [série 25](serie-25-envoyee.md) (287 à 292) toutes répondues. PR Kazo-ca/Os-x86#18 ouverte vers `j0/base`, CI en cours ; contournement provisoire de l'issue Kazo #621 dans l'hôte de dev, à retirer en épinglant Kazo 3.5.1.
 - **Kazo, code de l'ADR 0249**, section « Fonctionnalités » des Paramètres : PR Kazo #617 ouverte vers `feature/base`, ADR d'ajustement 0285 ; ses questions sont la [série 24](serie-24-envoyee.md) (283 à 286).
-- **Kazo, PR #622** : correctif de l'issue #621 (enfants de Feature non lançables), version 3.5.1, vers `main`. L'usager la fusionne ; Os-x86 s'épingle ensuite sur 3.5.1 (291 B).
-- **Kazo, PR #620** : `main` (3.5.0) fusionnée dans `beta`, qui passe en `3.6.0-preview.1`.
+- **Kazo 3.5.1** : correctif de l'issue #621 (enfants de Feature non lançables), PR #622 fusionnée dans `main` le 2026-11-18 et #623 dans `feature/base` (292 B) ; publication en cours. Os-x86 s'épingle ensuite sur 3.5.1 (291 B).
 
 ## Reste à faire
 

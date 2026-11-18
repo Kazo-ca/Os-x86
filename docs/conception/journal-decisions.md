@@ -568,7 +568,7 @@ Série 23 (281, 282), posée le 2026-11-17 dans [serie-23-envoyee.md](serie-23-e
 | 281 | Préfixe des rôles d'une Feature | **A** : le `CapabilityPrefix` (ADR 0246), unique et court ; `x86:vm-manager` pour Os-x86. | 277, ADR 0283 |
 | 282 | Sous-commande ouverte à tous et rôle | **A** : acceptée pour un détenteur d'un rôle de la Feature, rôle exact vérifié par `IsInRole`. | 277, ADR 0247 |
 
-Série 25 (287 à 291), posée le 2026-11-17 dans [serie-25-envoyee.md](serie-25-envoyee.md) (chantier 8, la Feature x86 sur Kazo 3.5.0). Réponses du même jour : « 291. b » ; dans la session du chantier 8, « 289 . a) mais le message d'erreur est localisé à la langue utilisé par l'OS » et « 290. B ». Pour 287 et 288, dans la même session : « Je suis d'accord avec tes recommendations ». 292 en attente.
+Série 25 (287 à 291), posée le 2026-11-17 dans [serie-25-envoyee.md](serie-25-envoyee.md) (chantier 8, la Feature x86 sur Kazo 3.5.0). Réponses du même jour : « 291. b » ; dans la session du chantier 8, « 289 . a) mais le message d'erreur est localisé à la langue utilisé par l'OS » et « 290. B ». Pour 287 et 288, dans la même session : « Je suis d'accord avec tes recommendations ». 292 répondue dans la session Kazo (B, Kazo-ca/Os#623 fusionnée).
 
 | # | Sujet | Décision | Remplace ou précise |
 |---|---|---|---|
@@ -577,4 +577,4 @@ Série 25 (287 à 291), posée le 2026-11-17 dans [serie-25-envoyee.md](serie-25
 | 289 | Éviction du stockage par le navigateur | **A, avec ta précision** : en plus de la notification de Kazo, le prochain `x86` avertit une fois de ce qui a été perdu, dans la langue de l'OS ; même chose si la protection est retirée. | ADR Kazo 0250, chantier 8 |
 | 290 | v86 et workers JS absents du paquet | **B** : `wwwroot` déplacé de `src/OsX86` vers `src/OsX86.Feature` (SDK Razor), servi à `_content/OsX86.Feature/`. | ADR Kazo 0206, 0221, chantier 8 |
 | 291 | Enfants de Feature non lançables dans Kazo 3.5.0 | **B** : issue et correctif Kazo (découvrir l'enfant avec le manifeste de sa Feature), version 3.5.1, épinglage d'Os-x86 ; d'ici là, contournement dans l'hôte de dev d'Os-x86 seulement (`IAppDescriptorLoader` propre). | ADR Kazo 0260, chantier 8 |
-
+| 292 | Correctif de #621 dans `feature/base` de Kazo | **B** : porté par une PR de chantier, Kazo-ca/Os#623, fusionnée le 2026-11-18. | 291 B |
