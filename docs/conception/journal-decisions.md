@@ -591,3 +591,9 @@ Série 27 (295), posée le 2026-11-18 dans [serie-27-envoyee.md](serie-27-envoye
 | # | Sujet | Décision | Remplace ou précise |
 |---|---|---|---|
 | 295 | Portée du démarrage des services à la connexion (Kazo 3.5.2) | **C, avec ta nuance** : tout service automatique du catalogue démarre à la connexion ; `kazowebd` passe en manuel (ajustement de l'ADR 0077). Chaque service déclare son type de démarrage à l'installation, l'usager peut l'arrêter et le changer, une Feature règle celui de ses services. Plus tard (TODO) : onglet Services dans System Monitor, services fournis et contrôlés par une app, apps de démarrage comme sous Windows. | 293 A, ADR Kazo 0077, 0262 |
+
+Série 28 (296), posée le 2026-11-18 dans [serie-28-envoyee.md](serie-28-envoyee.md) (prochain chantier après Kazo 3.5.2). Réponse du même jour : « 296. A ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 296 | Prochain chantier | **A** : Kazo 0254 (événements par usager) dans la session Kazo, vers `feature/base`, et le chantier 13 BoxedWine minimal dans une nouvelle session, en parallèle. | plan de `jalon-0-execution.md` |
