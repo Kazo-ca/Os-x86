@@ -51,8 +51,10 @@ PR `j0/8-feature` → `j0/base`. Références : `docs/fr/vm.md` (registre, hôte
 | 290 | **B** : `wwwroot` déplacé dans `OsX86.Feature` | L'usager, même message : « 290. B » |
 | 291 | **B** : contournement de Kazo-ca/Os#621 dans l'hôte de développement seulement | Relayée par la session d'orchestration : « 291. b » |
 
-Questions 287 à 291 : `chantier-8-questions-287-289.md` dans le dossier des notes partagées. Le
-journal des décisions est tenu par la session d'orchestration.
+Questions et réponses : [série 25](../serie-25-envoyee.md) et le journal des décisions. Pour 291 B,
+le journal parle d'un `IAppDescriptorLoader` propre à l'hôte de développement. Ce n'était pas
+possible : Kazo utilise directement le registre concret, scellé. L'hôte précharge donc les
+descripteurs des enfants dans ce registre (`FeatureChildPreload`), ce qui a le même effet.
 
 Sans question, d'après les décisions existantes :
 - les permissions de 176 A et leur usage par opération ;
