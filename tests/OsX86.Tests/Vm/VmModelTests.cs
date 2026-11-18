@@ -420,41 +420,15 @@ public sealed class VmModelTests
     }
 
     [Fact]
-    public void Kazo_user_identifiers_are_read_and_the_registry_is_kept_per_identifier()
+    public void Kazo_user_identifiers_are_read_as_guids_and_nothing_else()
     {
+        // The registry of each user is a file of osx86/users/<guid>/ (decision 287 A, UserStateStoreTests).
         Assert.True(X86Runtime.TryParseUserId("0000000000000000000000000000a001", out Guid id));
         Assert.Equal(User, id);
         Assert.True(X86Runtime.TryParseUserId(User.ToString("D"), out _));
         Assert.False(X86Runtime.TryParseUserId("alice", out _));
         Assert.False(X86Runtime.TryParseUserId(Guid.Empty.ToString(), out _));
         Assert.False(X86Runtime.TryParseUserId(null, out _));
-
-        using (KazoExecutionContext.Enter(new TestAppContext()))
-        {
-            Assert.Equal($"/home/{TestAppContext.DefaultUserId}/.config/ca.kazo.x86/vms/{User:N}.json", KazoVmRegistryStore.PathFor(User));
-            Assert.Throws<UnauthorizedAccessException>(() => KazoVmRegistryStore.PathFor(OtherUser)); // never another user's registry
-        }
-
-        using (KazoExecutionContext.Enter(new TestAppContext("user-1")))
-        {
-            Assert.Throws<UnauthorizedAccessException>(() => KazoVmRegistryStore.PathFor(User));
-        }
-    }
-
-    [Fact]
-    public async Task The_registry_store_of_the_command_goes_through_the_files_of_the_running_user()
-    {
-        var files = new X86CommandTests.FakeFiles();
-        var store = new KazoVmRegistryStore(files);
-        using (KazoExecutionContext.Enter(new TestAppContext()))
-        {
-            Assert.Null(await store.ReadAsync(User, None));
-            await store.WriteAsync(User, "{}", None);
-            Assert.Equal("{}", await store.ReadAsync(User, None));
-        }
-
-        Assert.Equal([KazoVmRegistryStorePath()], files.Files.Keys);
-        static string KazoVmRegistryStorePath() => $"/home/{TestAppContext.DefaultUserId}/{KazoVmRegistryStore.Directory}/{User:N}.json";
     }
 
     [Fact]

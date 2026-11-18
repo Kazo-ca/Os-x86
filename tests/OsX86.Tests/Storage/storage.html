@@ -145,6 +145,38 @@
     async list() { await ensureHost(); return request({ type: "list" }); },
     async estimate() { await ensureHost(); return request({ type: "estimate" }); },
     async delete(image, version) { await ensureHost(); return request({ type: "delete", image, version }); },
+
+    /** Any command (work item 8: read-user-file, write-user-file); an error answers { error: code }. */
+    async command(command) {
+      await ensureHost();
+      try {
+        const { type, text } = await request(command);
+        return { type, text: text ?? null };
+      } catch (error) {
+        return { error: error.code || String(error) };
+      }
+    },
+
+    /** Writes or reads a file of the OPFS from the page, bypassing the worker (to damage one on purpose). */
+    async opfsWrite(path, text) {
+      const parts = path.split("/");
+      let directory = await navigator.storage.getDirectory();
+      for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part, { create: true });
+      const writable = await (await directory.getFileHandle(parts.at(-1), { create: true })).createWritable();
+      await writable.write(text);
+      await writable.close();
+    },
+    async opfsExists(path) {
+      const parts = path.split("/");
+      try {
+        let directory = await navigator.storage.getDirectory();
+        for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part);
+        await directory.getFileHandle(parts.at(-1));
+        return true;
+      } catch {
+        return false;
+      }
+    },
     async verify(image, version) {
       await ensureHost();
       const manifest = await request({ type: "read-manifest", image, version });

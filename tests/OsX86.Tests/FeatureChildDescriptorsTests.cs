@@ -37,9 +37,12 @@ public sealed class FeatureChildDescriptorsTests
     {
         AppCatalog catalog = Catalog();
 
-        AppDescriptor cli = Assert.Single(FeatureChildDescriptors.Discover(catalog, FeatureAssembly));
+        IReadOnlyList<AppDescriptor> children = FeatureChildDescriptors.Discover(catalog, FeatureAssembly);
 
-        Assert.Equal("ca.kazo.x86.cli", cli.Manifest.Id);
+        // Both children are found with their feature: the command and the host service of 288 A.
+        Assert.Equal(["ca.kazo.x86.cli", "ca.kazo.x86.host"], children.Select(child => child.Manifest.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(typeof(X86HostService), children.Single(child => child.Manifest.Id == "ca.kazo.x86.host").EntryPointType);
+        AppDescriptor cli = children.Single(child => child.Manifest.Id == "ca.kazo.x86.cli");
         Assert.Equal(typeof(X86Command), cli.EntryPointType);
         // What the orchestrator of Kazo does with a terminal descriptor: the entry point built with its manifest.
         var command = (TerminalAppBase)Activator.CreateInstance(cli.EntryPointType, cli.Manifest)!;

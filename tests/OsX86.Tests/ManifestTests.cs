@@ -38,6 +38,24 @@ public sealed class ManifestTests
     }
 
     [Fact]
+    public void The_host_child_is_a_hidden_service_started_at_login_on_the_main_thread()
+    {
+        // Decision 288 A: it installs the emulator and the storage, which need the IJSRuntime of the page.
+        FeatureEntryPoint host = Assert.Single(_app.EntryPoints, entry => entry.Suffix == X86FeatureApp.HostSuffix);
+        Assert.Equal(AppKind.Service, host.Kind);
+        Assert.Equal(typeof(X86HostService), host.EntryPoint);
+        Assert.True(host.AutoStart);
+        Assert.Equal(AppServiceStartup.Login, host.ServiceStartup);
+        Assert.Equal(AppExecutionHost.MainThread, host.Execution);
+        Assert.Equal(AppLaunchVisibility.Hidden, host.LaunchVisibility);
+        Assert.Empty(host.Capabilities); // the OPFS is reached through its worker, not the files of Kazo
+        Assert.Null(host.RequiresRole);
+
+        FeatureManifests manifests = AppDefinitionMapper.ToFeatureManifests(_app);
+        Assert.Equal(["ca.kazo.x86.cli", "ca.kazo.x86.host"], manifests.Children.Select(child => child.Id));
+    }
+
+    [Fact]
     public void Every_capability_of_a_child_is_in_the_feature_set()
     {
         Assert.All(_app.EntryPoints, entry => Assert.All(entry.Capabilities, capability => Assert.Contains(capability, _app.Capabilities)));
@@ -93,7 +111,7 @@ public sealed class ManifestTests
         AssertValid(AppManifestValidator.Validate(manifests.Feature));
         Assert.All(manifests.Children, child => AssertValid(AppManifestValidator.Validate(child)));
         AssertValid(AppManifestValidator.ValidateFeature(manifests.Feature, manifests.Children));
-        Assert.Equal(["ca.kazo.x86.cli"], manifests.Children.Select(child => child.Id));
+        Assert.Equal(["ca.kazo.x86.cli", "ca.kazo.x86.host"], manifests.Children.Select(child => child.Id));
         Assert.All(manifests.Children, child => Assert.Equal("ca.kazo.x86", child.Parent));
     }
 

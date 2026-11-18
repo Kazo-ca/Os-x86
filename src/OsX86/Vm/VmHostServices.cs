@@ -64,6 +64,7 @@ public sealed record VmHostEnvironment(IEngineFactory Engines, IBootImageSource 
 /// </summary>
 public static class VmHost
 {
+    private static readonly Lock s_lock = new();
     private static VmHostEnvironment? s_current;
 
     /// <summary>The environment the host installed, or <see langword="null"/>.</summary>
@@ -73,7 +74,33 @@ public static class VmHost
     public static void Configure(VmHostEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(environment);
-        Volatile.Write(ref s_current, environment);
+        lock (s_lock)
+        {
+            Volatile.Write(ref s_current, environment);
+        }
+    }
+
+    /// <summary>
+    /// Installs an environment only when no host did yet (work item 8, decision 288 A): the Feature
+    /// installs its own at login and when its command runs first, but keeps the one a host installed
+    /// before (the dev host, with its image catalog and its test relay).
+    /// </summary>
+    /// <param name="create">Makes the environment; called only when none is installed.</param>
+    /// <returns>Whether this call installed it.</returns>
+    public static bool TryConfigure(Func<VmHostEnvironment> create)
+    {
+        ArgumentNullException.ThrowIfNull(create);
+        lock (s_lock)
+        {
+            if (s_current is not null)
+            {
+                return false;
+            }
+
+            VmHostEnvironment environment = create() ?? throw new InvalidOperationException("The host environment factory gave nothing.");
+            Volatile.Write(ref s_current, environment);
+            return true;
+        }
     }
 
     /// <summary>Forgets the host's environment (tests).</summary>

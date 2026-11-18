@@ -44,17 +44,30 @@ public sealed partial class X86Command : TerminalAppBase
     private readonly X86CommandServices _services;
 
     /// <summary>
-    /// Where the command gets its services. The OS builds an app from its manifest only (KOSAPP0031:
-    /// no service injected through the constructor), so they come from this factory; tests replace it.
-    /// Work item 8 registers the Feature's own instance in the OS instead.
+    /// Where the command gets its services: the ones the Feature shares in the page (an app may only
+    /// be given SDK services and <c>IJSRuntime</c> through its constructor, KOSAPP0031); tests replace it.
     /// </summary>
     internal static Func<X86CommandServices> ServicesFactory { get; set; } = static () => X86Runtime.Services;
 
-    /// <summary>Creates the command for the manifest the OS loaded; the OS starts an app through this constructor.</summary>
+    /// <summary>Creates the command for the manifest the OS loaded, on a host that gives it no JS runtime.</summary>
     /// <param name="manifest">This app's manifest.</param>
     public X86Command(AppManifest manifest)
         : base(manifest)
     {
+        _services = ServicesFactory();
+    }
+
+    /// <summary>
+    /// Creates the command as the OS does on the page (ADR 0034 of Kazo: the longest constructor it can
+    /// fill): with the JS runtime of the page, it installs the emulator and the storage when the
+    /// service child <c>ca.kazo.x86.host</c> has not yet (decision 288 A).
+    /// </summary>
+    /// <param name="manifest">This app's manifest.</param>
+    /// <param name="js">The JS runtime of the page.</param>
+    public X86Command(AppManifest manifest, Microsoft.JSInterop.IJSRuntime js)
+        : base(manifest)
+    {
+        X86Host.EnsureInstalled(js);
         _services = ServicesFactory();
     }
 
