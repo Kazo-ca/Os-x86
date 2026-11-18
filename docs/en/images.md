@@ -133,7 +133,7 @@ Four Docker stages, all `linux/386`, plus the image of the agent (`images/agent`
 `build-linux-base.py`) from which the `base` stage copies the two binaries:
 
 1. **kernel**: `alpine:3.24`, `apk fetch linux-virt busybox musl` (pinned file names, SHA-256
-   kept in `/usr/lib/osx86/provenance`), the `linux-virt` 6.18.63-r0 kernel unpacked from the
+   kept in `/usr/lib/osx86/provenance`), the `linux-virt` 6.18.64-r0 kernel unpacked from the
    package, the official Alpine initramfs rebuilt with `mkinitfs -F "base osx86"` (the
    `osx86.modules` feature adds `sd_mod`, the ATA drivers and ext4: `ata_piix` is built into the
    kernel, `sd_mod` and `ext4` are modules), and the modules of `modules.keep` with their

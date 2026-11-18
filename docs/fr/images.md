@@ -135,7 +135,7 @@ Quatre étapes Docker, toutes en `linux/386`, plus l'image de l'agent (`images/a
 d'abord par `build-linux-base.py`) dont l'étape `base` copie les deux binaires :
 
 1. **kernel** : `alpine:3.24`, `apk fetch linux-virt busybox musl` (noms de fichiers épinglés,
-   SHA-256 conservés dans `/usr/lib/osx86/provenance`), le noyau `linux-virt` 6.18.63-r0 extrait
+   SHA-256 conservés dans `/usr/lib/osx86/provenance`), le noyau `linux-virt` 6.18.64-r0 extrait
    du paquet, l'initramfs officiel d'Alpine refait par `mkinitfs -F "base osx86"` (la feature
    `osx86.modules` ajoute `sd_mod`, les pilotes ATA et ext4 : `ata_piix` est intégré au noyau,
    `sd_mod` et `ext4` sont des modules), et les modules de `modules.keep` avec leurs dépendances

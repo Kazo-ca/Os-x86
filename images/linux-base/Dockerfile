@@ -30,7 +30,7 @@ ARG AGENT_IMAGE=osx86-agent-build:0.1.0
 
 # --- Stage 1: the kernel of Alpine --------------------------------------------------------------
 FROM alpine:${ALPINE_VERSION} AS kernel
-ARG LINUX_VIRT_VERSION=6.18.63-r0
+ARG LINUX_VIRT_VERSION=6.18.64-r0
 ARG BUSYBOX_VERSION=1.37.0-r31
 ARG MUSL_VERSION=1.2.6-r3
 COPY osx86.modules /etc/mkinitfs/features.d/osx86.modules
