@@ -51,6 +51,32 @@ public sealed class X86HostTests
     }
 
     [Fact]
+    public async Task Ix86_has_an_emulator_once_the_host_service_started_without_any_x86_command()
+    {
+        // Work item 8c: Kazo 3.5.2 starts the service at login (Kazo-ca/Os#625). Ix86 resolves its
+        // manager through X86Runtime.Services, as X86FeatureService does.
+        try
+        {
+            VmHost.Clear();
+            X86Runtime.Reset();
+            // Before the service: what an app calling Ix86 got in Kazo 3.5.1 (engine-unavailable).
+            Assert.IsType<UnavailableEngineFactory>(X86Runtime.Services.Manager.Engines);
+            using var session = new CancellationTokenSource();
+
+            Task running = new X86HostService(HostManifest, new UnusedJsRuntime()).RunAsync(new TestAppContext(), session.Token);
+
+            Assert.IsType<JsEngineFactory>(X86Runtime.Services.Manager.Engines);
+            await session.CancelAsync();
+            await running.WaitAsync(Soon);
+        }
+        finally
+        {
+            VmHost.Clear();
+            X86Runtime.Reset();
+        }
+    }
+
+    [Fact]
     public async Task A_host_installed_before_the_feature_ran_is_kept()
     {
         try

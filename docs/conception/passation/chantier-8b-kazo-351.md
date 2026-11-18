@@ -26,6 +26,9 @@ PR `j0/8b-kazo-351` → `j0/base`. Suite du chantier 8 ([note](chantier-8-featur
 
 ## Piège trouvé : le service `host` ne démarre plus à la connexion
 
+> **Corrigé au chantier 8c** : Kazo 3.5.2 (Kazo-ca/Os#625, ADR 0286) démarre ce service à la
+> connexion. Voir [la note du chantier 8c](chantier-8c-kazo-352.md).
+
 `systemctl status ca.kazo.x86.host` montre `inactive (dead)` après la connexion, alors qu'il était
 actif au chantier 8.
 
