@@ -604,3 +604,14 @@ Série 29 (297 et 298), posée le 2026-11-18 dans [serie-29-envoyee.md](serie-29
 |---|---|---|---|
 | 297 | Événement d'une opération sensible d'une Feature authentifiée | **A** : surcharge `AuthenticateAsync(operation, scope, KazoEventSubject? subject)` au SDK ; l'OS écrit l'événement de l'usager à la consommation du billet, avec ce sujet. | ADR Kazo 0254 §2, 0247 |
 | 298 | Un administrateur lit le journal d'un autre usager | **A** : `KazoUserAccounts.ReadEventsAsync(login, filtre)` ; authentification d'administrateur une fois par processus de la visionneuse ; entrée `events.read-other` dans `auth.log`. | ADR Kazo 0254 §3 |
+
+Série 30 (299 à 304), posée le 2026-11-19 dans [serie-30-envoyee.md](serie-30-envoyee.md) (relecture de Kazo-ca/Os#631). Réponses données dans la session Kazo (mots exacts dans la série).
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 299 | Limites de débit et de taille du journal par usager | **A** : 200 événements par app et par usager en 30 s, 60 relectures en 30 s, tailles bornées. | ADR Kazo 0254 |
+| 300 | Où écrire ces décisions | **A** : dans `app-log-files.md` (fr et en). | ADR Kazo 0254 |
+| 301 | Genres `kazoos.*` | **A** : réservés à l'OS seul. | ADR Kazo 0254 |
+| 302 | Journal modifiable par une app à `filesystem.system.*` | **C, avec une précision** : limite documentée ; issue TODO Kazo-ca/Os#632, protection simple (écriture refusée sauf l'OS, ou fichier à `system` en lecture pour l'usager), ADR d'abord. | ADR Kazo 0254 |
+| 303 | Écriture depuis un worker | **A** : envoi sans réponse. | ADR Kazo 0254 |
+| 304 | Surveillance de #631 | **B** : Auto-fix de l'app seulement, jamais Copilot. | — |
