@@ -33,3 +33,12 @@ Contexte : Kazo n'a pas encore de vraie Feature installable. Os-x86 sera la prem
 - A) ✨(Recommandé) Tests unitaires et de rendu dans cette PR. Le parcours complet sera testé avec la première Feature réelle, Os-x86.
 - B) Ajouter dès maintenant une Feature d'essai dans Kazo et un test Playwright du parcours complet.
 - C) Autre : (Spécifiez)
+
+## Réponses
+
+Réponse du 2026-11-20, après la fusion de #617. Tes mots : « 283. b », « 284. a », « 285. a », « 286. a ».
+
+- 283 : **B (pas ma recommandation)**. Désactiver une Feature ne la désinstalle pas : elle reste installée, ses points d'entrée sont arrêtés et cachés, et cet état est gardé dans un document système. #617 avait codé A ; un correctif suit vers `feature/base`, avec l'ajustement de l'ADR 0285.
+- 284 : **A**. Pas d'état « redémarrage requis ».
+- 285 : **A**. `IFeatureSettingsPages` public dans `Kazo.Os.AppSdk.Blazor`, injecté dans les Paramètres.
+- 286 : **A**. Tests unitaires et de rendu ; parcours complet avec Os-x86.
