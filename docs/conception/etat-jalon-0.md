@@ -21,7 +21,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 - Kazo 3.5.0 publiée le 2026-11-17 (Kazo #613 puis #615) : code des ADR 0246, 0248, 0250, 0247 et 0283, plus les fournisseurs de fichiers tiers (ADR 0282, 0284). C'est la version que le chantier 8 épinglera.
 - Kazo 3.5.1 publiée le 2026-11-18 : correctif de l'issue #621 (enfants de Feature non lançables), PR #622 dans `main` et #623 dans `feature/base` (292 B).
 - Kazo 3.5.2 publiée le 2026-11-18 : correctif de l'issue #625, les services automatiques du catalogue démarrent à la connexion même si leur code n'est pas chargé, `kazowebd` passe en manuel, une Feature règle ses services (ADR 0286, 295 C) ; PR #629 dans `main` et #630 dans `feature/base`. TODO Kazo : #626 (onglet Services de System Monitor), #627 (service fourni par une app), #628 (apps de démarrage).
-- Code de l'ADR 0249, section « Fonctionnalités » des Paramètres, avec l'ADR d'ajustement 0285 : fusionné dans `feature/base` (PR #617) le 2026-11-17 ; réponses de la [série 24](serie-24-envoyee.md) à consigner.
+- Code de l'ADR 0249, section « Fonctionnalités » des Paramètres, avec l'ADR d'ajustement 0285 : fusionné dans `feature/base` (PR #617) le 2026-11-17  ; [série 24](serie-24-envoyee.md) répondue le 2026-11-20 (283 B demande un correctif, 284 à 286 A).
 - Tout ce code est dans `main` de Kazo et publié en `v3.4.0-preview.2` à `.4`.
 
 **Os-x86 (dépôt Kazo-ca/Os-x86, série `j0/base`)**
@@ -46,8 +46,9 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 
 ## En cours
 
+- **Kazo 0249, correctif 283 B** : état « désactivée » distinct pour une Feature, dans la session Kazo, PR vers `feature/base`.
 - **Kazo 0254**, événements par usager (journal personnel, 137), dans la session Kazo, PR vers `feature/base` (296 A, [série 28](serie-28-envoyee.md) ; 297 A et 298 A, [série 29](serie-29-envoyee.md) ; 299 à 304, [série 30](serie-30-envoyee.md)) : PR Kazo-ca/Os#631, CI verte, à fusionner par toi. TODO Kazo : #632 (protection du journal).
-- **Chantier 13**, BoxedWine minimal, dans le dépôt Kazo-ca/Os-App-BoxedWine, branche `j0/base` (296 A). Sa démonstration par le terminal (`./setup.exe`) attend le code Kazo de l'ADR 0251.
+- **Chantier 13**, BoxedWine minimal, dans le dépôt Kazo-ca/Os-App-BoxedWine, branche `j0/base` (296 A) : attend que tu approuves le dossier (305 A). Sa démonstration par le terminal (`./setup.exe`) attend le code Kazo de l'ADR 0251.
 
 ## Reste à faire
 
@@ -62,7 +63,7 @@ Résumé simple, tenu à jour à chaque fusion. Le détail est dans [jalon-0-exe
 **Kazo** : le code des ADR 0249 et 0251 à 0255, un chantier par ADR, dans l'ordre 0249 (fait, dans `feature/base`), 0254 (en cours), 0251, 0252, 0253, 0255 ; puis une version publiée de Kazo pour y épingler Os-x86.
 
 **À régler par toi**
-- Confirmer les réponses de la série 24 (283 à 286) ; Kazo #617 est déjà fusionnée.
+- Approuver le dossier `Os-App-BoxedWine` dans l'app (« Nouvelle session »), puis répondre « fait » (305 A).
 - Activer GitHub Pages sur Os-x86 (source « GitHub Actions ») et la variable `OSX86_PUBLISH_PAGES=true`.
 - Fournir l'origine R2 et les secrets `OSX86_R2_*` quand les vraies images seront prêtes.
 

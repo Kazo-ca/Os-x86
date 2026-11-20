@@ -568,6 +568,15 @@ Série 23 (281, 282), posée le 2026-11-17 dans [serie-23-envoyee.md](serie-23-e
 | 281 | Préfixe des rôles d'une Feature | **A** : le `CapabilityPrefix` (ADR 0246), unique et court ; `x86:vm-manager` pour Os-x86. | 277, ADR 0283 |
 | 282 | Sous-commande ouverte à tous et rôle | **A** : acceptée pour un détenteur d'un rôle de la Feature, rôle exact vérifié par `IsInRole`. | 277, ADR 0247 |
 
+Série 24 (283 à 286), posée le 2026-11-17 dans [serie-24-envoyee.md](serie-24-envoyee.md) (code de l'ADR Kazo 0249, PR Kazo-ca/Os#617, fusionnée le même jour). Réponses du 2026-11-20 : « 283. b », « 284. a », « 285. a », « 286. a ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 283 | « Activer » et « désactiver » une Feature dans les Paramètres | **B (pas ma recommandation)** : un état « désactivée » distinct ; la Feature reste installée, ses points d'entrée sont arrêtés et cachés, l'état vit dans un document système. Correctif de #617 vers `feature/base`, ajustement de l'ADR 0285. | ADR Kazo 0249, 0285 |
+| 284 | État « redémarrage requis » | **A** : pas affiché. | ADR Kazo 0249 §1 |
+| 285 | Contrat `IFeatureSettingsPages` | **A** : public dans `Kazo.Os.AppSdk.Blazor`, injecté dans les Paramètres. | ADR Kazo 0249, KOSAPP0031 |
+| 286 | Test de bout en bout de la section « Fonctionnalités » | **A** : unitaires et rendu ; parcours complet avec Os-x86. | ADR Kazo 0249 |
+
 Série 25 (287 à 291), posée le 2026-11-17 dans [serie-25-envoyee.md](serie-25-envoyee.md) (chantier 8, la Feature x86 sur Kazo 3.5.0). Réponses du même jour : « 291. b » ; dans la session du chantier 8, « 289 . a) mais le message d'erreur est localisé à la langue utilisé par l'OS » et « 290. B ». Pour 287 et 288, dans la même session : « Je suis d'accord avec tes recommendations ». 292 répondue dans la session Kazo (B, Kazo-ca/Os#623 fusionnée).
 
 | # | Sujet | Décision | Remplace ou précise |
@@ -615,3 +624,9 @@ Série 30 (299 à 304), posée le 2026-11-19 dans [serie-30-envoyee.md](serie-30
 | 302 | Journal modifiable par une app à `filesystem.system.*` | **C, avec une précision** : limite documentée ; issue TODO Kazo-ca/Os#632, protection simple (écriture refusée sauf l'OS, ou fichier à `system` en lecture pour l'usager), ADR d'abord. | ADR Kazo 0254 |
 | 303 | Écriture depuis un worker | **A** : envoi sans réponse. | ADR Kazo 0254 |
 | 304 | Surveillance de #631 | **B** : Auto-fix de l'app seulement, jamais Copilot. | — |
+
+Série 31 (305), posée le 2026-11-20 dans [serie-31-envoyee.md](serie-31-envoyee.md). Réponse du même jour : « 305. a ».
+
+| # | Sujet | Décision | Remplace ou précise |
+|---|---|---|---|
+| 305 | Lancement du chantier 13 | **A** : tu approuves le dossier `Os-App-BoxedWine` dans l'app, puis tu réponds « fait ». | 296 A |
